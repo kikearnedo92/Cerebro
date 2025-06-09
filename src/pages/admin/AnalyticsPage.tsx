@@ -2,327 +2,343 @@
 import React, { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { BarChart3, TrendingUp, MessageSquare, Users, FileText, Clock, Download, Filter } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  PieChart,
-  Pie,
-  Cell
-} from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
+import { MessageSquare, Users, FileText, TrendingUp, Calendar, Clock, ThumbsUp, RefreshCw } from 'lucide-react'
+import { supabase } from '@/integrations/supabase/client'
+import { toast } from '@/hooks/use-toast'
+
+interface AnalyticsData {
+  totalQueries: number
+  totalUsers: number
+  totalDocuments: number
+  activeUsers: number
+  dailyQueries: { date: string; queries: number }[]
+  topQuestions: { question: string; count: number }[]
+  userDistribution: { area: string; users: number }[]
+  satisfactionRating: number
+}
 
 const AnalyticsPage = () => {
-  const [timeRange, setTimeRange] = useState('7d')
+  const [analytics, setAnalytics] = useState<AnalyticsData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  // Mock analytics data
-  const stats = {
-    totalQueries: 1247,
-    activeUsers: 68,
-    avgResponseTime: 2.3,
-    knowledgeBaseItems: 156,
-    satisfaction: 4.2,
-    popularQueries: [
-      { query: "Políticas de remesas a Colombia", count: 45 },
-      { query: "Scripts de atención al cliente", count: 38 },
-      { query: "Procedimientos ATC", count: 32 },
-      { query: "Regulaciones Chile", count: 28 },
-      { query: "Compliance Brasil", count: 24 }
-    ],
-    userActivity: [
-      { area: "Customer Success", queries: 425 },
-      { area: "Operaciones", queries: 312 },
-      { area: "Producto", queries: 198 },
-      { area: "Compliance", queries: 156 },
-      { area: "Administración", queries: 89 }
-    ],
-    usageData: [
-      { date: '2024-01-08', queries: 45 },
-      { date: '2024-01-09', queries: 52 },
-      { date: '2024-01-10', queries: 48 },
-      { date: '2024-01-11', queries: 61 },
-      { date: '2024-01-12', queries: 55 },
-      { date: '2024-01-13', queries: 73 },
-      { date: '2024-01-14', queries: 67 }
-    ],
-    topTopics: [
-      { topic: 'Remesas Colombia', count: 89 },
-      { topic: 'Atención al cliente', count: 76 },
-      { topic: 'Compliance', count: 54 },
-      { topic: 'Políticas España', count: 43 },
-      { topic: 'Scripts respuesta', count: 38 }
-    ]
+  const fetchAnalytics = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      
+      console.log('📊 Fetching analytics data...')
+
+      // Fetch queries from usage_analytics
+      const { data: queries, error: queriesError } = await supabase
+        .from('usage_analytics')
+        .select('*')
+
+      if (queriesError) {
+        console.error('Queries fetch error:', queriesError)
+      }
+
+      // Fetch users from profiles
+      const { data: users, error: usersError } = await supabase
+        .from('profiles')
+        .select('area, last_login, created_at')
+
+      if (usersError) {
+        console.error('Users fetch error:', usersError)
+      }
+
+      // Fetch knowledge base items
+      const { data: documents, error: documentsError } = await supabase
+        .from('knowledge_base')
+        .select('id, active')
+
+      if (documentsError) {
+        console.error('Documents fetch error:', documentsError)
+      }
+
+      // Process analytics data
+      const totalQueries = queries?.length || 0
+      const totalUsers = users?.length || 0
+      const totalDocuments = documents?.filter(d => d.active)?.length || 0
+      
+      // Active users (logged in last 7 days)
+      const weekAgo = new Date()
+      weekAgo.setDate(weekAgo.getDate() - 7)
+      const activeUsers = users?.filter(u => 
+        u.last_login && new Date(u.last_login) > weekAgo
+      )?.length || 0
+
+      // Daily queries for last 7 days
+      const dailyQueries = []
+      for (let i = 6; i >= 0; i--) {
+        const date = new Date()
+        date.setDate(date.getDate() - i)
+        const dateStr = date.toISOString().split('T')[0]
+        
+        const dayQueries = queries?.filter(q => 
+          new Date(q.created_at).toISOString().split('T')[0] === dateStr
+        )?.length || 0
+
+        dailyQueries.push({
+          date: date.toLocaleDateString('es-ES', { month: 'short', day: 'numeric' }),
+          queries: dayQueries
+        })
+      }
+
+      // User distribution by area
+      const areaCount: { [key: string]: number } = {}
+      users?.forEach(user => {
+        if (user.area) {
+          areaCount[user.area] = (areaCount[user.area] || 0) + 1
+        }
+      })
+
+      const userDistribution = Object.entries(areaCount).map(([area, count]) => ({
+        area,
+        users: count
+      }))
+
+      // Mock top questions and satisfaction for now
+      const topQuestions = [
+        { question: "Políticas de ATC", count: Math.floor(totalQueries * 0.3) },
+        { question: "Procedimientos por país", count: Math.floor(totalQueries * 0.25) },
+        { question: "Scripts de respuesta", count: Math.floor(totalQueries * 0.2) },
+        { question: "Normativas compliance", count: Math.floor(totalQueries * 0.15) },
+        { question: "Documentación técnica", count: Math.floor(totalQueries * 0.1) }
+      ]
+
+      const analyticsData: AnalyticsData = {
+        totalQueries,
+        totalUsers,
+        totalDocuments,
+        activeUsers,
+        dailyQueries,
+        topQuestions,
+        userDistribution,
+        satisfactionRating: 87 // Mock satisfaction rating
+      }
+
+      console.log('✅ Analytics data processed:', analyticsData)
+      setAnalytics(analyticsData)
+
+    } catch (error) {
+      console.error('Analytics fetch failed:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido'
+      setError(errorMessage)
+      toast({
+        title: "Error",
+        description: `Error cargando analytics: ${errorMessage}`,
+        variant: "destructive"
+      })
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const pieColors = ['#8B5CF6', '#10B981', '#F59E0B', '#EF4444', '#3B82F6']
+  useEffect(() => {
+    fetchAnalytics()
+  }, [])
+
+  if (loading) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="flex items-center justify-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+          <span className="ml-3 text-gray-600">Cargando analytics...</span>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <Card className="border-red-200 bg-red-50">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center">
+                <TrendingUp className="w-4 h-4 text-red-600" />
+              </div>
+              <div>
+                <h3 className="font-medium text-red-900">Error al cargar analytics</h3>
+                <p className="text-sm text-red-700">{error}</p>
+              </div>
+            </div>
+            <Button onClick={fetchAnalytics} className="mt-4" variant="outline">
+              Reintentar
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  if (!analytics) {
+    return null
+  }
+
+  const COLORS = ['#8b5cf6', '#3b82f6', '#10b981', '#f59e0b', '#ef4444']
 
   return (
-    <div className="h-full p-6 space-y-6 overflow-auto">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex justify-between items-center mb-8">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <BarChart3 className="w-6 h-6" />
-            Analytics y Métricas
-          </h1>
-          <p className="text-gray-600">Monitoreo de uso y rendimiento de Cerebro</p>
+          <h1 className="text-2xl font-bold text-gray-900">Analytics</h1>
+          <p className="text-gray-600">Métricas de uso de Cerebro</p>
         </div>
-        <div className="flex items-center space-x-3">
-          <Select value={timeRange} onValueChange={setTimeRange}>
-            <SelectTrigger className="w-40">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="1d">Último día</SelectItem>
-              <SelectItem value="7d">Últimos 7 días</SelectItem>
-              <SelectItem value="30d">Últimos 30 días</SelectItem>
-              <SelectItem value="90d">Últimos 90 días</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button variant="outline">
-            <Filter className="w-4 h-4 mr-2" />
-            Filtros
-          </Button>
-          <Button>
-            <Download className="w-4 h-4 mr-2" />
-            Exportar
-          </Button>
-        </div>
+        <Button onClick={fetchAnalytics} variant="outline" size="sm">
+          <RefreshCw className="w-4 h-4 mr-2" />
+          Actualizar
+        </Button>
       </div>
 
-      {/* Key Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <MessageSquare className="w-6 h-6 text-blue-500" />
-              <div>
-                <p className="text-2xl font-bold">{stats.totalQueries.toLocaleString()}</p>
+          <CardContent className="p-6">
+            <div className="flex items-center">
+              <MessageSquare className="h-8 w-8 text-purple-600" />
+              <div className="ml-4">
                 <p className="text-sm text-gray-600">Consultas Totales</p>
-                <div className="flex items-center mt-1">
-                  <TrendingUp className="w-3 h-3 text-green-500 mr-1" />
-                  <span className="text-xs text-green-600">+12% vs mes anterior</span>
-                </div>
+                <p className="text-2xl font-bold">{analytics.totalQueries}</p>
               </div>
             </div>
           </CardContent>
         </Card>
         
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <Users className="w-6 h-6 text-green-500" />
-              <div>
-                <p className="text-2xl font-bold">{stats.activeUsers}</p>
+          <CardContent className="p-6">
+            <div className="flex items-center">
+              <Users className="h-8 w-8 text-blue-600" />
+              <div className="ml-4">
                 <p className="text-sm text-gray-600">Usuarios Activos</p>
-                <div className="flex items-center mt-1">
-                  <TrendingUp className="w-3 h-3 text-green-500 mr-1" />
-                  <span className="text-xs text-green-600">+8% vs mes anterior</span>
-                </div>
+                <p className="text-2xl font-bold">{analytics.activeUsers}</p>
+                <p className="text-xs text-gray-500">de {analytics.totalUsers} total</p>
               </div>
             </div>
           </CardContent>
         </Card>
         
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <Clock className="w-6 h-6 text-orange-500" />
-              <div>
-                <p className="text-2xl font-bold">{stats.avgResponseTime}s</p>
-                <p className="text-sm text-gray-600">Tiempo Respuesta</p>
-                <div className="flex items-center mt-1">
-                  <TrendingUp className="w-3 h-3 text-green-500 mr-1" />
-                  <span className="text-xs text-green-600">-0.5s vs mes anterior</span>
-                </div>
+          <CardContent className="p-6">
+            <div className="flex items-center">
+              <FileText className="h-8 w-8 text-green-600" />
+              <div className="ml-4">
+                <p className="text-sm text-gray-600">Documentos</p>
+                <p className="text-2xl font-bold">{analytics.totalDocuments}</p>
+                <p className="text-xs text-gray-500">activos</p>
               </div>
             </div>
           </CardContent>
         </Card>
         
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <FileText className="w-6 h-6 text-purple-500" />
-              <div>
-                <p className="text-2xl font-bold">{stats.knowledgeBaseItems}</p>
-                <p className="text-sm text-gray-600">Documentos KB</p>
-                <div className="flex items-center mt-1">
-                  <TrendingUp className="w-3 h-3 text-green-500 mr-1" />
-                  <span className="text-xs text-green-600">+15 este mes</span>
-                </div>
+          <CardContent className="p-6">
+            <div className="flex items-center">
+              <ThumbsUp className="h-8 w-8 text-yellow-600" />
+              <div className="ml-4">
+                <p className="text-sm text-gray-600">Satisfacción</p>
+                <p className="text-2xl font-bold">{analytics.satisfactionRating}%</p>
+                <p className="text-xs text-gray-500">promedio</p>
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Usage Trends */}
+      {/* Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+        {/* Daily Usage Chart */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <TrendingUp className="w-5 h-5" />
-              <span>Tendencia de Uso</span>
+            <CardTitle className="flex items-center gap-2">
+              <Calendar className="h-5 w-5" />
+              Consultas por Día (Última Semana)
             </CardTitle>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={stats.usageData}>
+              <BarChart data={analytics.dailyQueries}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis 
-                  dataKey="date" 
-                  tickFormatter={(value) => new Date(value).toLocaleDateString('es-ES', { month: 'short', day: 'numeric' })}
-                />
+                <XAxis dataKey="date" />
                 <YAxis />
-                <Tooltip 
-                  labelFormatter={(value) => new Date(value).toLocaleDateString('es-ES')}
-                  formatter={(value) => [value, 'Consultas']}
-                />
-                <Line 
-                  type="monotone" 
-                  dataKey="queries" 
-                  stroke="#8B5CF6" 
-                  strokeWidth={3}
-                  dot={{ fill: '#8B5CF6', strokeWidth: 2, r: 4 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        {/* Top Areas */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Users className="w-5 h-5" />
-              <span>Actividad por Área</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={stats.userActivity}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="area" />
-                <YAxis />
-                <Tooltip formatter={(value) => [value, 'Consultas']} />
-                <Bar dataKey="queries" fill="#8B5CF6" radius={[4, 4, 0, 0]} />
+                <Tooltip />
+                <Bar dataKey="queries" fill="#8b5cf6" />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
-      </div>
 
-      {/* Bottom Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Popular Queries */}
+        {/* User Distribution */}
         <Card>
           <CardHeader>
-            <CardTitle>Consultas Más Populares</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {stats.popularQueries.map((item, index) => (
-                <div key={index} className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <p className="text-sm font-medium truncate">{item.query}</p>
-                  </div>
-                  <Badge variant="secondary" className="ml-2">
-                    {item.count}
-                  </Badge>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Top Topics */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <MessageSquare className="w-5 h-5" />
-              <span>Temas Más Consultados</span>
+            <CardTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              Distribución por Área
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={250}>
-              <PieChart>
-                <Pie
-                  data={stats.topTopics}
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={80}
-                  dataKey="count"
-                  nameKey="topic"
-                  label={({ topic, percent }) => `${topic} ${(percent * 100).toFixed(0)}%`}
-                >
-                  {stats.topTopics.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={pieColors[index % pieColors.length]} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
+            {analytics.userDistribution.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <Pie
+                    data={analytics.userDistribution}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={({ area, percent }) => `${area} (${(percent * 100).toFixed(0)}%)`}
+                    outerRadius={80}
+                    fill="#8884d8"
+                    dataKey="users"
+                  >
+                    {analytics.userDistribution.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-300 text-gray-500">
+                <p>No hay datos de distribución</p>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Performance Metrics */}
+      {/* Top Questions */}
       <Card>
         <CardHeader>
-          <CardTitle>Métricas de Rendimiento</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <MessageSquare className="h-5 w-5" />
+            Preguntas Más Frecuentes
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <div>
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-sm font-medium">Tiempo de Respuesta</span>
-                <span className="text-sm text-gray-600">1.2s promedio</span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div className="bg-green-500 h-2 rounded-full" style={{ width: '85%' }}></div>
-              </div>
+          {analytics.topQuestions.length > 0 ? (
+            <div className="space-y-4">
+              {analytics.topQuestions.map((question, index) => (
+                <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
+                      <span className="text-sm font-medium text-purple-600">{index + 1}</span>
+                    </div>
+                    <span className="font-medium">{question.question}</span>
+                  </div>
+                  <Badge variant="secondary">{question.count} consultas</Badge>
+                </div>
+              ))}
             </div>
-            
-            <div>
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-sm font-medium">Precisión de Respuestas</span>
-                <span className="text-sm text-gray-600">92%</span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div className="bg-blue-500 h-2 rounded-full" style={{ width: '92%' }}></div>
-              </div>
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              <MessageSquare className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p>No hay datos de preguntas frecuentes</p>
             </div>
-            
-            <div>
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-sm font-medium">Satisfacción</span>
-                <span className="text-sm text-gray-600">4.2/5</span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div className="bg-yellow-500 h-2 rounded-full" style={{ width: '84%' }}></div>
-              </div>
-            </div>
-            
-            <div>
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-sm font-medium">Uso KB</span>
-                <span className="text-sm text-gray-600">78%</span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div className="bg-purple-500 h-2 rounded-full" style={{ width: '78%' }}></div>
-              </div>
-            </div>
-          </div>
+          )}
         </CardContent>
       </Card>
     </div>

@@ -1,111 +1,151 @@
 
 import React, { useState, useEffect } from 'react'
-import { supabase } from '@/integrations/supabase/client'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Users, UserPlus, Shield, Clock, Search, Mail } from 'lucide-react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Users, UserPlus, Mail, Calendar, Shield, Building, User } from 'lucide-react'
+import { useAuth } from '@/hooks/useAuth'
+import { supabase } from '@/integrations/supabase/client'
 import { toast } from '@/hooks/use-toast'
 
+interface UserProfile {
+  id: string
+  email: string
+  full_name: string
+  area: string
+  rol_empresa: string
+  role_system: string
+  created_at: string
+  last_login?: string
+}
+
 const UsersPage = () => {
-  const [users, setUsers] = useState<any[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [searchTerm, setSearchTerm] = useState('')
+  const { user } = useAuth()
+  const [users, setUsers] = useState<UserProfile[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [inviteModalOpen, setInviteModalOpen] = useState(false)
-  const [inviteData, setInviteData] = useState({
+  const [inviting, setInviting] = useState(false)
+
+  // Invite form state
+  const [inviteForm, setInviteForm] = useState({
     email: '',
-    full_name: '',
     area: '',
     rol_empresa: ''
   })
 
-  const areas = [
-    'Administración', 'Customer Success', 'Producto', 'Growth',
-    'Tesorería', 'Operaciones', 'Compliance', 'People'
-  ]
-
-  const roles = [
-    'Director', 'Manager', 'Coordinador', 'Ejecutivo', 'Analista', 'Asistente'
-  ]
-
-  useEffect(() => {
-    fetchUsers()
-  }, [])
-
   const fetchUsers = async () => {
     try {
-      setIsLoading(true)
+      setLoading(true)
+      setError(null)
+      
+      console.log('👥 Fetching users...')
+      
       const { data, error } = await supabase
         .from('profiles')
-        .select('*')
+        .select(`
+          id,
+          email,
+          full_name,
+          area,
+          rol_empresa,
+          role_system,
+          created_at,
+          last_login
+        `)
         .order('created_at', { ascending: false })
 
       if (error) {
-        console.error('Error fetching users:', error)
-        toast({
-          title: "Error",
-          description: "No se pudieron cargar los usuarios",
-          variant: "destructive"
-        })
-        return
+        console.error('Users fetch error:', error)
+        throw new Error(`Error cargando usuarios: ${error.message}`)
       }
 
+      console.log('✅ Users loaded:', data?.length || 0)
       setUsers(data || [])
+      
     } catch (error) {
-      console.error('Error:', error)
+      console.error('Users fetch failed:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido'
+      setError(errorMessage)
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive"
+      })
     } finally {
-      setIsLoading(false)
+      setLoading(false)
     }
   }
-
-  const filteredUsers = users.filter(user => 
-    user.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.area?.toLowerCase().includes(searchTerm.toLowerCase())
-  )
 
   const handleInviteUser = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (!inviteData.email.trim() || !inviteData.full_name.trim()) {
+    if (!inviteForm.email || !inviteForm.area || !inviteForm.rol_empresa) {
       toast({
         title: "Error",
-        description: "Email y nombre completo son requeridos",
+        description: "Por favor completa todos los campos",
         variant: "destructive"
       })
       return
     }
 
-    if (!inviteData.email.endsWith('@retorna.app')) {
-      toast({
-        title: "Error",
-        description: "Solo se permiten emails con dominio @retorna.app",
-        variant: "destructive"
-      })
-      return
-    }
-
+    setInviting(true)
+    
     try {
-      // Send invitation email (in a real app, this would send an invitation link)
-      toast({
-        title: "Invitación enviada",
-        description: `Se ha enviado una invitación a ${inviteData.email}`,
+      // Validate email domain
+      if (!inviteForm.email.endsWith('@retorna.app')) {
+        throw new Error('Solo se pueden invitar emails @retorna.app')
+      }
+
+      // Check if user exists
+      const { data: existing } = await supabase
+        .from('profiles')
+        .select('email')
+        .eq('email', inviteForm.email)
+        .single()
+
+      if (existing) {
+        throw new Error('Este usuario ya está registrado')
+      }
+
+      // Create registration link
+      const registrationParams = new URLSearchParams({
+        invited: 'true',
+        area: inviteForm.area,
+        role: inviteForm.rol_empresa,
+        email: inviteForm.email
       })
       
+      const registrationLink = `${window.location.origin}/auth?${registrationParams.toString()}`
+
+      // Copy to clipboard
+      await navigator.clipboard.writeText(registrationLink)
+
+      toast({
+        title: "✅ Invitación creada",
+        description: `Link de registro copiado al portapapeles. Compártelo con ${inviteForm.email}`,
+      })
+
+      console.log('📧 Invitation link generated:', registrationLink)
+      
+      // Reset form and close modal
+      setInviteForm({ email: '', area: '', rol_empresa: '' })
       setInviteModalOpen(false)
-      setInviteData({ email: '', full_name: '', area: '', rol_empresa: '' })
+      
     } catch (error) {
-      console.error('Error inviting user:', error)
+      console.error('Invite error:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido'
       toast({
         title: "Error",
-        description: "No se pudo enviar la invitación",
+        description: errorMessage,
         variant: "destructive"
       })
+    } finally {
+      setInviting(false)
     }
   }
 
@@ -116,62 +156,82 @@ const UsersPage = () => {
         .update({ role_system: newRole })
         .eq('id', userId)
 
-      if (error) throw error
+      if (error) {
+        throw new Error(`Error actualizando rol: ${error.message}`)
+      }
+
+      // Update local state
+      setUsers(prev => prev.map(u => 
+        u.id === userId ? { ...u, role_system: newRole } : u
+      ))
 
       toast({
         title: "Éxito",
         description: "Rol actualizado correctamente"
       })
-      
-      await fetchUsers()
+
     } catch (error) {
-      console.error('Error updating user role:', error)
+      console.error('Role update error:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido'
       toast({
         title: "Error",
-        description: "No se pudo actualizar el rol",
+        description: errorMessage,
         variant: "destructive"
       })
     }
   }
 
-  const formatDate = (date: string) => {
-    return new Date(date).toLocaleDateString('es-ES', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    })
+  useEffect(() => {
+    fetchUsers()
+  }, [])
+
+  if (loading) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="flex items-center justify-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+          <span className="ml-3 text-gray-600">Cargando usuarios...</span>
+        </div>
+      </div>
+    )
   }
 
-  const getAreaColor = (area: string) => {
-    const colors: Record<string, string> = {
-      'Administración': 'bg-purple-100 text-purple-800',
-      'Customer Success': 'bg-green-100 text-green-800',
-      'Producto': 'bg-blue-100 text-blue-800',
-      'Growth': 'bg-orange-100 text-orange-800',
-      'Tesorería': 'bg-yellow-100 text-yellow-800',
-      'Operaciones': 'bg-cyan-100 text-cyan-800',
-      'Compliance': 'bg-red-100 text-red-800',
-      'People': 'bg-pink-100 text-pink-800'
-    }
-    return colors[area] || 'bg-gray-100 text-gray-800'
+  if (error) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <Card className="border-red-200 bg-red-50">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center">
+                <Users className="w-4 h-4 text-red-600" />
+              </div>
+              <div>
+                <h3 className="font-medium text-red-900">Error al cargar usuarios</h3>
+                <p className="text-sm text-red-700">{error}</p>
+              </div>
+            </div>
+            <Button onClick={fetchUsers} className="mt-4" variant="outline">
+              Reintentar
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   return (
-    <div className="h-full p-6 space-y-6 overflow-auto">
-      <div className="flex items-center justify-between">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* Header */}
+      <div className="flex justify-between items-center mb-8">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Users className="w-6 h-6" />
-            Gestión de Usuarios
-          </h1>
-          <p className="text-gray-600">Administra usuarios y permisos del sistema</p>
+          <h1 className="text-2xl font-bold text-gray-900">Gestión de Usuarios</h1>
+          <p className="text-gray-600">Administra los usuarios de Cerebro</p>
         </div>
+        
         <Dialog open={inviteModalOpen} onOpenChange={setInviteModalOpen}>
           <DialogTrigger asChild>
-            <Button className="flex items-center gap-2">
-              <UserPlus className="w-4 h-4" />
+            <Button className="bg-purple-600 hover:bg-purple-700">
+              <UserPlus className="w-4 h-4 mr-2" />
               Invitar Usuario
             </Button>
           </DialogTrigger>
@@ -181,59 +241,59 @@ const UsersPage = () => {
             </DialogHeader>
             <form onSubmit={handleInviteUser} className="space-y-4">
               <div>
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email">Email (@retorna.app)</Label>
                 <Input
                   id="email"
                   type="email"
-                  value={inviteData.email}
-                  onChange={(e) => setInviteData(prev => ({ ...prev, email: e.target.value }))}
+                  value={inviteForm.email}
+                  onChange={(e) => setInviteForm(prev => ({ ...prev, email: e.target.value }))}
                   placeholder="usuario@retorna.app"
                   required
                 />
               </div>
-              <div>
-                <Label htmlFor="full_name">Nombre Completo</Label>
-                <Input
-                  id="full_name"
-                  value={inviteData.full_name}
-                  onChange={(e) => setInviteData(prev => ({ ...prev, full_name: e.target.value }))}
-                  placeholder="Juan Pérez"
-                  required
-                />
-              </div>
+              
               <div>
                 <Label htmlFor="area">Área</Label>
-                <Select onValueChange={(value) => setInviteData(prev => ({ ...prev, area: value }))}>
+                <Select value={inviteForm.area} onValueChange={(value) => setInviteForm(prev => ({ ...prev, area: value }))}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Selecciona un área" />
+                    <SelectValue placeholder="Selecciona área" />
                   </SelectTrigger>
                   <SelectContent>
-                    {areas.map(area => (
-                      <SelectItem key={area} value={area}>{area}</SelectItem>
-                    ))}
+                    <SelectItem value="ATC">ATC</SelectItem>
+                    <SelectItem value="Operaciones">Operaciones</SelectItem>
+                    <SelectItem value="Cumplimiento">Cumplimiento</SelectItem>
+                    <SelectItem value="Tecnología">Tecnología</SelectItem>
+                    <SelectItem value="Finanzas">Finanzas</SelectItem>
+                    <SelectItem value="RRHH">RRHH</SelectItem>
+                    <SelectItem value="Legal">Legal</SelectItem>
+                    <SelectItem value="Otro">Otro</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
+              
               <div>
-                <Label htmlFor="rol_empresa">Rol en la Empresa</Label>
-                <Select onValueChange={(value) => setInviteData(prev => ({ ...prev, rol_empresa: value }))}>
+                <Label htmlFor="role">Rol en la Empresa</Label>
+                <Select value={inviteForm.rol_empresa} onValueChange={(value) => setInviteForm(prev => ({ ...prev, rol_empresa: value }))}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Selecciona un rol" />
+                    <SelectValue placeholder="Selecciona rol" />
                   </SelectTrigger>
                   <SelectContent>
-                    {roles.map(role => (
-                      <SelectItem key={role} value={role}>{role}</SelectItem>
-                    ))}
+                    <SelectItem value="Agente">Agente</SelectItem>
+                    <SelectItem value="Supervisor">Supervisor</SelectItem>
+                    <SelectItem value="Gerente">Gerente</SelectItem>
+                    <SelectItem value="Director">Director</SelectItem>
+                    <SelectItem value="Analista">Analista</SelectItem>
+                    <SelectItem value="Especialista">Especialista</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-              <div className="flex justify-end gap-2">
+              
+              <div className="flex gap-2">
+                <Button type="submit" disabled={inviting} className="flex-1">
+                  {inviting ? 'Creando invitación...' : 'Crear Invitación'}
+                </Button>
                 <Button type="button" variant="outline" onClick={() => setInviteModalOpen(false)}>
                   Cancelar
-                </Button>
-                <Button type="submit">
-                  <Mail className="w-4 h-4 mr-2" />
-                  Enviar Invitación
                 </Button>
               </div>
             </form>
@@ -241,57 +301,39 @@ const UsersPage = () => {
         </Dialog>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      {/* Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <Users className="w-6 h-6 text-blue-500" />
-              <div>
-                <p className="text-lg font-bold">{users.length}</p>
+          <CardContent className="p-6">
+            <div className="flex items-center">
+              <Users className="h-8 w-8 text-blue-600" />
+              <div className="ml-4">
                 <p className="text-sm text-gray-600">Total Usuarios</p>
+                <p className="text-2xl font-bold">{users.length}</p>
               </div>
             </div>
           </CardContent>
         </Card>
         
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <Shield className="w-6 h-6 text-purple-500" />
-              <div>
-                <p className="text-lg font-bold">
-                  {users.filter(u => u.role_system === 'admin').length}
-                </p>
+          <CardContent className="p-6">
+            <div className="flex items-center">
+              <Shield className="h-8 w-8 text-purple-600" />
+              <div className="ml-4">
                 <p className="text-sm text-gray-600">Administradores</p>
+                <p className="text-2xl font-bold">{users.filter(u => u.role_system === 'admin').length}</p>
               </div>
             </div>
           </CardContent>
         </Card>
         
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <Clock className="w-6 h-6 text-green-500" />
-              <div>
-                <p className="text-lg font-bold">
-                  {users.filter(u => u.last_login && new Date().getTime() - new Date(u.last_login).getTime() < 86400000).length}
-                </p>
+          <CardContent className="p-6">
+            <div className="flex items-center">
+              <Calendar className="h-8 w-8 text-green-600" />
+              <div className="ml-4">
                 <p className="text-sm text-gray-600">Activos Hoy</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <UserPlus className="w-6 h-6 text-orange-500" />
-              <div>
-                <p className="text-lg font-bold">
-                  {users.filter(u => new Date().getTime() - new Date(u.created_at).getTime() < 86400000 * 7).length}
-                </p>
-                <p className="text-sm text-gray-600">Nuevos (7 días)</p>
+                <p className="text-2xl font-bold">{users.filter(u => u.last_login && new Date(u.last_login).toDateString() === new Date().toDateString()).length}</p>
               </div>
             </div>
           </CardContent>
@@ -301,102 +343,97 @@ const UsersPage = () => {
       {/* Users Table */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>Usuarios Registrados ({filteredUsers.length})</CardTitle>
-            <div className="flex items-center gap-2">
-              <Search className="w-4 h-4 text-gray-400" />
-              <Input
-                placeholder="Buscar usuarios..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-64"
-              />
-            </div>
-          </div>
+          <CardTitle>Usuarios Registrados</CardTitle>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
-            <div className="text-center py-8">Cargando usuarios...</div>
-          ) : filteredUsers.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              {searchTerm ? 'No se encontraron usuarios' : 'No hay usuarios registrados'}
+          {users.length === 0 ? (
+            <div className="text-center py-8">
+              <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No hay usuarios registrados</h3>
+              <p className="text-gray-500 mb-4">Invita al primer usuario para comenzar</p>
+              <Button onClick={() => setInviteModalOpen(true)} variant="outline">
+                <UserPlus className="w-4 h-4 mr-2" />
+                Invitar Usuario
+              </Button>
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Usuario</TableHead>
-                  <TableHead>Área</TableHead>
-                  <TableHead>Rol Empresa</TableHead>
-                  <TableHead>Permisos</TableHead>
-                  <TableHead>Último Acceso</TableHead>
-                  <TableHead>Registro</TableHead>
-                  <TableHead>Acciones</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredUsers.map((user) => (
-                  <TableRow key={user.id}>
-                    <TableCell>
-                      <div>
-                        <div className="font-medium">{user.full_name}</div>
-                        <div className="text-sm text-gray-500">{user.email}</div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={getAreaColor(user.area)}>
-                        {user.area}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">
-                        {user.rol_empresa}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Select
-                        value={user.role_system || 'user'}
-                        onValueChange={(value) => updateUserRole(user.id, value)}
-                      >
-                        <SelectTrigger className="w-32">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="user">Usuario</SelectItem>
-                          <SelectItem value="admin">Admin</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
-                    <TableCell>
-                      {user.last_login ? (
-                        <span className="text-sm text-gray-600">
-                          {formatDate(user.last_login)}
-                        </span>
-                      ) : (
-                        <span className="text-sm text-gray-400">Nunca</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-sm text-gray-600">
-                        {formatDate(user.created_at)}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="sm">
-                          Editar
-                        </Button>
-                        {user.role_system !== 'admin' && user.email !== 'eduardo@retorna.app' && (
-                          <Button variant="ghost" size="sm" className="text-red-600">
-                            Desactivar
-                          </Button>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left p-3 font-medium text-gray-900">Usuario</th>
+                    <th className="text-left p-3 font-medium text-gray-900">Área</th>
+                    <th className="text-left p-3 font-medium text-gray-900">Rol Empresa</th>
+                    <th className="text-left p-3 font-medium text-gray-900">Rol Sistema</th>
+                    <th className="text-left p-3 font-medium text-gray-900">Último Acceso</th>
+                    <th className="text-left p-3 font-medium text-gray-900">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {users.map((userProfile) => (
+                    <tr key={userProfile.id} className="border-b hover:bg-gray-50">
+                      <td className="p-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
+                            <User className="w-4 h-4 text-purple-600" />
+                          </div>
+                          <div>
+                            <p className="font-medium text-gray-900">{userProfile.full_name}</p>
+                            <p className="text-sm text-gray-500">{userProfile.email}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="p-3">
+                        <Badge variant="outline" className="flex items-center gap-1">
+                          <Building className="w-3 h-3" />
+                          {userProfile.area}
+                        </Badge>
+                      </td>
+                      <td className="p-3">
+                        <Badge variant="secondary">{userProfile.rol_empresa}</Badge>
+                      </td>
+                      <td className="p-3">
+                        <Badge 
+                          variant={userProfile.role_system === 'admin' ? 'default' : 'outline'}
+                          className={userProfile.role_system === 'admin' ? 'bg-purple-600' : ''}
+                        >
+                          {userProfile.role_system === 'admin' && <Shield className="w-3 h-3 mr-1" />}
+                          {userProfile.role_system === 'admin' ? 'Admin' : 'Usuario'}
+                        </Badge>
+                      </td>
+                      <td className="p-3">
+                        <div className="text-sm text-gray-500">
+                          {userProfile.last_login ? (
+                            <>
+                              <div>{new Date(userProfile.last_login).toLocaleDateString()}</div>
+                              <div>{new Date(userProfile.last_login).toLocaleTimeString()}</div>
+                            </>
+                          ) : (
+                            'Nunca'
+                          )}
+                        </div>
+                      </td>
+                      <td className="p-3">
+                        {userProfile.email !== user?.email && (
+                          <Select
+                            value={userProfile.role_system}
+                            onValueChange={(value) => updateUserRole(userProfile.id, value)}
+                          >
+                            <SelectTrigger className="w-24">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="user">Usuario</SelectItem>
+                              <SelectItem value="admin">Admin</SelectItem>
+                            </SelectContent>
+                          </Select>
                         )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </CardContent>
       </Card>

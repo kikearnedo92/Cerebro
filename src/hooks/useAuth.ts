@@ -14,10 +14,37 @@ export const useAuth = () => {
   // Session timeout - 2 hours
   const SESSION_TIMEOUT = 2 * 60 * 60 * 1000 // 2 hours in milliseconds
 
+  // Add connection testing
+  const testSupabaseConnection = async () => {
+    try {
+      console.log('🧪 Testing Supabase connection...')
+      
+      const { data: testData, error: testError } = await supabase
+        .from('profiles')
+        .select('count(*)')
+        .limit(1)
+      
+      if (testError) {
+        console.error('❌ Supabase connection failed:', testError)
+        return false
+      }
+      
+      console.log('✅ Supabase connection working')
+      return true
+    } catch (error) {
+      console.error('❌ Connection test failed:', error)
+      return false
+    }
+  }
+
   useEffect(() => {
+    // Test connection first
+    testSupabaseConnection()
+
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        console.log('🔐 Auth state change:', event, session?.user?.email)
         setSession(session)
         setUser(session?.user ?? null)
         
@@ -32,13 +59,16 @@ export const useAuth = () => {
                 .eq('id', session.user.id)
 
               // Then fetch profile
-              const { data: profileData } = await supabase
+              const { data: profileData, error: profileError } = await supabase
                 .from('profiles')
                 .select('*')
                 .eq('id', session.user.id)
                 .single()
               
-              if (profileData) {
+              if (profileError) {
+                console.error('Profile fetch error:', profileError)
+              } else if (profileData) {
+                console.log('✅ Profile loaded:', profileData)
                 // Force admin role for eduardo@retorna.app
                 if (session.user.email === 'eduardo@retorna.app' && profileData.role_system !== 'admin') {
                   const { data: updatedProfile } = await supabase
@@ -142,11 +172,15 @@ export const useAuth = () => {
     setProfile(null)
   }
 
+  // Check if user is admin
+  const isAdmin = profile?.role_system === 'admin' || user?.email === 'eduardo@retorna.app'
+
   return {
     user,
     session,
     profile,
     loading,
+    isAdmin,
     signUp,
     signIn,
     signOut

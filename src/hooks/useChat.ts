@@ -1,7 +1,7 @@
 
 import { useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
-import { useKnowledgeBase } from '@/hooks/useKnowledgeBase'
+import { supabase } from '@/integrations/supabase/client'
 import { toast } from '@/hooks/use-toast'
 
 export interface Message {
@@ -10,13 +10,13 @@ export interface Message {
   content: string
   timestamp: Date
   sources?: string[]
+  isError?: boolean
 }
 
 export const useChat = () => {
   const [messages, setMessages] = useState<Message[]>([])
   const [loading, setLoading] = useState(false)
   const { user } = useAuth()
-  const { searchKnowledgeBase } = useKnowledgeBase()
 
   const sendMessage = async (content: string) => {
     if (!content.trim() || loading || !user) return
@@ -32,44 +32,84 @@ export const useChat = () => {
     setLoading(true)
 
     try {
-      // 1. Search knowledge base for relevant content
-      const knowledgeResults = await searchKnowledgeBase(content)
+      console.log('💬 Processing message:', content)
+
+      // Search knowledge base with better error handling
+      let knowledgeResults: any[] = []
+      try {
+        console.log('🔍 Searching knowledge base...')
+        const { data, error } = await supabase
+          .from('knowledge_base')
+          .select('title, content, project, tags')
+          .eq('active', true)
+          .or(`title.ilike.%${content}%,content.ilike.%${content}%`)
+          .limit(3)
+
+        if (error) {
+          console.error('Knowledge search error:', error)
+        } else {
+          knowledgeResults = data || []
+          console.log('📚 Knowledge results found:', knowledgeResults.length)
+        }
+      } catch (searchError) {
+        console.error('Knowledge search failed:', searchError)
+      }
+
+      // Build response based on knowledge base results
+      const hasKnowledge = knowledgeResults.length > 0
       
-      // 2. Build enhanced prompt with knowledge base content
-      const contextPrompt = knowledgeResults && knowledgeResults.length > 0 
-        ? `INFORMACIÓN ESPECÍFICA DE RETORNA:
-${knowledgeResults.map(item => `
-Fuente: ${item.title}
-Proyecto: ${item.project}
-Contenido: ${item.content}
-`).join('\n')}
+      let aiResponse: string
+      let sources: string[] = []
 
-PREGUNTA DEL USUARIO: ${content}
+      if (hasKnowledge) {
+        // Format knowledge base response
+        const knowledgeText = knowledgeResults.map((item, index) => 
+          `**${index + 1}. ${item.title}:**\n${item.content.substring(0, 300)}${item.content.length > 300 ? '...' : ''}`
+        ).join('\n\n')
 
-Instrucciones:
-- Responde PRIORITARIAMENTE usando la información específica de Retorna proporcionada arriba
-- Si no hay información relevante en las fuentes, indica que no tienes datos específicos sobre ese tema
-- Siempre menciona las fuentes utilizadas al final de tu respuesta
-- Sé conciso pero completo
-- Mantén un tono profesional y útil`
-        : `PREGUNTA DEL USUARIO: ${content}
+        aiResponse = `Basándome en la información de Retorna, te puedo ayudar con lo siguiente:\n\n${knowledgeText}\n\n¿Necesitas que profundice en algún aspecto específico?`
+        sources = knowledgeResults.map(item => item.title)
+      } else {
+        aiResponse = `No encontré información específica sobre este tema en la base de conocimiento de Retorna.\n\nTe recomiendo:\n- Consultar con tu supervisor directo\n- Revisar la documentación interna correspondiente\n- Contactar al área específica relacionada con tu consulta\n\n¿Hay algo más específico sobre los procesos de Retorna en lo que pueda ayudarte?`
+      }
 
-Como Cerebro, el asistente de Retorna, no tengo información específica sobre este tema en mi base de conocimiento actual. Te recomiendo consultar con tu supervisor o revisar la documentación interna correspondiente.`
-
-      // 3. Simulate AI response (replace with actual AI call when OpenAI is configured)
-      const aiResponse = await generateAIResponse(contextPrompt, knowledgeResults)
-      
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: aiResponse.content,
+        content: aiResponse,
         timestamp: new Date(),
-        sources: aiResponse.sources
+        sources
       }
 
       setMessages(prev => [...prev, assistantMessage])
+
+      // Track analytics
+      try {
+        await supabase
+          .from('usage_analytics')
+          .insert({
+            user_id: user.id,
+            query: content,
+            sources_used: hasKnowledge ? knowledgeResults.map(item => ({ title: item.title, project: item.project })) : null,
+            ai_provider: 'internal'
+          })
+      } catch (analyticsError) {
+        console.error('Analytics tracking failed:', analyticsError)
+      }
+
     } catch (error) {
-      console.error('Error sending message:', error)
+      console.error('Chat error:', error)
+      
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: `❌ Error: ${error instanceof Error ? error.message : 'Error desconocido'}\n\nPor favor intenta de nuevo o contacta al administrador.`,
+        timestamp: new Date(),
+        isError: true
+      }
+
+      setMessages(prev => [...prev, errorMessage])
+      
       toast({
         title: "Error",
         description: "Hubo un problema al procesar tu mensaje. Inténtalo de nuevo.",
@@ -89,39 +129,5 @@ Como Cerebro, el asistente de Retorna, no tengo información específica sobre e
     loading,
     sendMessage,
     clearMessages
-  }
-}
-
-// Mock AI response generation (replace with actual OpenAI integration)
-const generateAIResponse = async (prompt: string, knowledgeResults: any[]) => {
-  // Simulate processing time
-  await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000))
-  
-  const hasKnowledge = knowledgeResults && knowledgeResults.length > 0
-  
-  if (hasKnowledge) {
-    return {
-      content: `Basándome en la información de Retorna, te puedo ayudar con lo siguiente:
-
-${knowledgeResults.map((item, index) => `
-**${index + 1}. Información de ${item.title}:**
-${item.content.substring(0, 300)}${item.content.length > 300 ? '...' : ''}
-`).join('\n')}
-
-¿Necesitas que profundice en algún aspecto específico?`,
-      sources: knowledgeResults.map(item => item.title)
-    }
-  } else {
-    return {
-      content: `No encontré información específica sobre este tema en la base de conocimiento de Retorna. 
-
-Te recomiendo:
-- Consultar con tu supervisor directo
-- Revisar la documentación interna correspondiente
-- Contactar al área específica relacionada con tu consulta
-
-¿Hay algo más específico sobre los procesos de Retorna en lo que pueda ayudarte?`,
-      sources: []
-    }
   }
 }

@@ -13,7 +13,6 @@ import {
   FileText, 
   Clock,
   Sparkles,
-  MessageSquare,
   Plus,
   Bot,
   User as UserIcon
@@ -35,21 +34,16 @@ const ChatInterface = () => {
     }
   }, [messages])
 
-  // Initialize with welcome message
-  useEffect(() => {
-    if (messages.length === 0 && user) {
-      setTimeout(() => {
-        sendMessage("¡Hola! Soy Cerebro, tu asistente de Retorna. ¿En qué puedo ayudarte hoy?")
-      }, 500)
-    }
-  }, [user])
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!input.trim() || loading) return
 
     await sendMessage(input)
     setInput('')
+  }
+
+  const handleSuggestionClick = (suggestion: string) => {
+    setInput(suggestion)
   }
 
   const copyToClipboard = (text: string) => {
@@ -69,9 +63,6 @@ const ChatInterface = () => {
 
   const startNewConversation = () => {
     clearMessages()
-    setTimeout(() => {
-      sendMessage("¡Hola! Soy Cerebro, tu asistente de Retorna. ¿En qué puedo ayudarte hoy?")
-    }, 100)
   }
 
   return (
@@ -80,7 +71,7 @@ const ChatInterface = () => {
       <div className="bg-white border-b px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-gradient-to-br from-primary-500 to-primary-700 rounded-full flex items-center justify-center">
+            <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-purple-700 rounded-full flex items-center justify-center">
               <Bot className="w-5 h-5 text-white" />
             </div>
             <div>
@@ -100,16 +91,26 @@ const ChatInterface = () => {
         <div className="space-y-6 max-w-4xl mx-auto">
           {messages.length === 0 ? (
             <div className="text-center py-12">
-              <Sparkles className="h-12 w-12 text-primary-500 mx-auto mb-4" />
+              <Sparkles className="h-12 w-12 text-purple-500 mx-auto mb-4" />
               <h3 className="text-lg font-semibold mb-2">¡Hola! Soy Cerebro</h3>
-              <p className="text-muted-foreground mb-4">
+              <p className="text-gray-600 mb-4">
                 Tu asistente de conocimiento de Retorna. ¿En qué puedo ayudarte hoy?
               </p>
               <div className="flex flex-wrap gap-2 justify-center">
-                <Badge variant="secondary">Políticas por país</Badge>
-                <Badge variant="secondary">Procedimientos ATC</Badge>
-                <Badge variant="secondary">Scripts de respuesta</Badge>
-                <Badge variant="secondary">Normativas</Badge>
+                {[
+                  "Políticas por país",
+                  "Procedimientos ATC", 
+                  "Scripts de respuesta",
+                  "Normativas"
+                ].map(suggestion => (
+                  <button
+                    key={suggestion}
+                    onClick={() => handleSuggestionClick(suggestion)}
+                    className="px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded-full text-sm text-gray-700 transition-colors"
+                  >
+                    {suggestion}
+                  </button>
+                ))}
               </div>
             </div>
           ) : (
@@ -121,7 +122,7 @@ const ChatInterface = () => {
                 }`}
               >
                 {message.role === 'assistant' && (
-                  <div className="w-8 h-8 bg-gradient-to-br from-primary-500 to-primary-700 rounded-full flex items-center justify-center flex-shrink-0">
+                  <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-purple-700 rounded-full flex items-center justify-center flex-shrink-0">
                     <Bot className="w-4 h-4 text-white" />
                   </div>
                 )}
@@ -129,8 +130,10 @@ const ChatInterface = () => {
                 <Card
                   className={`max-w-2xl ${
                     message.role === 'user'
-                      ? 'bg-primary-500 text-white border-primary-500'
-                      : 'bg-white border'
+                      ? 'bg-purple-500 text-white border-purple-500'
+                      : message.isError 
+                        ? 'bg-red-50 border-red-200'
+                        : 'bg-white border'
                   }`}
                 >
                   <CardContent className="p-4">
@@ -160,7 +163,7 @@ const ChatInterface = () => {
                         {message.timestamp.toLocaleTimeString()}
                       </div>
                       
-                      {message.role === 'assistant' && (
+                      {message.role === 'assistant' && !message.isError && (
                         <div className="flex items-center gap-1">
                           <Button
                             variant="ghost"
@@ -205,13 +208,13 @@ const ChatInterface = () => {
           
           {loading && (
             <div className="flex gap-4 justify-start">
-              <div className="w-8 h-8 bg-gradient-to-br from-primary-500 to-primary-700 rounded-full flex items-center justify-center">
+              <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-purple-700 rounded-full flex items-center justify-center">
                 <Bot className="w-4 h-4 text-white" />
               </div>
               <Card className="max-w-2xl bg-white border">
                 <CardContent className="p-4">
                   <div className="flex items-center gap-2 text-gray-500">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-500"></div>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-500"></div>
                     Cerebro está procesando tu consulta...
                   </div>
                 </CardContent>
