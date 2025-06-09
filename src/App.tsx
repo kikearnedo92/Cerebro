@@ -8,9 +8,9 @@ import { useAuth } from '@/hooks/useAuth'
 import AuthForm from '@/components/auth/AuthForm'
 import MainLayout from '@/components/layout/MainLayout'
 import ChatInterface from '@/components/chat/ChatInterface'
-import KnowledgeBaseManager from '@/components/admin/KnowledgeBaseManager'
-import UserManagement from '@/components/admin/UserManagement'
-import Analytics from '@/components/admin/Analytics'
+import KnowledgeBasePage from '@/pages/admin/KnowledgeBasePage'
+import UsersPage from '@/pages/admin/UsersPage'
+import AnalyticsPage from '@/pages/admin/AnalyticsPage'
 import { Brain } from 'lucide-react'
 
 const queryClient = new QueryClient({
@@ -23,22 +23,47 @@ const queryClient = new QueryClient({
 })
 
 const LoadingScreen = () => (
-  <div className="min-h-screen flex items-center justify-center gradient-purple-light">
+  <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-blue-50">
     <div className="text-center">
       <div className="relative">
-        <div className="w-16 h-16 bg-gradient-to-br from-primary-500 to-primary-700 rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse-purple">
-          <Brain className="w-8 h-8 text-white brain-glow" />
+        <div className="w-16 h-16 bg-gradient-to-br from-purple-600 to-purple-800 rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse">
+          <Brain className="w-8 h-8 text-white" />
         </div>
       </div>
-      <h1 className="text-2xl font-bold cerebro-brand mb-2">CEREBRO</h1>
-      <p className="text-primary-600 font-medium">by Retorna</p>
+      <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-purple-800 bg-clip-text text-transparent mb-2">CEREBRO</h1>
+      <p className="text-purple-600 font-medium">by Retorna</p>
       <p className="text-gray-600 mt-2">Cargando plataforma de conocimiento...</p>
     </div>
   </div>
 )
 
-const AppContent = () => {
+// Protected Route Component
+const ProtectedRoute: React.FC<{ children: React.ReactNode; requireAdmin?: boolean }> = ({ 
+  children, 
+  requireAdmin = false 
+}) => {
   const { user, profile, loading } = useAuth()
+
+  if (loading) {
+    return <LoadingScreen />
+  }
+
+  if (!user) {
+    return <Navigate to="/auth" replace />
+  }
+
+  // Force admin for eduardo@retorna.app
+  const isAdmin = profile?.role_system === 'admin' || user?.email === 'eduardo@retorna.app'
+
+  if (requireAdmin && !isAdmin) {
+    return <Navigate to="/chat" replace />
+  }
+
+  return <>{children}</>
+}
+
+const AppContent = () => {
+  const { user, loading } = useAuth()
 
   if (loading) {
     return <LoadingScreen />
@@ -48,25 +73,35 @@ const AppContent = () => {
     return <AuthForm />
   }
 
-  const isAdmin = profile?.role_system === 'admin'
-
   return (
     <MainLayout>
       <Routes>
-        <Route path="/" element={<ChatInterface />} />
-        <Route path="/chat" element={<ChatInterface />} />
+        <Route path="/" element={<Navigate to="/chat" replace />} />
+        <Route path="/chat" element={
+          <ProtectedRoute>
+            <ChatInterface />
+          </ProtectedRoute>
+        } />
         
         {/* Admin Routes */}
-        {isAdmin && (
-          <>
-            <Route path="/admin/knowledge" element={<KnowledgeBaseManager />} />
-            <Route path="/admin/users" element={<UserManagement />} />
-            <Route path="/admin/analytics" element={<Analytics />} />
-          </>
-        )}
+        <Route path="/admin/knowledge" element={
+          <ProtectedRoute requireAdmin>
+            <KnowledgeBasePage />
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/users" element={
+          <ProtectedRoute requireAdmin>
+            <UsersPage />
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/analytics" element={
+          <ProtectedRoute requireAdmin>
+            <AnalyticsPage />
+          </ProtectedRoute>
+        } />
         
         {/* Redirect unknown routes */}
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<Navigate to="/chat" replace />} />
       </Routes>
     </MainLayout>
   )

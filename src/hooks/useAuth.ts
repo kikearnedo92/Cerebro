@@ -22,51 +22,55 @@ export const useAuth = () => {
         setUser(session?.user ?? null)
         
         if (session?.user) {
-          // Update last login and fetch profile
+          // Defer Supabase calls with setTimeout to prevent deadlock
           setTimeout(async () => {
-            // First update last login
-            await supabase
-              .from('profiles')
-              .update({ last_login: new Date().toISOString() })
-              .eq('id', session.user.id)
+            try {
+              // First update last login
+              await supabase
+                .from('profiles')
+                .update({ last_login: new Date().toISOString() })
+                .eq('id', session.user.id)
 
-            // Then fetch profile
-            const { data: profileData } = await supabase
-              .from('profiles')
-              .select('*')
-              .eq('id', session.user.id)
-              .single()
-            
-            if (profileData) {
-              // Force admin role for eduardo@retorna.app
-              if (profileData.email === 'eduardo@retorna.app' && profileData.role_system !== 'admin') {
-                const { data: updatedProfile } = await supabase
-                  .from('profiles')
-                  .update({ role_system: 'admin' })
-                  .eq('id', session.user.id)
-                  .select()
-                  .single()
-                
-                setProfile(updatedProfile || { ...profileData, role_system: 'admin' })
-              } else {
-                setProfile(profileData)
-              }
+              // Then fetch profile
+              const { data: profileData } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', session.user.id)
+                .single()
               
-              // Check session timeout
-              if (profileData.last_login) {
-                const lastLogin = new Date(profileData.last_login).getTime()
-                const now = new Date().getTime()
+              if (profileData) {
+                // Force admin role for eduardo@retorna.app
+                if (session.user.email === 'eduardo@retorna.app' && profileData.role_system !== 'admin') {
+                  const { data: updatedProfile } = await supabase
+                    .from('profiles')
+                    .update({ role_system: 'admin' })
+                    .eq('id', session.user.id)
+                    .select()
+                    .single()
+                  
+                  setProfile(updatedProfile || { ...profileData, role_system: 'admin' })
+                } else {
+                  setProfile(profileData)
+                }
                 
-                if (now - lastLogin > SESSION_TIMEOUT) {
-                  toast({
-                    title: "Sesión expirada",
-                    description: "Tu sesión ha expirado por inactividad. Por favor, inicia sesión nuevamente.",
-                    variant: "destructive"
-                  })
-                  await signOut()
-                  return
+                // Check session timeout
+                if (profileData.last_login) {
+                  const lastLogin = new Date(profileData.last_login).getTime()
+                  const now = new Date().getTime()
+                  
+                  if (now - lastLogin > SESSION_TIMEOUT) {
+                    toast({
+                      title: "Sesión expirada",
+                      description: "Tu sesión ha expirado por inactividad. Por favor, inicia sesión nuevamente.",
+                      variant: "destructive"
+                    })
+                    await signOut()
+                    return
+                  }
                 }
               }
+            } catch (error) {
+              console.error('Error fetching profile:', error)
             }
           }, 0)
         } else {
@@ -81,7 +85,9 @@ export const useAuth = () => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
       setUser(session?.user ?? null)
-      setLoading(false)
+      if (!session) {
+        setLoading(false)
+      }
     })
 
     return () => subscription.unsubscribe()
