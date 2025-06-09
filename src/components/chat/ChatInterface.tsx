@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -294,49 +293,22 @@ const ChatInterface = () => {
     }
   }
 
-  const handleFileUpload = async (files: File[]) => {
-    if (!user) return
-
-    for (const file of files) {
-      try {
-        // Upload to Supabase Storage
-        const fileExt = file.name.split('.').pop()
-        const fileName = `${Date.now()}.${fileExt}`
-        const filePath = `uploads/${fileName}`
-
-        const { error: uploadError } = await supabase.storage
-          .from('retorna-files')
-          .upload(filePath, file)
-
-        if (uploadError) throw uploadError
-
-        // Record in database
-        await supabase
-          .from('uploaded_files')
-          .insert({
-            user_id: user.id,
-            filename: file.name,
-            file_path: filePath,
-            file_size: file.size,
-            file_type: file.type
-          })
-
-        toast({
-          title: "Archivo subido",
-          description: `${file.name} se ha subido correctamente`
-        })
-
-      } catch (error) {
-        console.error('Error uploading file:', error)
-        toast({
-          title: "Error",
-          description: `No se pudo subir ${file.name}`,
-          variant: "destructive"
-        })
-      }
+  const handleFileUpload = (fileContent: string, filename: string) => {
+    // Add the file content as a user message
+    const fileMessage: Message = {
+      id: Date.now().toString(),
+      role: 'user',
+      content: `[Archivo adjunto: ${filename}]\n\n${fileContent}`,
+      timestamp: new Date()
     }
 
+    setMessages(prev => [...prev, fileMessage])
     setShowFileUpload(false)
+    
+    toast({
+      title: "Archivo procesado",
+      description: `${filename} se ha agregado a la conversación`
+    })
   }
 
   return (
