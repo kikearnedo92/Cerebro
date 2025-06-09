@@ -22,14 +22,15 @@ export const useAuth = () => {
         setUser(session?.user ?? null)
         
         if (session?.user) {
-          // Update last login
-          await supabase
-            .from('profiles')
-            .update({ last_login: new Date().toISOString() })
-            .eq('id', session.user.id)
-
-          // Fetch user profile
+          // Update last login and fetch profile
           setTimeout(async () => {
+            // First update last login
+            await supabase
+              .from('profiles')
+              .update({ last_login: new Date().toISOString() })
+              .eq('id', session.user.id)
+
+            // Then fetch profile
             const { data: profileData } = await supabase
               .from('profiles')
               .select('*')
@@ -37,7 +38,19 @@ export const useAuth = () => {
               .single()
             
             if (profileData) {
-              setProfile(profileData)
+              // Force admin role for eduardo@retorna.app
+              if (profileData.email === 'eduardo@retorna.app' && profileData.role_system !== 'admin') {
+                const { data: updatedProfile } = await supabase
+                  .from('profiles')
+                  .update({ role_system: 'admin' })
+                  .eq('id', session.user.id)
+                  .select()
+                  .single()
+                
+                setProfile(updatedProfile || { ...profileData, role_system: 'admin' })
+              } else {
+                setProfile(profileData)
+              }
               
               // Check session timeout
               if (profileData.last_login) {

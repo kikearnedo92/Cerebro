@@ -1,135 +1,90 @@
 
 import React from 'react'
+import { useAuth } from '@/hooks/useAuth'
+import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Button } from '@/components/ui/button'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
-import { User, LogOut, Settings, Database, BarChart3, Users, Brain } from 'lucide-react'
-import { useAuth } from '@/hooks/useAuth'
-import { useNavigate } from 'react-router-dom'
-import { toast } from '@/hooks/use-toast'
+import { LogOut, Settings, User, Shield } from 'lucide-react'
 
 const UserMenu = () => {
   const { user, profile, signOut } = useAuth()
-  const navigate = useNavigate()
+
+  if (!user || !profile) return null
 
   const getInitials = (name: string) => {
-    return name.split(' ').map(n => n[0]).join('').toUpperCase()
+    const names = name.split(' ')
+    return names.map(n => n.charAt(0)).join('').toUpperCase().slice(0, 2)
   }
 
   const handleLogout = async () => {
     try {
       await signOut()
-      toast({
-        title: "Sesión cerrada",
-        description: "Has cerrado sesión correctamente de Cerebro."
-      })
-      navigate('/')
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: "Error al cerrar sesión",
-        variant: "destructive"
-      })
+    } catch (error) {
+      console.error('Error signing out:', error)
     }
   }
 
-  if (!user || !profile) return null
-
-  const isAdmin = profile.role_system === 'admin'
-
   return (
-    <div className="flex items-center gap-3">
-      <div className="text-right hidden sm:block">
-        <p className="text-sm font-medium">{profile.full_name}</p>
-        <div className="flex items-center gap-1">
-          <Badge 
-            variant={isAdmin ? 'default' : 'secondary'} 
-            className={`text-xs ${isAdmin ? 'bg-gradient-to-r from-primary-500 to-primary-700 text-white' : ''}`}
-          >
-            {isAdmin ? 'Admin' : 'Usuario'}
-          </Badge>
-          <span className="text-xs text-gray-500">• {profile.area}</span>
-        </div>
-      </div>
-
-      {/* Logout Button Visible */}
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={handleLogout}
-        className="hidden sm:flex items-center gap-2 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
-      >
-        <LogOut className="h-4 w-4" />
-        Salir
-      </Button>
-
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" className="relative h-10 w-10 rounded-full">
-            <Avatar className="h-10 w-10">
-              <AvatarFallback className="bg-gradient-to-br from-primary-500 to-primary-700 text-white">
-                {getInitials(profile.full_name)}
-              </AvatarFallback>
-            </Avatar>
-          </Button>
-        </DropdownMenuTrigger>
-        
-        <DropdownMenuContent className="w-56" align="end">
-          <div className="px-2 py-1.5">
-            <p className="text-sm font-medium">{profile.full_name}</p>
-            <p className="text-xs text-gray-500">{user.email}</p>
-            <p className="text-xs text-gray-500">{profile.area} • {profile.rol_empresa}</p>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" className="relative h-10 w-10 rounded-full">
+          <Avatar className="h-10 w-10">
+            <AvatarImage src={user.user_metadata?.avatar_url} />
+            <AvatarFallback className="bg-primary text-white">
+              {getInitials(profile.full_name)}
+            </AvatarFallback>
+          </Avatar>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent className="w-72" align="end" forceMount>
+        <DropdownMenuLabel className="font-normal">
+          <div className="flex flex-col space-y-2">
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-medium leading-none">{profile.full_name}</p>
+              {profile.role_system === 'admin' && (
+                <Badge variant="default" className="text-xs">
+                  <Shield className="w-3 h-3 mr-1" />
+                  Admin
+                </Badge>
+              )}
+            </div>
+            <p className="text-xs leading-none text-muted-foreground">
+              {user.email}
+            </p>
+            <div className="flex gap-1">
+              <Badge variant="outline" className="text-xs">
+                {profile.area}
+              </Badge>
+              <Badge variant="outline" className="text-xs">
+                {profile.rol_empresa}
+              </Badge>
+            </div>
           </div>
-          
-          <DropdownMenuSeparator />
-          
-          <DropdownMenuItem>
-            <User className="mr-2 h-4 w-4" />
-            <span>Mi Perfil</span>
-          </DropdownMenuItem>
-          
-          {isAdmin && (
-            <>
-              <DropdownMenuSeparator />
-              
-              <DropdownMenuItem>
-                <Database className="mr-2 h-4 w-4" />
-                <span>Knowledge Base</span>
-              </DropdownMenuItem>
-              
-              <DropdownMenuItem>
-                <BarChart3 className="mr-2 h-4 w-4" />
-                <span>Analytics</span>
-              </DropdownMenuItem>
-              
-              <DropdownMenuItem>
-                <Users className="mr-2 h-4 w-4" />
-                <span>Gestión Usuarios</span>
-              </DropdownMenuItem>
-            </>
-          )}
-          
-          <DropdownMenuItem>
-            <Settings className="mr-2 h-4 w-4" />
-            <span>Configuración</span>
-          </DropdownMenuItem>
-          
-          <DropdownMenuSeparator />
-          
-          <DropdownMenuItem onClick={handleLogout} className="text-red-600 focus:text-red-600">
-            <LogOut className="mr-2 h-4 w-4" />
-            <span>Cerrar sesión</span>
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem>
+          <User className="mr-2 h-4 w-4" />
+          <span>Perfil</span>
+        </DropdownMenuItem>
+        <DropdownMenuItem>
+          <Settings className="mr-2 h-4 w-4" />
+          <span>Configuración</span>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={handleLogout} className="text-red-600">
+          <LogOut className="mr-2 h-4 w-4" />
+          <span>Cerrar sesión</span>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 

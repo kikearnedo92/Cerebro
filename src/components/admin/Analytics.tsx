@@ -1,336 +1,255 @@
 
-import React, { useState } from 'react'
+import React from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/integrations/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts'
-import { BarChart3, Users, MessageSquare, TrendingUp, Download, Search } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { BarChart3, Users, MessageSquare, Database, TrendingUp, Clock, FileText, Activity } from 'lucide-react'
 
 const Analytics = () => {
-  const [timeRange, setTimeRange] = useState('7d')
-
-  // Get usage analytics
+  // Fetch usage analytics
   const { data: analytics } = useQuery({
-    queryKey: ['analytics', timeRange],
+    queryKey: ['analytics'],
     queryFn: async () => {
-      const days = timeRange === '7d' ? 7 : timeRange === '30d' ? 30 : 90
-      const since = new Date()
-      since.setDate(since.getDate() - days)
-
       const { data, error } = await supabase
         .from('usage_analytics')
-        .select(`
-          *,
-          profiles!inner(full_name, area, rol_empresa)
-        `)
-        .gte('created_at', since.toISOString())
-
+        .select('*')
+        .order('created_at', { ascending: false })
+      
       if (error) throw error
-      return data
+      return data || []
     }
   })
 
-  // Get user stats
+  // Fetch knowledge base stats
+  const { data: knowledgeStats } = useQuery({
+    queryKey: ['knowledge-stats'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('knowledge_base')
+        .select('project, created_at, active')
+      
+      if (error) throw error
+      return data || []
+    }
+  })
+
+  // Fetch user stats
   const { data: userStats } = useQuery({
     queryKey: ['user-stats'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('profiles')
-        .select('area, rol_empresa, created_at, last_login')
-
+        .select('area, rol_empresa, last_login, created_at')
+      
       if (error) throw error
-      return data
+      return data || []
     }
   })
 
-  // Get knowledge base stats
-  const { data: kbStats } = useQuery({
-    queryKey: ['kb-stats'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('knowledge_base')
-        .select('project, active, created_at')
+  // Calculate metrics
+  const totalQueries = analytics?.length || 0
+  const activeUsers = userStats?.filter(u => u.last_login)?.length || 0
+  const totalUsers = userStats?.length || 0
+  const activeKnowledge = knowledgeStats?.filter(k => k.active)?.length || 0
+  const totalKnowledge = knowledgeStats?.length || 0
 
-      if (error) throw error
-      return data
-    }
-  })
+  // Calculate average response time
+  const avgResponseTime = analytics?.length > 0 
+    ? Math.round(analytics.reduce((sum, item) => sum + (item.response_time || 0), 0) / analytics.length)
+    : 0
 
-  // Process data for charts
-  const processAnalyticsData = () => {
-    if (!analytics) return { dailyUsage: [], topQueries: [], userActivity: [] }
+  // Group analytics by area
+  const querysByArea = userStats?.reduce((acc: Record<string, number>, user) => {
+    const area = user.area || 'Sin área'
+    acc[area] = (acc[area] || 0) + 1
+    return acc
+  }, {}) || {}
 
-    // Daily usage
-    const dailyUsage = analytics.reduce((acc: any, item) => {
-      const date = new Date(item.created_at).toLocaleDateString()
-      acc[date] = (acc[date] || 0) + 1
-      return acc
-    }, {})
+  // Group knowledge by project
+  const knowledgeByProject = knowledgeStats?.reduce((acc: Record<string, number>, item) => {
+    const project = item.project || 'General'
+    acc[project] = (acc[project] || 0) + 1
+    return acc
+  }, {}) || {}
 
-    const dailyUsageArray = Object.entries(dailyUsage).map(([date, count]) => ({
-      date,
-      queries: count
-    }))
-
-    // Top queries (simplified)
-    const queryCount = analytics.reduce((acc: any, item) => {
-      const query = item.query.substring(0, 50) + '...'
-      acc[query] = (acc[query] || 0) + 1
-      return acc
-    }, {})
-
-    const topQueries = Object.entries(queryCount)
-      .sort(([,a], [,b]) => (b as number) - (a as number))
-      .slice(0, 10)
-      .map(([query, count]) => ({ query, count }))
-
-    // User activity by area
-    const userActivity = analytics.reduce((acc: any, item) => {
-      const area = item.profiles?.area || 'Unknown'
-      acc[area] = (acc[area] || 0) + 1
-      return acc
-    }, {})
-
-    const userActivityArray = Object.entries(userActivity).map(([area, count]) => ({
-      area,
-      queries: count
-    }))
-
-    return { dailyUsageArray, topQueries, userActivityArray }
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('es-ES', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    })
   }
-
-  const { dailyUsageArray, topQueries, userActivityArray } = processAnalyticsData()
-
-  const processUserStats = () => {
-    if (!userStats) return { byArea: [], byRole: [], activeUsers: 0 }
-
-    const byArea = userStats.reduce((acc: any, user) => {
-      acc[user.area] = (acc[user.area] || 0) + 1
-      return acc
-    }, {})
-
-    const byRole = userStats.reduce((acc: any, user) => {
-      acc[user.rol_empresa] = (acc[user.rol_empresa] || 0) + 1
-      return acc
-    }, {})
-
-    const now = new Date()
-    const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
-    const activeUsers = userStats.filter(user => 
-      user.last_login && new Date(user.last_login) > oneWeekAgo
-    ).length
-
-    const byAreaArray = Object.entries(byArea).map(([area, count]) => ({
-      name: area,
-      value: count
-    }))
-
-    const byRoleArray = Object.entries(byRole).map(([role, count]) => ({
-      name: role,
-      value: count
-    }))
-
-    return { byAreaArray, byRoleArray, activeUsers }
-  }
-
-  const { byAreaArray, byRoleArray, activeUsers } = processUserStats()
-
-  const colors = ['#8B5CF6', '#A855F7', '#C084FC', '#DDD6FE', '#F3E8FF']
 
   return (
-    <div className="h-full overflow-auto">
-      <div className="p-6">
-        <div className="flex justify-between items-center mb-6">
+    <div className="h-full flex flex-col">
+      <div className="p-6 border-b bg-white">
+        <div className="flex justify-between items-center">
           <div>
             <h1 className="text-2xl font-bold flex items-center gap-2">
               <BarChart3 className="w-6 h-6" />
-              Analytics Dashboard
+              Analytics
             </h1>
-            <p className="text-gray-600">Estadísticas de uso y rendimiento de Cerebro</p>
+            <p className="text-gray-600">Métricas de uso y rendimiento de Cerebro</p>
           </div>
-          <Select value={timeRange} onValueChange={setTimeRange}>
-            <SelectTrigger className="w-32">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="7d">7 días</SelectItem>
-              <SelectItem value="30d">30 días</SelectItem>
-              <SelectItem value="90d">90 días</SelectItem>
-            </SelectContent>
-          </Select>
+          <Badge variant="secondary" className="text-sm">
+            Datos en tiempo real
+          </Badge>
         </div>
+      </div>
 
-        {/* KPI Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+      <div className="flex-1 overflow-auto p-6">
+        {/* Key Metrics */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Queries</CardTitle>
-              <Search className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{analytics?.length || 0}</div>
-              <p className="text-xs text-muted-foreground">
-                En los últimos {timeRange}
-              </p>
+            <CardContent className="p-4">
+              <div className="flex items-center space-x-2">
+                <MessageSquare className="w-8 h-8 text-blue-500" />
+                <div>
+                  <p className="text-2xl font-bold">{totalQueries}</p>
+                  <p className="text-sm text-gray-600">Consultas Totales</p>
+                </div>
+              </div>
             </CardContent>
           </Card>
 
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Usuarios Activos</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{activeUsers}</div>
-              <p className="text-xs text-muted-foreground">
-                Última semana
-              </p>
+            <CardContent className="p-4">
+              <div className="flex items-center space-x-2">
+                <Users className="w-8 h-8 text-green-500" />
+                <div>
+                  <p className="text-2xl font-bold">{activeUsers}/{totalUsers}</p>
+                  <p className="text-sm text-gray-600">Usuarios Activos</p>
+                </div>
+              </div>
             </CardContent>
           </Card>
 
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Usuarios</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{userStats?.length || 0}</div>
-              <p className="text-xs text-muted-foreground">
-                Registrados
-              </p>
+            <CardContent className="p-4">
+              <div className="flex items-center space-x-2">
+                <Database className="w-8 h-8 text-purple-500" />
+                <div>
+                  <p className="text-2xl font-bold">{activeKnowledge}/{totalKnowledge}</p>
+                  <p className="text-sm text-gray-600">Contenido Activo</p>
+                </div>
+              </div>
             </CardContent>
           </Card>
 
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">KB Artículos</CardTitle>
-              <MessageSquare className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{kbStats?.length || 0}</div>
-              <p className="text-xs text-muted-foreground">
-                En knowledge base
-              </p>
+            <CardContent className="p-4">
+              <div className="flex items-center space-x-2">
+                <Clock className="w-8 h-8 text-orange-500" />
+                <div>
+                  <p className="text-2xl font-bold">{avgResponseTime}ms</p>
+                  <p className="text-sm text-gray-600">Tiempo Respuesta</p>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Charts */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          {/* Daily Usage */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+          {/* Usage by Area */}
           <Card>
             <CardHeader>
-              <CardTitle>Uso Diario</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <TrendingUp className="w-5 h-5" />
+                Usuarios por Área
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={dailyUsageArray}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" />
-                  <YAxis />
-                  <Tooltip />
-                  <Line type="monotone" dataKey="queries" stroke="#8B5CF6" strokeWidth={2} />
-                </LineChart>
-              </ResponsiveContainer>
+              <div className="space-y-3">
+                {Object.entries(querysByArea).map(([area, count]) => (
+                  <div key={area} className="flex items-center justify-between">
+                    <span className="text-sm font-medium">{area}</span>
+                    <div className="flex items-center gap-2">
+                      <div className="w-24 bg-gray-200 rounded-full h-2">
+                        <div 
+                          className="bg-blue-500 h-2 rounded-full" 
+                          style={{ width: `${(count / totalUsers) * 100}%` }}
+                        />
+                      </div>
+                      <span className="text-sm text-gray-600 w-8">{count}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </CardContent>
           </Card>
 
-          {/* User Activity by Area */}
+          {/* Knowledge Base by Project */}
           <Card>
             <CardHeader>
-              <CardTitle>Actividad por Área</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="w-5 h-5" />
+                Contenido por Proyecto
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={userActivityArray}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="area" />
-                  <YAxis />
-                  <Tooltip />
-                  <Bar dataKey="queries" fill="#8B5CF6" />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* User Distribution */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          <Card>
-            <CardHeader>
-              <CardTitle>Distribución por Área</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={byAreaArray}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="value"
-                  >
-                    {byAreaArray.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Distribución por Rol</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={byRoleArray}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="value"
-                  >
-                    {byRoleArray.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
+              <div className="space-y-3">
+                {Object.entries(knowledgeByProject).map(([project, count]) => (
+                  <div key={project} className="flex items-center justify-between">
+                    <span className="text-sm font-medium">{project}</span>
+                    <div className="flex items-center gap-2">
+                      <div className="w-24 bg-gray-200 rounded-full h-2">
+                        <div 
+                          className="bg-green-500 h-2 rounded-full" 
+                          style={{ width: `${(count / totalKnowledge) * 100}%` }}
+                        />
+                      </div>
+                      <span className="text-sm text-gray-600 w-8">{count}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Top Queries */}
+        {/* Recent Activity */}
         <Card>
           <CardHeader>
-            <CardTitle>Consultas Más Frecuentes</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <Activity className="w-5 h-5" />
+              Actividad Reciente
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-2">
-              {topQueries.map((item, index) => (
-                <div key={index} className="flex justify-between items-center p-2 bg-gray-50 rounded">
-                  <span className="text-sm truncate flex-1">{item.query}</span>
-                  <span className="text-sm font-medium ml-2">{item.count}</span>
-                </div>
-              ))}
-              {topQueries.length === 0 && (
-                <div className="text-center py-4 text-gray-500">
-                  No hay datos de consultas disponibles
-                </div>
-              )}
-            </div>
+            {analytics && analytics.length > 0 ? (
+              <div className="space-y-3">
+                {analytics.slice(0, 10).map((item, index) => (
+                  <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded">
+                    <div className="flex-1">
+                      <p className="text-sm font-medium truncate">{item.query}</p>
+                      <p className="text-xs text-gray-500">
+                        {item.created_at ? formatDate(item.created_at) : 'Fecha desconocida'}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {item.response_time && (
+                        <Badge variant="outline" className="text-xs">
+                          {item.response_time}ms
+                        </Badge>
+                      )}
+                      {item.rating && (
+                        <Badge 
+                          variant={item.rating === 1 ? "default" : "destructive"} 
+                          className="text-xs"
+                        >
+                          {item.rating === 1 ? '👍' : '👎'}
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                No hay actividad reciente
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
