@@ -1,10 +1,10 @@
+
 import React, { useState, useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { 
   Send, 
   Copy, 
@@ -17,9 +17,7 @@ import {
   Plus
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
-import { supabase } from '@/integrations/supabase/client'
 import { toast } from '@/hooks/use-toast'
-import FileUpload from './FileUpload'
 
 interface Message {
   id: string
@@ -46,15 +44,7 @@ const ChatInterface = () => {
   const [loading, setLoading] = useState(false)
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null)
-  const [showFileUpload, setShowFileUpload] = useState(false)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
-
-  // Load conversations on mount
-  useEffect(() => {
-    if (user) {
-      loadConversations()
-    }
-  }, [user])
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -63,77 +53,15 @@ const ChatInterface = () => {
     }
   }, [messages])
 
-  const loadConversations = async () => {
-    if (!user) return
-
-    const { data, error } = await supabase
-      .from('conversations')
-      .select('id, title, updated_at')
-      .eq('user_id', user.id)
-      .order('updated_at', { ascending: false })
-
-    if (error) {
-      console.error('Error loading conversations:', error)
-      return
+  const createNewConversation = () => {
+    const newConv: Conversation = {
+      id: Date.now().toString(),
+      title: 'Nueva conversación',
+      updated_at: new Date().toISOString()
     }
-
-    setConversations(data || [])
-  }
-
-  const loadConversationMessages = async (conversationId: string) => {
-    const { data, error } = await supabase
-      .from('messages')
-      .select('*')
-      .eq('conversation_id', conversationId)
-      .order('created_at', { ascending: true })
-
-    if (error) {
-      console.error('Error loading messages:', error)
-      return
-    }
-
-    const formattedMessages: Message[] = data.map(msg => ({
-      id: msg.id,
-      role: msg.role as 'user' | 'assistant',
-      content: msg.content,
-      timestamp: new Date(msg.created_at),
-      sources: msg.sources || undefined
-    }))
-
-    setMessages(formattedMessages)
-  }
-
-  const createNewConversation = async () => {
-    if (!user) return
-
-    const { data, error } = await supabase
-      .from('conversations')
-      .insert({
-        user_id: user.id,
-        title: 'Nueva conversación'
-      })
-      .select()
-      .single()
-
-    if (error) {
-      console.error('Error creating conversation:', error)
-      return
-    }
-
-    setCurrentConversationId(data.id)
+    setConversations(prev => [newConv, ...prev])
+    setCurrentConversationId(newConv.id)
     setMessages([])
-    loadConversations()
-  }
-
-  const searchKnowledgeBase = async (query: string) => {
-    const { data } = await supabase
-      .from('knowledge_base')
-      .select('title, content, category')
-      .eq('active', true)
-      .textSearch('fts', query.replace(/\s+/g, ' & '))
-      .limit(5)
-
-    return data || []
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -152,98 +80,25 @@ const ChatInterface = () => {
     setLoading(true)
 
     try {
-      // Create conversation if none exists
-      let conversationId = currentConversationId
-      if (!conversationId) {
-        const { data, error } = await supabase
-          .from('conversations')
-          .insert({
-            user_id: user.id,
-            title: input.trim().slice(0, 50) + '...'
-          })
-          .select()
-          .single()
-
-        if (error) throw error
-        conversationId = data.id
-        setCurrentConversationId(conversationId)
-        loadConversations()
-      }
-
-      // Save user message
-      await supabase
-        .from('messages')
-        .insert({
-          conversation_id: conversationId,
-          role: 'user',
-          content: userMessage.content
-        })
-
-      // Search knowledge base
-      const sources = await searchKnowledgeBase(input.trim())
-      const context = sources.length > 0 
-        ? `Contexto relevante:\n${sources.map(s => `${s.title}: ${s.content}`).join('\n\n')}`
-        : ''
-
-      // Call OpenAI
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_OPENAI_API_KEY}`
-        },
-        body: JSON.stringify({
-          model: 'gpt-4',
-          messages: [
-            {
-              role: 'system',
-              content: `Eres Cerebro, el asistente de IA de Retorna. Ayudas a empleados con información de la empresa. 
-              Responde en español, sé conciso y útil. ${context ? 'Usa el contexto proporcionado cuando sea relevante.' : ''}`
-            },
-            { role: 'user', content: userMessage.content },
-            ...(context ? [{ role: 'system', content: context }] : [])
-          ],
-          stream: false,
-          temperature: 0.7
-        })
-      })
-
-      if (!response.ok) {
-        throw new Error('Error en la respuesta de OpenAI')
-      }
-
-      const data = await response.json()
-      const assistantContent = data.choices[0]?.message?.content || 'Lo siento, no pude generar una respuesta.'
-
-      const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: assistantContent,
-        timestamp: new Date(),
-        sources: sources.length > 0 ? sources : undefined
-      }
-
-      setMessages(prev => [...prev, assistantMessage])
-
-      // Save assistant message
-      await supabase
-        .from('messages')
-        .insert({
-          conversation_id: conversationId,
+      // Simulate AI response
+      setTimeout(() => {
+        const assistantMessage: Message = {
+          id: (Date.now() + 1).toString(),
           role: 'assistant',
-          content: assistantContent,
-          sources: sources.length > 0 ? sources : null
-        })
+          content: `Hola ${user.email}! He recibido tu mensaje: "${userMessage.content}". Esta es una respuesta de prueba del sistema Cerebro.`,
+          timestamp: new Date(),
+          sources: [
+            {
+              title: 'Documento de ejemplo',
+              content: 'Contenido de ejemplo',
+              category: 'Prueba'
+            }
+          ]
+        }
 
-      // Track analytics
-      await supabase
-        .from('usage_analytics')
-        .insert({
-          user_id: user.id,
-          query: userMessage.content,
-          ai_provider: 'openai',
-          sources_used: sources
-        })
+        setMessages(prev => [...prev, assistantMessage])
+        setLoading(false)
+      }, 1000)
 
     } catch (error) {
       console.error('Error:', error)
@@ -252,7 +107,6 @@ const ChatInterface = () => {
         description: "Hubo un problema al procesar tu mensaje.",
         variant: "destructive"
       })
-    } finally {
       setLoading(false)
     }
   }
@@ -265,49 +119,10 @@ const ChatInterface = () => {
     })
   }
 
-  const handleFeedback = async (messageId: string, rating: 1 | -1) => {
-    if (!user) return
-
-    try {
-      // Find the user message that prompted this response
-      const messageIndex = messages.findIndex(m => m.id === messageId)
-      const userMessage = messageIndex > 0 ? messages[messageIndex - 1] : null
-
-      if (userMessage && userMessage.role === 'user') {
-        await supabase
-          .from('usage_analytics')
-          .insert({
-            user_id: user.id,
-            query: userMessage.content,
-            rating: rating,
-            ai_provider: 'openai'
-          })
-      }
-
-      toast({
-        title: "Gracias por tu feedback",
-        description: rating === 1 ? "Nos alegra que te haya sido útil" : "Trabajaremos para mejorar"
-      })
-    } catch (error) {
-      console.error('Error saving feedback:', error)
-    }
-  }
-
-  const handleFileUpload = (fileContent: string, filename: string) => {
-    // Add the file content as a user message
-    const fileMessage: Message = {
-      id: Date.now().toString(),
-      role: 'user',
-      content: `[Archivo adjunto: ${filename}]\n\n${fileContent}`,
-      timestamp: new Date()
-    }
-
-    setMessages(prev => [...prev, fileMessage])
-    setShowFileUpload(false)
-    
+  const handleFeedback = (messageId: string, rating: 1 | -1) => {
     toast({
-      title: "Archivo procesado",
-      description: `${filename} se ha agregado a la conversación`
+      title: "Gracias por tu feedback",
+      description: rating === 1 ? "Nos alegra que te haya sido útil" : "Trabajaremos para mejorar"
     })
   }
 
@@ -336,7 +151,7 @@ const ChatInterface = () => {
                 className="w-full justify-start text-left h-auto p-3"
                 onClick={() => {
                   setCurrentConversationId(conv.id)
-                  loadConversationMessages(conv.id)
+                  setMessages([])
                 }}
               >
                 <div className="flex items-center gap-2 w-full">
@@ -422,47 +237,32 @@ const ChatInterface = () => {
                         
                         {message.role === 'assistant' && (
                           <div className="flex items-center gap-1">
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-8 w-8 p-0"
-                                  onClick={() => copyToClipboard(message.content)}
-                                >
-                                  <Copy className="h-3 w-3" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>Copiar respuesta</TooltipContent>
-                            </Tooltip>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                              onClick={() => copyToClipboard(message.content)}
+                            >
+                              <Copy className="h-3 w-3" />
+                            </Button>
                             
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-8 w-8 p-0"
-                                  onClick={() => handleFeedback(message.id, 1)}
-                                >
-                                  <ThumbsUp className="h-3 w-3" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>Útil</TooltipContent>
-                            </Tooltip>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                              onClick={() => handleFeedback(message.id, 1)}
+                            >
+                              <ThumbsUp className="h-3 w-3" />
+                            </Button>
                             
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-8 w-8 p-0"
-                                  onClick={() => handleFeedback(message.id, -1)}
-                                >
-                                  <ThumbsDown className="h-3 w-3" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>No útil</TooltipContent>
-                            </Tooltip>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                              onClick={() => handleFeedback(message.id, -1)}
+                            >
+                              <ThumbsDown className="h-3 w-3" />
+                            </Button>
                           </div>
                         )}
                       </div>
@@ -491,34 +291,17 @@ const ChatInterface = () => {
         <div className="border-t p-4">
           <div className="max-w-4xl mx-auto">
             <form onSubmit={handleSubmit} className="flex gap-2">
-              <div className="flex-1 relative">
-                <Input
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  placeholder="Pregunta algo a Cerebro..."
-                  disabled={loading}
-                  className="pr-12"
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="absolute right-1 top-1 h-8 w-8 p-0"
-                  onClick={() => setShowFileUpload(!showFileUpload)}
-                >
-                  <FileText className="h-4 w-4" />
-                </Button>
-              </div>
+              <Input
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Pregunta algo a Cerebro..."
+                disabled={loading}
+                className="flex-1"
+              />
               <Button type="submit" disabled={loading || !input.trim()}>
                 <Send className="h-4 w-4" />
               </Button>
             </form>
-
-            {showFileUpload && (
-              <div className="mt-4">
-                <FileUpload onFileUpload={handleFileUpload} />
-              </div>
-            )}
           </div>
         </div>
       </div>
