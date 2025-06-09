@@ -13,26 +13,35 @@ import UserManagement from '@/components/admin/UserManagement'
 import Analytics from '@/components/admin/Analytics'
 import { Brain } from 'lucide-react'
 
-const queryClient = new QueryClient()
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+})
+
+const LoadingScreen = () => (
+  <div className="min-h-screen flex items-center justify-center gradient-purple-light">
+    <div className="text-center">
+      <div className="relative">
+        <div className="w-16 h-16 bg-gradient-to-br from-primary-500 to-primary-700 rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse-purple">
+          <Brain className="w-8 h-8 text-white brain-glow" />
+        </div>
+      </div>
+      <h1 className="text-2xl font-bold cerebro-brand mb-2">CEREBRO</h1>
+      <p className="text-primary-600 font-medium">by Retorna</p>
+      <p className="text-gray-600 mt-2">Cargando plataforma de conocimiento...</p>
+    </div>
+  </div>
+)
 
 const AppContent = () => {
   const { user, profile, loading } = useAuth()
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center gradient-purple-light">
-        <div className="text-center">
-          <div className="relative">
-            <div className="w-16 h-16 bg-gradient-to-br from-primary-500 to-primary-700 rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse-purple">
-              <Brain className="w-8 h-8 text-white brain-glow" />
-            </div>
-          </div>
-          <h1 className="text-2xl font-bold cerebro-brand mb-2">CEREBRO</h1>
-          <p className="text-primary-600 font-medium">by Retorna</p>
-          <p className="text-gray-600 mt-2">Cargando plataforma de conocimiento...</p>
-        </div>
-      </div>
-    )
+    return <LoadingScreen />
   }
 
   if (!user) {
@@ -66,12 +75,12 @@ const AppContent = () => {
 const App = () => {
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <BrowserRouter>
+      <BrowserRouter>
+        <TooltipProvider>
           <AppContent />
           <Toaster />
-        </BrowserRouter>
-      </TooltipProvider>
+        </TooltipProvider>
+      </BrowserRouter>
     </QueryClientProvider>
   )
 }
