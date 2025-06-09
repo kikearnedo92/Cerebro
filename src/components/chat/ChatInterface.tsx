@@ -3,245 +3,240 @@ import React, { useState, useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
-import { 
-  Send, 
-  Copy, 
-  ThumbsUp, 
-  ThumbsDown, 
-  FileText, 
-  Clock,
-  Sparkles,
-  Plus,
-  Bot,
-  User as UserIcon
-} from 'lucide-react'
+import { Send, Bot, User, Upload, X, FileText } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useChat } from '@/hooks/useChat'
+import { useKnowledgeBase } from '@/hooks/useKnowledgeBase'
 import { toast } from '@/hooks/use-toast'
 
 const ChatInterface = () => {
   const { user } = useAuth()
   const { messages, loading, sendMessage, clearMessages } = useChat()
-  const [input, setInput] = useState('')
-  const scrollAreaRef = useRef<HTMLDivElement>(null)
+  const { uploadFile, isUploading } = useKnowledgeBase()
+  const [inputMessage, setInputMessage] = useState('')
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([])
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
-    if (scrollAreaRef.current) {
-      scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight
-    }
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!input.trim() || loading) return
+  const handleSendMessage = async () => {
+    if (!inputMessage.trim() && selectedFiles.length === 0) return
 
-    await sendMessage(input)
-    setInput('')
+    // Upload files first if any
+    if (selectedFiles.length > 0) {
+      for (const file of selectedFiles) {
+        try {
+          await uploadFile(file, {
+            title: file.name.replace(/\.[^/.]+$/, ""),
+            project: 'Chat Upload',
+            tags: ['chat', 'uploaded']
+          })
+        } catch (error) {
+          console.error('File upload failed:', error)
+        }
+      }
+      setSelectedFiles([])
+    }
+
+    // Send message
+    if (inputMessage.trim()) {
+      await sendMessage(inputMessage)
+      setInputMessage('')
+    }
   }
 
-  const handleSuggestionClick = (suggestion: string) => {
-    setInput(suggestion)
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || [])
+    setSelectedFiles(prev => [...prev, ...files])
   }
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text)
-    toast({
-      title: "Copiado",
-      description: "Texto copiado al portapapeles"
-    })
+  const removeFile = (index: number) => {
+    setSelectedFiles(prev => prev.filter((_, i) => i !== index))
   }
 
-  const handleFeedback = (messageId: string, rating: 'up' | 'down') => {
-    toast({
-      title: "Gracias por tu feedback",
-      description: rating === 'up' ? "Nos alegra que te haya sido útil" : "Trabajaremos para mejorar"
-    })
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleSendMessage()
+    }
   }
 
-  const startNewConversation = () => {
-    clearMessages()
+  if (!user) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <Card className="p-8 text-center">
+          <CardContent>
+            <Bot className="h-12 w-12 text-purple-600 mx-auto mb-4" />
+            <h2 className="text-xl font-semibold mb-2">Bienvenido a Cerebro</h2>
+            <p className="text-gray-600">Inicia sesión para comenzar a chatear con la IA</p>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   return (
     <div className="h-full flex flex-col bg-gray-50">
       {/* Header */}
-      <div className="bg-white border-b px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-purple-700 rounded-full flex items-center justify-center">
-              <Bot className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <h1 className="font-semibold text-gray-900">Chat con Cerebro</h1>
-              <p className="text-sm text-gray-500">Tu asistente inteligente de Retorna</p>
-            </div>
+      <div className="bg-white border-b border-gray-200 p-4 flex justify-between items-center">
+        <div className="flex items-center space-x-3">
+          <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-purple-700 rounded-full flex items-center justify-center">
+            <Bot className="w-6 h-6 text-white" />
           </div>
-          <Button onClick={startNewConversation} variant="outline" size="sm">
-            <Plus className="w-4 h-4 mr-2" />
-            Nueva conversación
-          </Button>
+          <div>
+            <h1 className="text-lg font-semibold">Cerebro AI</h1>
+            <p className="text-sm text-gray-500">Asistente inteligente de Retorna</p>
+          </div>
         </div>
+        <Button variant="outline" size="sm" onClick={clearMessages}>
+          Nueva conversación
+        </Button>
       </div>
 
       {/* Messages */}
-      <ScrollArea className="flex-1 p-6" ref={scrollAreaRef}>
-        <div className="space-y-6 max-w-4xl mx-auto">
-          {messages.length === 0 ? (
-            <div className="text-center py-12">
-              <Sparkles className="h-12 w-12 text-purple-500 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold mb-2">¡Hola! Soy Cerebro</h3>
-              <p className="text-gray-600 mb-4">
-                Tu asistente de conocimiento de Retorna. ¿En qué puedo ayudarte hoy?
-              </p>
-              <div className="flex flex-wrap gap-2 justify-center">
-                {[
-                  "Políticas por país",
-                  "Procedimientos ATC", 
-                  "Scripts de respuesta",
-                  "Normativas"
-                ].map(suggestion => (
-                  <button
-                    key={suggestion}
-                    onClick={() => handleSuggestionClick(suggestion)}
-                    className="px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded-full text-sm text-gray-700 transition-colors"
-                  >
-                    {suggestion}
-                  </button>
-                ))}
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {messages.length === 0 && (
+          <div className="text-center py-12">
+            <Bot className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">¡Hola! Soy Cerebro</h3>
+            <p className="text-gray-500 max-w-md mx-auto">
+              Soy tu asistente de IA entrenado con el conocimiento de Retorna. 
+              Puedes preguntarme sobre procesos, políticas, procedimientos o subir documentos.
+            </p>
+          </div>
+        )}
+
+        {messages.map((message) => (
+          <div
+            key={message.id}
+            className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+          >
+            <div className={`flex space-x-3 max-w-3xl ${message.role === 'user' ? 'flex-row-reverse space-x-reverse' : ''}`}>
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                message.role === 'user' 
+                  ? 'bg-purple-600' 
+                  : message.isError 
+                    ? 'bg-red-500' 
+                    : 'bg-gray-600'
+              }`}>
+                {message.role === 'user' ? (
+                  <User className="w-4 h-4 text-white" />
+                ) : (
+                  <Bot className="w-4 h-4 text-white" />
+                )}
               </div>
-            </div>
-          ) : (
-            messages.map((message) => (
-              <div
-                key={message.id}
-                className={`flex gap-4 ${
-                  message.role === 'user' ? 'justify-end' : 'justify-start'
-                }`}
-              >
-                {message.role === 'assistant' && (
-                  <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-purple-700 rounded-full flex items-center justify-center flex-shrink-0">
-                    <Bot className="w-4 h-4 text-white" />
+              
+              <div className={`rounded-lg p-4 ${
+                message.role === 'user'
+                  ? 'bg-purple-600 text-white'
+                  : message.isError
+                    ? 'bg-red-50 border border-red-200'
+                    : 'bg-white border border-gray-200'
+              }`}>
+                <div className="whitespace-pre-wrap text-sm">{message.content}</div>
+                
+                {message.sources && message.sources.length > 0 && (
+                  <div className="mt-3 pt-3 border-t border-gray-200">
+                    <p className="text-xs text-gray-500 mb-2">Fuentes consultadas:</p>
+                    <div className="flex flex-wrap gap-1">
+                      {message.sources.map((source, index) => (
+                        <Badge key={index} variant="secondary" className="text-xs">
+                          <FileText className="w-3 h-3 mr-1" />
+                          {source}
+                        </Badge>
+                      ))}
+                    </div>
                   </div>
                 )}
                 
-                <Card
-                  className={`max-w-2xl ${
-                    message.role === 'user'
-                      ? 'bg-purple-500 text-white border-purple-500'
-                      : message.isError 
-                        ? 'bg-red-50 border-red-200'
-                        : 'bg-white border'
-                  }`}
-                >
-                  <CardContent className="p-4">
-                    <div className="whitespace-pre-wrap">{message.content}</div>
-                    
-                    {/* Sources */}
-                    {message.sources && message.sources.length > 0 && (
-                      <div className="mt-4 pt-4 border-t border-gray-200">
-                        <div className="text-sm text-gray-600 mb-2 flex items-center gap-2">
-                          <FileText className="h-4 w-4" />
-                          Fuentes consultadas:
-                        </div>
-                        <div className="flex flex-wrap gap-1">
-                          {message.sources.map((source, idx) => (
-                            <Badge key={idx} variant="outline" className="text-xs">
-                              {source}
-                            </Badge>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Actions */}
-                    <div className="flex items-center justify-between mt-4 pt-2 border-t border-gray-200">
-                      <div className="flex items-center gap-2 text-xs text-gray-500">
-                        <Clock className="h-3 w-3" />
-                        {message.timestamp.toLocaleTimeString()}
-                      </div>
-                      
-                      {message.role === 'assistant' && !message.isError && (
-                        <div className="flex items-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0"
-                            onClick={() => copyToClipboard(message.content)}
-                          >
-                            <Copy className="h-3 w-3" />
-                          </Button>
-                          
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0"
-                            onClick={() => handleFeedback(message.id, 'up')}
-                          >
-                            <ThumbsUp className="h-3 w-3" />
-                          </Button>
-                          
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0"
-                            onClick={() => handleFeedback(message.id, 'down')}
-                          >
-                            <ThumbsDown className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {message.role === 'user' && (
-                  <div className="w-8 h-8 bg-gray-600 rounded-full flex items-center justify-center flex-shrink-0">
-                    <UserIcon className="w-4 h-4 text-white" />
-                  </div>
-                )}
+                <div className="text-xs text-gray-400 mt-2">
+                  {message.timestamp.toLocaleTimeString()}
+                </div>
               </div>
-            ))
-          )}
-          
-          {loading && (
-            <div className="flex gap-4 justify-start">
-              <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-purple-700 rounded-full flex items-center justify-center">
+            </div>
+          </div>
+        ))}
+
+        {loading && (
+          <div className="flex justify-start">
+            <div className="flex space-x-3 max-w-3xl">
+              <div className="w-8 h-8 bg-gray-600 rounded-full flex items-center justify-center">
                 <Bot className="w-4 h-4 text-white" />
               </div>
-              <Card className="max-w-2xl bg-white border">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-2 text-gray-500">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-500"></div>
-                    Cerebro está procesando tu consulta...
-                  </div>
-                </CardContent>
-              </Card>
+              <div className="bg-white border border-gray-200 rounded-lg p-4">
+                <div className="flex items-center space-x-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-600"></div>
+                  <span className="text-sm text-gray-500">Cerebro está pensando...</span>
+                </div>
+              </div>
             </div>
-          )}
+          </div>
+        )}
+
+        <div ref={messagesEndRef} />
+      </div>
+
+      {/* File Upload Area */}
+      {selectedFiles.length > 0 && (
+        <div className="bg-white border-t border-gray-200 p-4">
+          <div className="flex flex-wrap gap-2">
+            {selectedFiles.map((file, index) => (
+              <div key={index} className="flex items-center space-x-2 bg-gray-100 rounded-lg p-2">
+                <FileText className="w-4 h-4 text-gray-500" />
+                <span className="text-sm text-gray-700">{file.name}</span>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => removeFile(index)}
+                  className="h-6 w-6 p-0"
+                >
+                  <X className="w-3 h-3" />
+                </Button>
+              </div>
+            ))}
+          </div>
         </div>
-      </ScrollArea>
+      )}
 
       {/* Input Area */}
-      <div className="bg-white border-t p-4">
-        <div className="max-w-4xl mx-auto">
-          <form onSubmit={handleSubmit} className="flex gap-2">
-            <Input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Pregunta sobre políticas, procedimientos, normativas..."
-              disabled={loading}
-              className="flex-1"
-            />
-            <Button type="submit" disabled={loading || !input.trim()}>
-              <Send className="h-4 w-4" />
-            </Button>
-          </form>
-          <p className="text-xs text-gray-500 mt-2 text-center">
-            Cerebro puede cometer errores. Verifica información importante.
-          </p>
+      <div className="bg-white border-t border-gray-200 p-4">
+        <div className="flex space-x-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept=".pdf,.doc,.docx,.txt,.csv,.xlsx,.xls"
+            onChange={handleFileSelect}
+            className="hidden"
+          />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isUploading}
+            className="px-3"
+          >
+            <Upload className="w-4 h-4" />
+          </Button>
+          <Input
+            value={inputMessage}
+            onChange={(e) => setInputMessage(e.target.value)}
+            onKeyPress={handleKeyPress}
+            placeholder="Pregúntale algo a Cerebro o sube un documento..."
+            className="flex-1"
+            disabled={loading}
+          />
+          <Button 
+            onClick={handleSendMessage}
+            disabled={loading || (!inputMessage.trim() && selectedFiles.length === 0)}
+            className="px-6"
+          >
+            <Send className="w-4 h-4" />
+          </Button>
         </div>
       </div>
     </div>

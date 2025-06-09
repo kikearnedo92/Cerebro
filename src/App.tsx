@@ -1,4 +1,3 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -11,6 +10,7 @@ import MainLayout from "./components/layout/MainLayout";
 import UsersPage from "./pages/admin/UsersPage";
 import KnowledgeBasePage from "./pages/admin/KnowledgeBasePage";
 import AnalyticsPage from "./pages/admin/AnalyticsPage";
+import ChatInterface from "./components/chat/ChatInterface";
 
 const queryClient = new QueryClient();
 
@@ -64,10 +64,7 @@ const App = () => (
           <Route path="/chat" element={
             <ProtectedRoute>
               <MainLayout>
-                <div className="h-full p-6">
-                  <h1 className="text-2xl font-bold">Chat Interface</h1>
-                  <p className="text-gray-600">Chat functionality coming soon...</p>
-                </div>
+                <ChatInterface />
               </MainLayout>
             </ProtectedRoute>
           } />

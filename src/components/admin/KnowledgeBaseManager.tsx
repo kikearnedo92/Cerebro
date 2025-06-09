@@ -1,289 +1,437 @@
 
-import React, { useState } from 'react'
-import { useKnowledgeBase } from '@/hooks/useKnowledgeBase'
+import React, { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Search, Plus, FileText, Edit, Trash2, Eye, EyeOff, Upload, Database } from 'lucide-react'
-import QuickFileUpload from './QuickFileUpload'
-import ContentForm from './ContentForm'
+import { Switch } from '@/components/ui/switch'
+import { FileText, Upload, Download, Trash2, Edit, Plus, Search, Filter } from 'lucide-react'
+import { useKnowledgeBase } from '@/hooks/useKnowledgeBase'
+import { toast } from '@/hooks/use-toast'
 
 const KnowledgeBaseManager = () => {
-  const [searchQuery, setSearchQuery] = useState('')
-  const [selectedContent, setSelectedContent] = useState<any>(null)
-  const [showForm, setShowForm] = useState(false)
-  const { items, isLoading, deleteItem, toggleActive } = useKnowledgeBase()
+  const { 
+    items, 
+    isLoading, 
+    isUploading, 
+    addItem, 
+    updateItem, 
+    toggleActive, 
+    deleteItem, 
+    uploadFile 
+  } = useKnowledgeBase()
+  
+  const [searchTerm, setSearchTerm] = useState('')
+  const [filterProject, setFilterProject] = useState('all')
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false)
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [selectedItem, setSelectedItem] = useState<any>(null)
+  const [newItem, setNewItem] = useState({
+    title: '',
+    content: '',
+    project: '',
+    tags: ''
+  })
 
-  // Filter items based on search
-  const filteredItems = items?.filter(item =>
-    item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    item.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    item.project.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    item.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()))
-  ) || []
+  const projects = ['ATC', 'Research', 'Onboarding', 'FAQ', 'Política', 'Procedimiento', 'General']
+  
+  const filteredItems = items.filter(item => {
+    const matchesSearch = item.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         item.content.toLowerCase().includes(searchTerm.toLowerCase())
+    const matchesProject = filterProject === 'all' || item.project === filterProject
+    return matchesSearch && matchesProject
+  })
 
-  const handleEdit = (content: any) => {
-    setSelectedContent(content)
-    setShowForm(true)
-  }
-
-  const handleFormClose = () => {
-    setShowForm(false)
-    setSelectedContent(null)
-  }
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('es-ES', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    })
-  }
-
-  const getProjectColor = (project: string) => {
-    const colors: Record<string, string> = {
-      'ATC': 'bg-blue-100 text-blue-800',
-      'Research': 'bg-purple-100 text-purple-800',
-      'Onboarding': 'bg-green-100 text-green-800',
-      'Políticas': 'bg-red-100 text-red-800',
-      'Procedimientos': 'bg-orange-100 text-orange-800',
-      'Scripts': 'bg-cyan-100 text-cyan-800',
-      'General': 'bg-gray-100 text-gray-800'
+  const handleAddItem = async () => {
+    if (!newItem.title || !newItem.content || !newItem.project) {
+      toast({
+        title: "Error",
+        description: "Por favor completa todos los campos requeridos",
+        variant: "destructive"
+      })
+      return
     }
-    return colors[project] || 'bg-gray-100 text-gray-800'
+
+    try {
+      await addItem({
+        title: newItem.title,
+        content: newItem.content,
+        project: newItem.project,
+        tags: newItem.tags.split(',').map(tag => tag.trim()).filter(Boolean),
+        active: true
+      })
+      
+      setNewItem({ title: '', content: '', project: '', tags: '' })
+      setIsAddModalOpen(false)
+    } catch (error) {
+      console.error('Error adding item:', error)
+    }
+  }
+
+  const handleEditItem = async () => {
+    if (!selectedItem) return
+
+    try {
+      await updateItem(selectedItem.id, {
+        title: selectedItem.title,
+        content: selectedItem.content,
+        project: selectedItem.project,
+        tags: Array.isArray(selectedItem.tags) ? selectedItem.tags : []
+      })
+      setIsEditModalOpen(false)
+      setSelectedItem(null)
+    } catch (error) {
+      console.error('Error updating item:', error)
+    }
+  }
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files
+    if (!files || files.length === 0) return
+
+    for (const file of Array.from(files)) {
+      try {
+        await uploadFile(file, {
+          title: file.name.replace(/\.[^/.]+$/, ""),
+          project: 'General',
+          tags: ['uploaded', 'documento']
+        })
+      } catch (error) {
+        console.error('File upload error:', error)
+      }
+    }
+    
+    // Reset file input
+    event.target.value = ''
+  }
+
+  const handleDelete = async (id: string) => {
+    if (window.confirm('¿Estás seguro de que quieres eliminar este elemento?')) {
+      await deleteItem(id)
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="p-6">
+        <div className="flex items-center justify-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+          <span className="ml-3 text-gray-600">Cargando base de conocimiento...</span>
+        </div>
+      </div>
+    )
   }
 
   return (
-    <div className="h-full flex flex-col">
-      <div className="p-6 border-b bg-white">
-        <div className="flex justify-between items-center mb-4">
-          <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <Database className="w-6 h-6" />
-              Knowledge Base
-            </h1>
-            <p className="text-gray-600">Gestiona el contenido y documentos de Cerebro</p>
-          </div>
-          <Button onClick={() => setShowForm(true)} className="flex items-center gap-2">
-            <Plus className="w-4 h-4" />
-            Agregar Contenido
-          </Button>
+    <div className="p-6 space-y-6">
+      {/* Header with Actions */}
+      <div className="flex justify-between items-start">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Base de Conocimiento</h1>
+          <p className="text-gray-600">Gestiona el contenido que usa Cerebro para responder</p>
         </div>
-
-        {/* Search */}
-        <div className="relative max-w-md">
-          <Search className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
-          <Input
-            placeholder="Buscar en knowledge base..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
+        
+        <div className="flex gap-2">
+          <input
+            type="file"
+            multiple
+            accept=".pdf,.doc,.docx,.txt,.csv,.xlsx,.xls"
+            onChange={handleFileUpload}
+            className="hidden"
+            id="file-upload"
           />
+          <label htmlFor="file-upload">
+            <Button variant="outline" asChild disabled={isUploading}>
+              <span>
+                <Upload className="w-4 h-4 mr-2" />
+                {isUploading ? 'Subiendo...' : 'Subir Archivos'}
+              </span>
+            </Button>
+          </label>
+          
+          <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="w-4 h-4 mr-2" />
+                Agregar Contenido
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>Agregar Nuevo Contenido</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="title">Título *</Label>
+                  <Input
+                    id="title"
+                    value={newItem.title}
+                    onChange={(e) => setNewItem({...newItem, title: e.target.value})}
+                    placeholder="Título del contenido"
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="project">Proyecto *</Label>
+                  <Select value={newItem.project} onValueChange={(value) => setNewItem({...newItem, project: value})}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecciona proyecto" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {projects.map(project => (
+                        <SelectItem key={project} value={project}>{project}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div>
+                  <Label htmlFor="tags">Tags (separados por coma)</Label>
+                  <Input
+                    id="tags"
+                    value={newItem.tags}
+                    onChange={(e) => setNewItem({...newItem, tags: e.target.value})}
+                    placeholder="tag1, tag2, tag3"
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="content">Contenido *</Label>
+                  <Textarea
+                    id="content"
+                    value={newItem.content}
+                    onChange={(e) => setNewItem({...newItem, content: e.target.value})}
+                    placeholder="Contenido del documento..."
+                    rows={10}
+                  />
+                </div>
+                
+                <div className="flex gap-2">
+                  <Button onClick={handleAddItem} className="flex-1">
+                    Agregar Contenido
+                  </Button>
+                  <Button variant="outline" onClick={() => setIsAddModalOpen(false)}>
+                    Cancelar
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto">
-        <Tabs defaultValue="upload" className="h-full">
-          <div className="px-6 pt-4">
-            <TabsList>
-              <TabsTrigger value="upload" className="flex items-center gap-2">
-                <Upload className="w-4 h-4" />
-                Subir Archivos
-              </TabsTrigger>
-              <TabsTrigger value="content" className="flex items-center gap-2">
-                <FileText className="w-4 h-4" />
-                Contenido Existente
-              </TabsTrigger>
-            </TabsList>
-          </div>
-
-          <TabsContent value="upload" className="px-6 pb-6">
-            <QuickFileUpload />
-          </TabsContent>
-
-          <TabsContent value="content" className="px-6 pb-6">
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center space-x-2">
-                    <FileText className="w-6 h-6 text-blue-500" />
-                    <div>
-                      <p className="text-lg font-bold">{items?.length || 0}</p>
-                      <p className="text-sm text-gray-600">Total Documentos</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center space-x-2">
-                    <Eye className="w-6 h-6 text-green-500" />
-                    <div>
-                      <p className="text-lg font-bold">
-                        {items?.filter(item => item.active).length || 0}
-                      </p>
-                      <p className="text-sm text-gray-600">Activos</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center space-x-2">
-                    <Upload className="w-6 h-6 text-purple-500" />
-                    <div>
-                      <p className="text-lg font-bold">
-                        {items?.filter(item => item.file_url).length || 0}
-                      </p>
-                      <p className="text-sm text-gray-600">Archivos Subidos</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center space-x-2">
-                    <Edit className="w-6 h-6 text-orange-500" />
-                    <div>
-                      <p className="text-lg font-bold">
-                        {new Set(items?.map(item => item.project)).size || 0}
-                      </p>
-                      <p className="text-sm text-gray-600">Proyectos</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Content Table */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Contenido de la Base de Conocimiento</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {isLoading ? (
-                  <div className="text-center py-8">Cargando contenido...</div>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Título</TableHead>
-                        <TableHead>Proyecto</TableHead>
-                        <TableHead>Tipo</TableHead>
-                        <TableHead>Tags</TableHead>
-                        <TableHead>Estado</TableHead>
-                        <TableHead>Fecha</TableHead>
-                        <TableHead>Acciones</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredItems.map((item) => (
-                        <TableRow key={item.id}>
-                          <TableCell>
-                            <div className="flex items-center space-x-2">
-                              {item.file_url ? (
-                                <FileText className="w-4 h-4 text-blue-500" />
-                              ) : (
-                                <Edit className="w-4 h-4 text-green-500" />
-                              )}
-                              <span className="font-medium">{item.title}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge className={getProjectColor(item.project)}>
-                              {item.project}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant={item.file_url ? "default" : "secondary"}>
-                              {item.file_url ? 'Archivo' : 'Manual'}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex flex-wrap gap-1">
-                              {item.tags.slice(0, 2).map(tag => (
-                                <Badge key={tag} variant="outline" className="text-xs">
-                                  {tag}
-                                </Badge>
-                              ))}
-                              {item.tags.length > 2 && (
-                                <Badge variant="outline" className="text-xs">
-                                  +{item.tags.length - 2}
-                                </Badge>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant={item.active ? "default" : "secondary"}>
-                              {item.active ? 'Activo' : 'Inactivo'}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <span className="text-sm text-gray-600">
-                              {formatDate(item.created_at)}
-                            </span>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center space-x-1">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => toggleActive(item.id, !item.active)}
-                                title={item.active ? 'Desactivar' : 'Activar'}
-                              >
-                                {item.active ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleEdit(item)}
-                                title="Editar"
-                              >
-                                <Edit className="w-4 h-4" />
-                              </Button>
-                              <Button 
-                                variant="ghost" 
-                                size="sm" 
-                                onClick={() => deleteItem(item.id)}
-                                className="text-red-600 hover:text-red-700"
-                                title="Eliminar"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
-
-                {filteredItems.length === 0 && !isLoading && (
-                  <div className="text-center py-8 text-gray-500">
-                    {searchQuery ? 'No se encontraron resultados' : 'No hay contenido en la knowledge base'}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+      {/* Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="p-4">
+            <div className="text-2xl font-bold">{items.length}</div>
+            <div className="text-sm text-gray-600">Total Documentos</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="text-2xl font-bold text-green-600">{items.filter(i => i.active).length}</div>
+            <div className="text-sm text-gray-600">Activos</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="text-2xl font-bold text-gray-500">{items.filter(i => !i.active).length}</div>
+            <div className="text-sm text-gray-600">Inactivos</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="text-2xl font-bold text-blue-600">{new Set(items.map(i => i.project)).size}</div>
+            <div className="text-sm text-gray-600">Proyectos</div>
+          </CardContent>
+        </Card>
       </div>
 
-      {/* Content Form Modal */}
-      {showForm && (
-        <ContentForm
-          content={selectedContent}
-          onClose={handleFormClose}
-          onSave={handleFormClose}
-        />
-      )}
+      {/* Filters */}
+      <div className="flex gap-4 items-center">
+        <div className="flex-1">
+          <div className="relative">
+            <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+            <Input
+              placeholder="Buscar en contenido..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+        </div>
+        <Select value={filterProject} onValueChange={setFilterProject}>
+          <SelectTrigger className="w-48">
+            <Filter className="w-4 h-4 mr-2" />
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos los proyectos</SelectItem>
+            {projects.map(project => (
+              <SelectItem key={project} value={project}>{project}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Content Table */}
+      <Card>
+        <CardContent className="p-0">
+          {filteredItems.length === 0 ? (
+            <div className="text-center py-12">
+              <FileText className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No hay contenido</h3>
+              <p className="text-gray-500 mb-4">Comienza agregando documentos o contenido manualmente</p>
+              <Button onClick={() => setIsAddModalOpen(true)}>
+                <Plus className="w-4 h-4 mr-2" />
+                Agregar Primer Contenido
+              </Button>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Título</TableHead>
+                  <TableHead>Proyecto</TableHead>
+                  <TableHead>Tags</TableHead>
+                  <TableHead>Estado</TableHead>
+                  <TableHead>Creado</TableHead>
+                  <TableHead>Acciones</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredItems.map((item) => (
+                  <TableRow key={item.id}>
+                    <TableCell>
+                      <div>
+                        <div className="font-medium">{item.title}</div>
+                        <div className="text-sm text-gray-500 truncate max-w-md">
+                          {item.content.substring(0, 100)}...
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline">{item.project}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1">
+                        {(item.tags || []).slice(0, 3).map((tag, index) => (
+                          <Badge key={index} variant="secondary" className="text-xs">
+                            {tag}
+                          </Badge>
+                        ))}
+                        {(item.tags || []).length > 3 && (
+                          <Badge variant="secondary" className="text-xs">
+                            +{(item.tags || []).length - 3}
+                          </Badge>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center space-x-2">
+                        <Switch
+                          checked={item.active}
+                          onCheckedChange={(checked) => toggleActive(item.id, checked)}
+                        />
+                        <span className="text-sm">
+                          {item.active ? 'Activo' : 'Inactivo'}
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="text-sm text-gray-500">
+                        {new Date(item.created_at).toLocaleDateString()}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex space-x-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setSelectedItem(item)
+                            setIsEditModalOpen(true)
+                          }}
+                        >
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleDelete(item.id)}
+                          className="text-red-600 hover:text-red-700"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Edit Modal */}
+      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Editar Contenido</DialogTitle>
+          </DialogHeader>
+          {selectedItem && (
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="edit-title">Título</Label>
+                <Input
+                  id="edit-title"
+                  value={selectedItem.title}
+                  onChange={(e) => setSelectedItem({...selectedItem, title: e.target.value})}
+                />
+              </div>
+              
+              <div>
+                <Label htmlFor="edit-project">Proyecto</Label>
+                <Select value={selectedItem.project} onValueChange={(value) => setSelectedItem({...selectedItem, project: value})}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {projects.map(project => (
+                      <SelectItem key={project} value={project}>{project}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div>
+                <Label htmlFor="edit-content">Contenido</Label>
+                <Textarea
+                  id="edit-content"
+                  value={selectedItem.content}
+                  onChange={(e) => setSelectedItem({...selectedItem, content: e.target.value})}
+                  rows={10}
+                />
+              </div>
+              
+              <div className="flex gap-2">
+                <Button onClick={handleEditItem} className="flex-1">
+                  Guardar Cambios
+                </Button>
+                <Button variant="outline" onClick={() => setIsEditModalOpen(false)}>
+                  Cancelar
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
