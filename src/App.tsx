@@ -3,11 +3,14 @@ import React from 'react'
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom"
 import { Toaster } from "@/components/ui/toaster"
-import { Toaster as Sonner } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { useAuth } from "@/hooks/useAuth"
 import LandingPage from "./pages/LandingPage"
-import Dashboard from "./pages/Dashboard"
+import ChatPage from "./pages/ChatPage"
+import KnowledgePage from "./pages/KnowledgePage"
+import UsersPage from "./pages/UsersPage"
+import AnalyticsPage from "./pages/AnalyticsPage"
+import MainLayout from "./components/layout/MainLayout"
 import './index.css'
 
 const queryClient = new QueryClient()
@@ -30,7 +33,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     return <Navigate to="/" replace />
   }
   
-  return <>{children}</>
+  return <MainLayout>{children}</MainLayout>
 }
 
 const App = () => {
@@ -38,15 +41,38 @@ const App = () => {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
-        <Sonner />
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<LandingPage />} />
             <Route 
-              path="/dashboard" 
+              path="/chat" 
               element={
                 <ProtectedRoute>
-                  <Dashboard />
+                  <ChatPage />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/knowledge" 
+              element={
+                <ProtectedRoute>
+                  <KnowledgePage />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/users" 
+              element={
+                <ProtectedRoute>
+                  <UsersPage />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/analytics" 
+              element={
+                <ProtectedRoute>
+                  <AnalyticsPage />
                 </ProtectedRoute>
               } 
             />

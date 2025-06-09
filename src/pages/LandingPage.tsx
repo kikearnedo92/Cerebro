@@ -8,9 +8,8 @@ import { Brain } from 'lucide-react'
 const LandingPage = () => {
   const { user, loading } = useAuth()
 
-  // Redirect if already logged in
   if (user && !loading) {
-    return <Navigate to="/dashboard" replace />
+    return <Navigate to="/chat" replace />
   }
 
   if (loading) {
@@ -26,7 +25,6 @@ const LandingPage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-purple-100">
-      {/* Header */}
       <header className="p-6">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div className="flex items-center space-x-3">
@@ -41,10 +39,8 @@ const LandingPage = () => {
         </div>
       </header>
 
-      {/* Hero Section */}
       <main className="max-w-6xl mx-auto px-6 py-12">
         <div className="grid lg:grid-cols-2 gap-12 items-center">
-          {/* Left side - Content */}
           <div className="space-y-8">
             <div className="space-y-4">
               <h2 className="text-5xl font-bold text-gray-900">
@@ -79,7 +75,6 @@ const LandingPage = () => {
             </div>
           </div>
 
-          {/* Right side - Auth Form */}
           <div className="flex justify-center">
             <AuthForm />
           </div>

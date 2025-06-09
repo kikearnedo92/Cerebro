@@ -3,7 +3,6 @@ import { useState, useEffect } from 'react'
 import { User, Session } from '@supabase/supabase-js'
 import { supabase } from '@/integrations/supabase/client'
 import { Profile } from '@/types/database'
-import { toast } from '@/hooks/use-toast'
 
 export const useAuth = () => {
   const [user, setUser] = useState<User | null>(null)
@@ -14,7 +13,6 @@ export const useAuth = () => {
   useEffect(() => {
     console.log('🔐 Setting up auth listener...')
 
-    // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('🔐 Auth state change:', event, session?.user?.email)
@@ -22,7 +20,6 @@ export const useAuth = () => {
         setUser(session?.user ?? null)
         
         if (session?.user) {
-          // Fetch profile data
           setTimeout(async () => {
             try {
               console.log('👤 Fetching profile for:', session.user.email)
@@ -51,7 +48,6 @@ export const useAuth = () => {
       }
     )
 
-    // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       console.log('🔐 Initial session:', session?.user?.email)
       setSession(session)
@@ -71,14 +67,11 @@ export const useAuth = () => {
   }) => {
     console.log('📝 Signing up user:', email)
     
-    // Validate email domain
     if (!email.endsWith('@retorna.app')) {
       throw new Error('Solo se permiten emails con dominio @retorna.app')
     }
 
     const redirectUrl = `${window.location.origin}/`
-    
-    // Determine role based on email
     const role_system = email === 'eduardo@retorna.app' ? 'admin' : 'user'
     
     const { error } = await supabase.auth.signUp({
@@ -126,7 +119,6 @@ export const useAuth = () => {
       throw error
     }
     
-    // Clear local state
     setUser(null)
     setSession(null)
     setProfile(null)
@@ -134,7 +126,6 @@ export const useAuth = () => {
     console.log('✅ Signout successful')
   }
 
-  // Check if user is admin
   const isAdmin = profile?.role_system === 'admin' || user?.email === 'eduardo@retorna.app'
 
   return {
