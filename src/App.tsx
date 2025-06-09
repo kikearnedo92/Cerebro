@@ -6,14 +6,17 @@ import { Toaster } from '@/components/ui/toaster'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { useAuth } from '@/hooks/useAuth'
 import AuthForm from '@/components/auth/AuthForm'
+import MainLayout from '@/components/layout/MainLayout'
 import ChatInterface from '@/components/chat/ChatInterface'
-import UserMenu from '@/components/chat/UserMenu'
+import KnowledgeBaseManager from '@/components/admin/KnowledgeBaseManager'
+import UserManagement from '@/components/admin/UserManagement'
+import Analytics from '@/components/admin/Analytics'
 import { Brain } from 'lucide-react'
 
 const queryClient = new QueryClient()
 
 const AppContent = () => {
-  const { user, loading } = useAuth()
+  const { user, profile, loading } = useAuth()
 
   if (loading) {
     return (
@@ -36,29 +39,27 @@ const AppContent = () => {
     return <AuthForm />
   }
 
-  return (
-    <div className="h-screen flex flex-col">
-      {/* Header with Cerebro branding */}
-      <header className="border-b px-4 py-3 flex justify-between items-center bg-white shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-700 rounded-xl flex items-center justify-center shadow-lg">
-              <Brain className="w-6 h-6 text-white brain-glow" />
-            </div>
-          </div>
-          <div className="flex flex-col">
-            <span className="font-bold text-xl cerebro-brand">CEREBRO</span>
-            <span className="text-xs text-gray-500 font-medium">by Retorna</span>
-          </div>
-        </div>
-        <UserMenu />
-      </header>
+  const isAdmin = profile?.role_system === 'admin'
 
-      {/* Main chat interface */}
-      <main className="flex-1 overflow-hidden">
-        <ChatInterface />
-      </main>
-    </div>
+  return (
+    <MainLayout>
+      <Routes>
+        <Route path="/" element={<ChatInterface />} />
+        <Route path="/chat" element={<ChatInterface />} />
+        
+        {/* Admin Routes */}
+        {isAdmin && (
+          <>
+            <Route path="/admin/knowledge" element={<KnowledgeBaseManager />} />
+            <Route path="/admin/users" element={<UserManagement />} />
+            <Route path="/admin/analytics" element={<Analytics />} />
+          </>
+        )}
+        
+        {/* Redirect unknown routes */}
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </MainLayout>
   )
 }
 

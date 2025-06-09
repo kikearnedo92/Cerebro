@@ -167,6 +167,39 @@ export type Database = {
         }
         Relationships: []
       }
+      usage_analytics: {
+        Row: {
+          ai_provider: string | null
+          created_at: string | null
+          id: string
+          query: string
+          rating: number | null
+          response_time: number | null
+          sources_used: Json | null
+          user_id: string | null
+        }
+        Insert: {
+          ai_provider?: string | null
+          created_at?: string | null
+          id?: string
+          query: string
+          rating?: number | null
+          response_time?: number | null
+          sources_used?: Json | null
+          user_id?: string | null
+        }
+        Update: {
+          ai_provider?: string | null
+          created_at?: string | null
+          id?: string
+          query?: string
+          rating?: number | null
+          response_time?: number | null
+          sources_used?: Json | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

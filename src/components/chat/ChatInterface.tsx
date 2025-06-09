@@ -1,324 +1,368 @@
 
 import React, { useState, useEffect, useRef } from 'react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Card } from '@/components/ui/card'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { Send, Brain, User, Copy, Search } from 'lucide-react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/integrations/supabase/client'
 import { useAuth } from '@/hooks/useAuth'
 import { createChatCompletion } from '@/lib/openai'
-import { Message, Conversation } from '@/types/database'
-import FileUpload from './FileUpload'
+import { Button } from '@/components/ui/button'
+import { Textarea } from '@/components/ui/textarea'
+import { Card, CardContent } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
 import { toast } from '@/hooks/use-toast'
+import { Send, Copy, ThumbsUp, ThumbsDown, Bot, User, Search, Loader2 } from 'lucide-react'
+import FileUpload from './FileUpload'
+
+interface Message {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  timestamp: string
+  sources?: any[]
+}
 
 const ChatInterface = () => {
-  const { user } = useAuth()
+  const [input, setInput] = useState('')
   const [messages, setMessages] = useState<Message[]>([])
-  const [inputMessage, setInputMessage] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [currentConversation, setCurrentConversation] = useState<Conversation | null>(null)
+  const [isStreaming, setIsStreaming] = useState(false)
+  const [currentConversationId, setCurrentConversationId] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const [streamingMessage, setStreamingMessage] = useState('')
-  const inputRef = useRef<HTMLInputElement>(null)
+  const { user } = useAuth()
+  const queryClient = useQueryClient()
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }
-
-  useEffect(() => {
-    scrollToBottom()
-  }, [messages, streamingMessage])
-
-  // Focus input on Cmd+K
-  useEffect(() => {
-    const handleKeydown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault()
-        inputRef.current?.focus()
-      }
-    }
-    
-    document.addEventListener('keydown', handleKeydown)
-    return () => document.removeEventListener('keydown', handleKeydown)
-  }, [])
-
+  // Search knowledge base before sending to AI
   const searchKnowledgeBase = async (query: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('knowledge_base')
-        .select('*')
-        .eq('active', true)
-        .textSearch('content', query.split(' ').join(' | '))
-        .limit(3)
+    const { data, error } = await supabase
+      .from('knowledge_base')
+      .select('*')
+      .or(`title.ilike.%${query}%,content.ilike.%${query}%`)
+      .eq('active', true)
+      .limit(5)
 
-      if (error) throw error
-      return data || []
-    } catch (error) {
+    if (error) {
       console.error('Error searching knowledge base:', error)
       return []
     }
+
+    return data || []
   }
 
-  const createNewConversation = async (title: string): Promise<Conversation> => {
+  // Create or get conversation
+  const getOrCreateConversation = async () => {
+    if (currentConversationId) return currentConversationId
+
     const { data, error } = await supabase
       .from('conversations')
       .insert({
-        user_id: user!.id,
-        title: title.slice(0, 50)
+        user_id: user?.id,
+        title: 'Nueva conversación',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       })
       .select()
       .single()
 
     if (error) throw error
-    return data
+
+    setCurrentConversationId(data.id)
+    return data.id
   }
 
+  // Save message to database
   const saveMessage = async (conversationId: string, role: 'user' | 'assistant', content: string) => {
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('messages')
       .insert({
         conversation_id: conversationId,
         role,
-        content
+        content,
+        timestamp: new Date().toISOString()
       })
-      .select()
-      .single()
 
     if (error) throw error
-    return data
   }
 
-  const copyToClipboard = async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text)
-      toast({
-        title: "Copiado",
-        description: "Texto copiado al portapapeles"
+  // Log analytics
+  const logAnalytics = async (query: string, responseTime: number, sources: any[]) => {
+    const { error } = await supabase
+      .from('usage_analytics')
+      .insert({
+        user_id: user?.id,
+        query,
+        response_time: responseTime,
+        ai_provider: 'openai',
+        sources_used: sources,
+        created_at: new Date().toISOString()
       })
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "No se pudo copiar el texto",
-        variant: "destructive"
-      })
-    }
+
+    if (error) console.error('Error logging analytics:', error)
   }
 
-  const handleSendMessage = async (fileContent?: string, filename?: string) => {
-    if ((!inputMessage.trim() && !fileContent) || loading) return
-
-    const messageContent = fileContent 
-      ? `${inputMessage}\n\n[Archivo adjunto: ${filename}]`
-      : inputMessage
-
-    setLoading(true)
-    setInputMessage('')
-
-    try {
-      // Create conversation if needed
-      let conversation = currentConversation
-      if (!conversation) {
-        conversation = await createNewConversation(inputMessage || 'Nueva conversación')
-        setCurrentConversation(conversation)
-      }
-
-      // Save user message
-      const userMessage = await saveMessage(conversation.id, 'user', messageContent)
-      setMessages(prev => [...prev, userMessage])
-
+  const sendMessage = useMutation({
+    mutationFn: async (messageText: string) => {
+      const startTime = Date.now()
+      
       // Search knowledge base first
-      const knowledgeResults = await searchKnowledgeBase(inputMessage)
-      let knowledgeContext = ''
-      let sources: string[] = []
+      const sources = await searchKnowledgeBase(messageText)
+      console.log('Knowledge base sources:', sources)
 
-      if (knowledgeResults.length > 0) {
-        knowledgeContext = '\n\nInformación específica de Retorna encontrada:\n'
-        knowledgeResults.forEach((item, index) => {
-          knowledgeContext += `${index + 1}. ${item.title}\n${item.content}\n\n`
-          sources.push(item.title)
-        })
-      }
+      // Get or create conversation
+      const conversationId = await getOrCreateConversation()
 
-      // Prepare messages for OpenAI
-      const chatMessages = [...messages, userMessage].map(msg => ({
-        role: msg.role === 'assistant' ? 'assistant' as const : 'user' as const,
-        content: msg.content
-      }))
-
-      // Get AI response with knowledge context
-      const completion = await createChatCompletion(chatMessages, fileContent + knowledgeContext)
-      
-      let fullResponse = ''
-      setStreamingMessage('')
-
-      for await (const chunk of completion) {
-        const content = chunk.choices[0]?.delta?.content || ''
-        fullResponse += content
-        setStreamingMessage(fullResponse)
-      }
-
-      // Add sources to response if found
-      if (sources.length > 0) {
-        fullResponse += `\n\n📚 **Fuentes consultadas:**\n${sources.map(source => `• ${source}`).join('\n')}`
-      }
-
-      // Save AI response
-      if (fullResponse) {
-        const aiMessage = await saveMessage(conversation.id, 'assistant', fullResponse)
-        setMessages(prev => [...prev, aiMessage])
+      // Add user message to state
+      const userMessage: Message = {
+        id: Date.now().toString(),
+        role: 'user',
+        content: messageText,
+        timestamp: new Date().toISOString()
       }
       
-      setStreamingMessage('')
-    } catch (error: any) {
+      setMessages(prev => [...prev, userMessage])
+      await saveMessage(conversationId, 'user', messageText)
+
+      // Prepare context for AI
+      const contextContent = sources.length > 0 
+        ? sources.map(s => `${s.title}: ${s.content}`).join('\n\n')
+        : null
+
+      // Create AI completion
+      setIsStreaming(true)
+      const completion = await createChatCompletion([
+        { role: 'user', content: messageText }
+      ], contextContent)
+
+      let assistantResponse = ''
+      const reader = completion.body?.getReader()
+      
+      if (reader) {
+        const assistantMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          content: '',
+          timestamp: new Date().toISOString(),
+          sources: sources.length > 0 ? sources : undefined
+        }
+
+        setMessages(prev => [...prev, assistantMessage])
+
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+
+          const chunk = new TextDecoder().decode(value)
+          const lines = chunk.split('\n')
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const data = line.slice(6)
+              if (data === '[DONE]') break
+
+              try {
+                const parsed = JSON.parse(data)
+                const content = parsed.choices?.[0]?.delta?.content || ''
+                if (content) {
+                  assistantResponse += content
+                  setMessages(prev => prev.map(msg => 
+                    msg.id === assistantMessage.id 
+                      ? { ...msg, content: assistantResponse }
+                      : msg
+                  ))
+                }
+              } catch (e) {
+                // Ignore parsing errors
+              }
+            }
+          }
+        }
+
+        // Save final assistant message
+        await saveMessage(conversationId, 'assistant', assistantResponse)
+        
+        // Log analytics
+        const responseTime = Date.now() - startTime
+        await logAnalytics(messageText, responseTime, sources)
+      }
+
+      setIsStreaming(false)
+    },
+    onError: (error: any) => {
+      setIsStreaming(false)
       toast({
         title: "Error",
-        description: error.message || "Error al enviar el mensaje",
+        description: error.message,
         variant: "destructive"
       })
-    } finally {
-      setLoading(false)
     }
+  })
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!input.trim() || isStreaming) return
+
+    sendMessage.mutate(input.trim())
+    setInput('')
   }
 
-  const handleFileUpload = (fileContent: string, filename: string) => {
-    handleSendMessage(fileContent, filename)
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text)
+    toast({
+      title: "Copiado",
+      description: "Respuesta copiada al portapapeles"
+    })
   }
+
+  const handleFeedback = async (messageId: string, rating: number) => {
+    // You could log this feedback for analytics
+    toast({
+      title: "Gracias por tu feedback",
+      description: "Tu valoración nos ayuda a mejorar Cerebro"
+    })
+  }
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
 
   return (
-    <div className="h-full flex flex-col bg-gradient-to-br from-white to-purple-50/30">
-      {/* Chat area */}
-      <main className="flex-1 overflow-hidden">
-        <ScrollArea className="h-full">
-          <div className="max-w-4xl mx-auto px-4 py-8">
-            {messages.length === 0 && !streamingMessage ? (
-              <div className="text-center py-16">
-                <div className="relative mb-6">
-                  <div className="w-20 h-20 bg-gradient-to-br from-primary-500 to-primary-700 rounded-2xl flex items-center justify-center mx-auto shadow-2xl animate-pulse-purple">
-                    <Brain className="w-10 h-10 text-white brain-glow" />
-                  </div>
-                </div>
-                <h1 className="text-4xl font-bold cerebro-brand mb-3">¡Hola! Soy CEREBRO</h1>
-                <p className="text-gray-600 text-lg mb-4">
-                  Tu plataforma de conocimiento inteligente de Retorna
-                </p>
-                <p className="text-gray-500 text-sm">
-                  Pregúntame sobre políticas, procedimientos, análisis de mercado y más...
-                </p>
-                <div className="mt-6 flex justify-center">
-                  <div className="bg-white/80 backdrop-blur-sm rounded-lg px-4 py-2 text-sm text-gray-600 border border-purple-200">
-                    💡 Presiona <kbd className="bg-gray-100 px-2 py-1 rounded text-xs">Cmd+K</kbd> para enfocar la búsqueda
-                  </div>
-                </div>
+    <div className="flex h-full">
+      {/* Main Chat Area */}
+      <div className="flex-1 flex flex-col">
+        {/* Messages */}
+        <div className="flex-1 overflow-auto p-4 space-y-4">
+          {messages.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full text-center">
+              <div className="w-16 h-16 bg-gradient-to-br from-primary-500 to-primary-700 rounded-full flex items-center justify-center mb-4">
+                <Bot className="w-8 h-8 text-white" />
               </div>
-            ) : (
-              <div className="space-y-6">
-                {messages.map((message) => (
-                  <div
-                    key={message.id}
-                    className={`flex gap-4 ${message.role === 'user' ? 'justify-end' : ''}`}
-                  >
+              <h2 className="text-xl font-semibold mb-2">¡Hola! Soy CEREBRO</h2>
+              <p className="text-gray-600 max-w-md">
+                Soy tu asistente de conocimiento inteligente. Puedo ayudarte con información sobre 
+                políticas, procedimientos, investigaciones y más. ¿En qué puedo ayudarte hoy?
+              </p>
+            </div>
+          ) : (
+            <>
+              {messages.map((message) => (
+                <div key={message.id} className="space-y-2">
+                  <div className={`flex gap-3 ${message.role === 'user' ? 'justify-end' : ''}`}>
                     {message.role === 'assistant' && (
-                      <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-700 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg">
-                        <Brain className="w-5 h-5 text-white" />
+                      <div className="w-8 h-8 bg-gradient-to-br from-primary-500 to-primary-700 rounded-full flex items-center justify-center flex-shrink-0">
+                        <Bot className="w-4 h-4 text-white" />
                       </div>
                     )}
                     
-                    <div className={`max-w-3xl ${message.role === 'user' ? 'order-1' : ''}`}>
-                      <Card className={`p-4 relative group ${
-                        message.role === 'user'
-                          ? 'bg-gradient-to-br from-primary-500 to-primary-700 text-white ml-auto shadow-lg'
-                          : 'bg-white shadow-sm border-purple-100'
-                      }`}>
-                        <div className="prose prose-sm max-w-none">
-                          <div className="whitespace-pre-wrap">{message.content}</div>
-                        </div>
+                    <Card className={`max-w-3xl ${message.role === 'user' ? 'bg-primary text-primary-foreground' : ''}`}>
+                      <CardContent className="p-4">
+                        <div className="whitespace-pre-wrap">{message.content}</div>
                         
-                        {message.role === 'assistant' && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => copyToClipboard(message.content)}
-                            className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8 p-0"
-                          >
-                            <Copy className="h-3 w-3" />
-                          </Button>
+                        {/* Sources */}
+                        {message.sources && message.sources.length > 0 && (
+                          <div className="mt-4 pt-4 border-t border-gray-200">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Search className="w-4 h-4" />
+                              <span className="text-sm font-medium">Fuentes consultadas:</span>
+                            </div>
+                            <div className="space-y-1">
+                              {message.sources.map((source, index) => (
+                                <Badge key={index} variant="outline" className="text-xs">
+                                  {source.title} ({source.project})
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
                         )}
-                      </Card>
-                    </div>
-                    
+
+                        {/* Message Actions */}
+                        {message.role === 'assistant' && (
+                          <div className="flex items-center gap-2 mt-4 pt-3 border-t border-gray-200">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => copyToClipboard(message.content)}
+                            >
+                              <Copy className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleFeedback(message.id, 1)}
+                            >
+                              <ThumbsUp className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleFeedback(message.id, -1)}
+                            >
+                              <ThumbsDown className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+
                     {message.role === 'user' && (
-                      <div className="w-10 h-10 bg-gray-600 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg">
-                        <User className="w-5 h-5 text-white" />
+                      <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center flex-shrink-0">
+                        <User className="w-4 h-4 text-gray-600" />
                       </div>
                     )}
                   </div>
-                ))}
-
-                {streamingMessage && (
-                  <div className="flex gap-4">
-                    <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-700 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg">
-                      <Brain className="w-5 h-5 text-white" />
-                    </div>
-                    <div className="max-w-3xl">
-                      <Card className="p-4 bg-white shadow-sm border-purple-100">
-                        <div className="prose prose-sm max-w-none">
-                          <div className="whitespace-pre-wrap">{streamingMessage}</div>
-                          <div className="typing-indicator">
-                            <span></span>
-                            <span></span>
-                            <span></span>
-                          </div>
-                        </div>
-                      </Card>
-                    </div>
+                </div>
+              ))}
+              
+              {isStreaming && (
+                <div className="flex gap-3">
+                  <div className="w-8 h-8 bg-gradient-to-br from-primary-500 to-primary-700 rounded-full flex items-center justify-center flex-shrink-0">
+                    <Bot className="w-4 h-4 text-white" />
                   </div>
-                )}
-              </div>
-            )}
-            <div ref={messagesEndRef} />
-          </div>
-        </ScrollArea>
-      </main>
+                  <Card className="max-w-3xl">
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>CEREBRO está pensando...</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+              <div ref={messagesEndRef} />
+            </>
+          )}
+        </div>
 
-      {/* Input area */}
-      <footer className="border-t bg-white/80 backdrop-blur-sm p-4">
-        <div className="max-w-4xl mx-auto">
-          <form
-            onSubmit={(e) => {
-              e.preventDefault()
-              handleSendMessage()
-            }}
-            className="flex gap-2 items-end"
-          >
-            <FileUpload onFileUpload={handleFileUpload} />
-            
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-              <Input
-                ref={inputRef}
-                placeholder="Pregúntame sobre Retorna... (Cmd+K)"
-                value={inputMessage}
-                onChange={(e) => setInputMessage(e.target.value)}
-                disabled={loading}
-                className="min-h-[44px] pl-10 border-purple-200 focus:border-purple-400 focus:ring-purple-400"
+        {/* Input Area */}
+        <div className="border-t p-4 bg-white">
+          <form onSubmit={handleSubmit} className="space-y-3">
+            <div className="flex gap-2">
+              <Textarea
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Pregunta a CEREBRO sobre políticas, procedimientos, investigaciones..."
+                className="flex-1 min-h-[60px] max-h-[120px] resize-none"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    handleSubmit(e)
+                  }
+                }}
               />
+              <Button 
+                type="submit" 
+                disabled={!input.trim() || isStreaming}
+                className="h-[60px] px-6"
+              >
+                <Send className="w-4 h-4" />
+              </Button>
             </div>
             
-            <Button
-              type="submit"
-              disabled={(!inputMessage.trim() && !loading) || loading}
-              className="h-[44px] px-4 bg-gradient-to-r from-primary-500 to-primary-700 hover:from-primary-600 hover:to-primary-800 shadow-lg"
-            >
-              <Send className="w-4 h-4" />
-            </Button>
+            {/* File Upload */}
+            <FileUpload />
+            
+            <p className="text-xs text-gray-500 text-center">
+              Presiona Enter para enviar, Shift+Enter para nueva línea
+            </p>
           </form>
-          
-          <p className="text-xs text-gray-500 mt-2 text-center">
-            Cerebro puede cometer errores. Verifica información importante con las fuentes oficiales.
-          </p>
         </div>
-      </footer>
+      </div>
     </div>
   )
 }
