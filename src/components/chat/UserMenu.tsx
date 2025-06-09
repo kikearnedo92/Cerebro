@@ -4,11 +4,11 @@ import { useAuth } from '@/hooks/useAuth'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { 
-  UserIcon, 
-  ArrowRightOnRectangleIcon, 
-  ChevronDownIcon,
-  CogIcon 
-} from '@heroicons/react/24/outline'
+  User, 
+  LogOut, 
+  ChevronDown,
+  Settings 
+} from 'lucide-react'
 
 const UserMenu = () => {
   const { user, profile, signOut, isAdmin } = useAuth()
@@ -52,7 +52,7 @@ const UserMenu = () => {
           <p className="text-sm font-medium">{profile?.full_name || 'Usuario'}</p>
           <p className="text-xs text-gray-500">{profile?.area || 'Sin área'}</p>
         </div>
-        <ChevronDownIcon className="h-4 w-4" />
+        <ChevronDown className="h-4 w-4" />
       </button>
       
       {isOpen && (
@@ -87,7 +87,7 @@ const UserMenu = () => {
                 onClick={handleProfileClick}
                 className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
               >
-                <UserIcon className="h-4 w-4 mr-2 inline" />
+                <User className="h-4 w-4 mr-2 inline" />
                 Mi Perfil
               </button>
               
@@ -96,7 +96,7 @@ const UserMenu = () => {
                   onClick={handleAdminClick}
                   className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
                 >
-                  <CogIcon className="h-4 w-4 mr-2 inline" />
+                  <Settings className="h-4 w-4 mr-2 inline" />
                   Panel Admin
                 </button>
               )}
@@ -107,7 +107,7 @@ const UserMenu = () => {
                 onClick={handleLogout}
                 className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
               >
-                <ArrowRightOnRectangleIcon className="h-4 w-4 mr-2 inline" />
+                <LogOut className="h-4 w-4 mr-2 inline" />
                 Cerrar Sesión
               </button>
             </div>

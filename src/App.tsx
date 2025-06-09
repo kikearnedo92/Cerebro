@@ -63,13 +63,20 @@ const App = () => (
           {/* Protected routes */}
           <Route path="/chat" element={
             <ProtectedRoute>
-              <MainLayout />
+              <MainLayout>
+                <div className="h-full p-6">
+                  <h1 className="text-2xl font-bold">Chat Interface</h1>
+                  <p className="text-gray-600">Chat functionality coming soon...</p>
+                </div>
+              </MainLayout>
             </ProtectedRoute>
           } />
           
           <Route path="/profile" element={
             <ProtectedRoute>
-              <ProfilePage />
+              <MainLayout>
+                <ProfilePage />
+              </MainLayout>
             </ProtectedRoute>
           } />
           
@@ -82,19 +89,25 @@ const App = () => (
           
           <Route path="/admin/analytics" element={
             <AdminRoute>
-              <MainLayout />
+              <MainLayout>
+                <AnalyticsPage />
+              </MainLayout>
             </AdminRoute>
           } />
           
           <Route path="/admin/knowledge" element={
             <AdminRoute>
-              <MainLayout />
+              <MainLayout>
+                <KnowledgeBasePage />
+              </MainLayout>
             </AdminRoute>
           } />
           
           <Route path="/admin/users" element={
             <AdminRoute>
-              <MainLayout />
+              <MainLayout>
+                <UsersPage />
+              </MainLayout>
             </AdminRoute>
           } />
           

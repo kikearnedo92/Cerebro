@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
-import { UserIcon, CalendarIcon, ClockIcon } from '@heroicons/react/24/outline'
+import { User, Calendar, Clock } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 
 const ProfilePage = () => {
@@ -35,7 +35,7 @@ const ProfilePage = () => {
     )
   }
 
-  const formatDate = (dateString) => {
+  const formatDate = (dateString: string | null | undefined) => {
     if (!dateString) return 'No disponible'
     return new Date(dateString).toLocaleDateString('es-ES', {
       year: 'numeric',
@@ -51,7 +51,7 @@ const ProfilePage = () => {
       {/* Header */}
       <div className="flex items-center space-x-4">
         <div className="h-16 w-16 bg-purple-600 rounded-full flex items-center justify-center">
-          <UserIcon className="h-8 w-8 text-white" />
+          <User className="h-8 w-8 text-white" />
         </div>
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Mi Perfil</h1>
@@ -165,14 +165,14 @@ const ProfilePage = () => {
           </div>
           
           <div className="flex items-center space-x-2">
-            <CalendarIcon className="h-4 w-4 text-gray-400" />
+            <Calendar className="h-4 w-4 text-gray-400" />
             <span className="text-sm text-gray-600">
               Miembro desde: {formatDate(profile?.created_at)}
             </span>
           </div>
           
           <div className="flex items-center space-x-2">
-            <ClockIcon className="h-4 w-4 text-gray-400" />
+            <Clock className="h-4 w-4 text-gray-400" />
             <span className="text-sm text-gray-600">
               Último acceso: {formatDate(profile?.last_login)}
             </span>
