@@ -1,5 +1,5 @@
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -12,7 +12,7 @@
     --card-foreground: 222.2 84% 4.9%;
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
-    --primary: 214 100% 40%;
+    --primary: 263 70% 50%;
     --primary-foreground: 210 40% 98%;
     --secondary: 210 40% 96.1%;
     --secondary-foreground: 222.2 47.4% 11.2%;
@@ -24,7 +24,7 @@
     --destructive-foreground: 210 40% 98%;
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
-    --ring: 214 100% 40%;
+    --ring: 263 70% 50%;
     --radius: 0.5rem;
   }
 
@@ -85,9 +85,30 @@
   }
 }
 
+/* Gradientes morados para elementos destacados */
+.gradient-purple {
+  background: linear-gradient(135deg, #8B5CF6 0%, #A855F7 50%, #C084FC 100%);
+}
+
+.gradient-purple-light {
+  background: linear-gradient(135deg, #F3E8FF 0%, #E9D5FF 50%, #DDD6FE 100%);
+}
+
 /* Mobile responsive */
 @media (max-width: 768px) {
   .max-w-3xl {
     @apply px-2;
   }
+}
+
+/* Cerebro branding styles */
+.cerebro-brand {
+  background: linear-gradient(135deg, #8B5CF6 0%, #A855F7 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.brain-glow {
+  filter: drop-shadow(0 0 8px rgba(139, 92, 246, 0.3));
 }

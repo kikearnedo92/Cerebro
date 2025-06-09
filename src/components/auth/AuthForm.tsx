@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Bot, Mail, Lock, Eye, EyeOff, User } from 'lucide-react'
+import { Brain, Mail, Lock, Eye, EyeOff, User } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { toast } from '@/hooks/use-toast'
 
@@ -31,7 +31,7 @@ const AuthForm = () => {
       if (isLogin) {
         await signIn(formData.email, formData.password)
         toast({
-          title: "¡Bienvenido!",
+          title: "¡Bienvenido a Cerebro!",
           description: "Has iniciado sesión correctamente."
         })
       } else {
@@ -57,21 +57,26 @@ const AuthForm = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-50 to-primary-100 flex items-center justify-center p-4">
-      <Card className="w-full max-w-md shadow-xl border-0">
+    <div className="min-h-screen gradient-purple-light flex items-center justify-center p-4">
+      <Card className="w-full max-w-md shadow-2xl border-0 bg-white/95 backdrop-blur-sm">
         <CardHeader className="text-center space-y-4">
-          <div className="flex items-center justify-center space-x-2">
-            <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
-              <Bot className="w-6 h-6 text-white" />
+          <div className="flex items-center justify-center space-x-3">
+            <div className="relative">
+              <div className="w-12 h-12 bg-gradient-to-br from-primary-500 to-primary-700 rounded-xl flex items-center justify-center shadow-lg">
+                <Brain className="w-7 h-7 text-white brain-glow" />
+              </div>
             </div>
-            <h1 className="text-2xl font-bold text-primary">Retorna AI</h1>
+            <div className="flex flex-col">
+              <h1 className="text-2xl font-bold cerebro-brand">CEREBRO</h1>
+              <span className="text-sm text-gray-500 font-medium">by Retorna</span>
+            </div>
           </div>
           <div>
             <CardTitle className="text-xl">
-              {isLogin ? 'Bienvenido de vuelta' : 'Únete al equipo'}
+              {isLogin ? 'Accede a tu conocimiento' : 'Únete a Cerebro'}
             </CardTitle>
             <p className="text-sm text-muted-foreground">
-              {isLogin ? 'Accede a tu asistente inteligente interno' : 'Solo empleados con email @retorna.app'}
+              {isLogin ? 'La plataforma de conocimiento de Retorna' : 'Solo empleados con email @retorna.app'}
             </p>
           </div>
         </CardHeader>
@@ -144,12 +149,14 @@ const AuthForm = () => {
                       <SelectValue placeholder="Selecciona tu área" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="ATC">ATC (Atención al Cliente)</SelectItem>
-                      <SelectItem value="Research">Research</SelectItem>
-                      <SelectItem value="Onboarding">Onboarding</SelectItem>
-                      <SelectItem value="Data">Data</SelectItem>
-                      <SelectItem value="Management">Management</SelectItem>
-                      <SelectItem value="Otro">Otro</SelectItem>
+                      <SelectItem value="People">People</SelectItem>
+                      <SelectItem value="Growth">Growth</SelectItem>
+                      <SelectItem value="Producto">Producto</SelectItem>
+                      <SelectItem value="Customer Success">Customer Success</SelectItem>
+                      <SelectItem value="Tesorería">Tesorería</SelectItem>
+                      <SelectItem value="Operaciones">Operaciones</SelectItem>
+                      <SelectItem value="Administración">Administración</SelectItem>
+                      <SelectItem value="Compliance">Compliance</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -173,12 +180,12 @@ const AuthForm = () => {
 
             <Button 
               type="submit" 
-              className="w-full" 
+              className="w-full bg-gradient-to-r from-primary-500 to-primary-700 hover:from-primary-600 hover:to-primary-800 shadow-lg" 
               disabled={loading}
             >
               {loading 
-                ? (isLogin ? "Iniciando sesión..." : "Registrando...") 
-                : (isLogin ? "Iniciar sesión" : "Registrarse")
+                ? (isLogin ? "Accediendo..." : "Registrando...") 
+                : (isLogin ? "Acceder a Cerebro" : "Unirse a Cerebro")
               }
             </Button>
           </form>
@@ -187,7 +194,7 @@ const AuthForm = () => {
             <button
               type="button"
               onClick={() => setIsLogin(!isLogin)}
-              className="text-sm text-primary hover:underline"
+              className="text-sm text-primary-600 hover:text-primary-700 hover:underline"
             >
               {isLogin 
                 ? "¿No tienes cuenta? Regístrate aquí" 

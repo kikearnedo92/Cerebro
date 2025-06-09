@@ -11,6 +11,9 @@ export const useAuth = () => {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
 
+  // Session timeout - 2 hours
+  const SESSION_TIMEOUT = 2 * 60 * 60 * 1000 // 2 hours in milliseconds
+
   useEffect(() => {
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -19,6 +22,12 @@ export const useAuth = () => {
         setUser(session?.user ?? null)
         
         if (session?.user) {
+          // Update last login
+          await supabase
+            .from('profiles')
+            .update({ last_login: new Date().toISOString() })
+            .eq('id', session.user.id)
+
           // Fetch user profile
           setTimeout(async () => {
             const { data: profileData } = await supabase
@@ -29,11 +38,29 @@ export const useAuth = () => {
             
             if (profileData) {
               setProfile(profileData)
+              
+              // Check session timeout
+              if (profileData.last_login) {
+                const lastLogin = new Date(profileData.last_login).getTime()
+                const now = new Date().getTime()
+                
+                if (now - lastLogin > SESSION_TIMEOUT) {
+                  toast({
+                    title: "Sesión expirada",
+                    description: "Tu sesión ha expirado por inactividad. Por favor, inicia sesión nuevamente.",
+                    variant: "destructive"
+                  })
+                  await signOut()
+                  return
+                }
+              }
             }
           }, 0)
         } else {
           setProfile(null)
         }
+        
+        setLoading(false)
       }
     )
 
@@ -59,12 +86,18 @@ export const useAuth = () => {
 
     const redirectUrl = `${window.location.origin}/`
     
+    // Determine role based on email
+    const role_system = email === 'eduardo@retorna.app' ? 'admin' : 'user'
+    
     const { error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         emailRedirectTo: redirectUrl,
-        data: userData
+        data: {
+          ...userData,
+          role_system
+        }
       }
     })
 
@@ -83,6 +116,11 @@ export const useAuth = () => {
   const signOut = async () => {
     const { error } = await supabase.auth.signOut()
     if (error) throw error
+    
+    // Clear local state
+    setUser(null)
+    setSession(null)
+    setProfile(null)
   }
 
   return {

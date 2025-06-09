@@ -26,18 +26,18 @@ export default {
 				background: 'hsl(var(--background))',
 				foreground: 'hsl(var(--foreground))',
 				primary: {
-					DEFAULT: '#1E40AF',
+					DEFAULT: '#8B5CF6',
 					foreground: '#ffffff',
-					50: '#EFF6FF',
-					100: '#DBEAFE',
-					200: '#BFDBFE',
-					300: '#93C5FD',
-					400: '#60A5FA',
-					500: '#3B82F6',
-					600: '#1E40AF',
-					700: '#1E3A8A',
-					800: '#1E3A8A',
-					900: '#1E3A8A'
+					50: '#F3E8FF',
+					100: '#E9D5FF',
+					200: '#DDD6FE',
+					300: '#C4B5FD',
+					400: '#A78BFA',
+					500: '#8B5CF6',
+					600: '#7C3AED',
+					700: '#6D28D9',
+					800: '#5B21B6',
+					900: '#4C1D95'
 				},
 				secondary: {
 					DEFAULT: 'hsl(var(--secondary))',
@@ -103,13 +103,22 @@ export default {
 				'slide-in': {
 					'0%': { transform: 'translateX(-100%)' },
 					'100%': { transform: 'translateX(0)' }
+				},
+				'pulse-purple': {
+					'0%, 100%': { 
+						boxShadow: '0 0 0 0 rgba(139, 92, 246, 0.7)' 
+					},
+					'70%': { 
+						boxShadow: '0 0 0 10px rgba(139, 92, 246, 0)' 
+					}
 				}
 			},
 			animation: {
 				'accordion-down': 'accordion-down 0.2s ease-out',
 				'accordion-up': 'accordion-up 0.2s ease-out',
 				'fade-in': 'fade-in 0.3s ease-out',
-				'slide-in': 'slide-in 0.3s ease-out'
+				'slide-in': 'slide-in 0.3s ease-out',
+				'pulse-purple': 'pulse-purple 2s infinite'
 			},
 			fontFamily: {
 				'inter': ['Inter', 'system-ui', 'sans-serif'],
