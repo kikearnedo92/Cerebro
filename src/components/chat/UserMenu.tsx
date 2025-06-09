@@ -1,90 +1,120 @@
 
-import React from 'react'
+import React, { useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
+import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Badge } from '@/components/ui/badge'
-import { LogOut, Settings, User, Shield } from 'lucide-react'
+import { 
+  UserIcon, 
+  ArrowRightOnRectangleIcon, 
+  ChevronDownIcon,
+  CogIcon 
+} from '@heroicons/react/24/outline'
 
 const UserMenu = () => {
-  const { user, profile, signOut } = useAuth()
+  const { user, profile, signOut, isAdmin } = useAuth()
+  const navigate = useNavigate()
+  const [isOpen, setIsOpen] = useState(false)
 
-  if (!user || !profile) return null
+  const handleProfileClick = () => {
+    setIsOpen(false)
+    navigate('/profile')
+  }
 
-  const getInitials = (name: string) => {
-    const names = name.split(' ')
-    return names.map(n => n.charAt(0)).join('').toUpperCase().slice(0, 2)
+  const handleAdminClick = () => {
+    setIsOpen(false)
+    navigate('/admin')
   }
 
   const handleLogout = async () => {
+    setIsOpen(false)
     try {
       await signOut()
+      navigate('/')
     } catch (error) {
-      console.error('Error signing out:', error)
+      console.error('Logout error:', error)
     }
   }
 
+  if (!user) return null
+
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="relative h-10 w-10 rounded-full">
-          <Avatar className="h-10 w-10">
-            <AvatarImage src={user.user_metadata?.avatar_url} />
-            <AvatarFallback className="bg-primary text-white">
-              {getInitials(profile.full_name)}
-            </AvatarFallback>
-          </Avatar>
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-72" align="end" forceMount>
-        <DropdownMenuLabel className="font-normal">
-          <div className="flex flex-col space-y-2">
-            <div className="flex items-center gap-2">
-              <p className="text-sm font-medium leading-none">{profile.full_name}</p>
-              {profile.role_system === 'admin' && (
-                <Badge variant="default" className="text-xs">
-                  <Shield className="w-3 h-3 mr-1" />
-                  Admin
-                </Badge>
+    <div className="relative">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex items-center space-x-2 text-gray-700 hover:text-purple-600 p-2 rounded-md transition-colors"
+      >
+        <div className="h-8 w-8 bg-purple-600 rounded-full flex items-center justify-center">
+          <span className="text-white text-sm font-medium">
+            {user?.email?.charAt(0).toUpperCase()}
+          </span>
+        </div>
+        <div className="hidden md:block text-left">
+          <p className="text-sm font-medium">{profile?.full_name || 'Usuario'}</p>
+          <p className="text-xs text-gray-500">{profile?.area || 'Sin área'}</p>
+        </div>
+        <ChevronDownIcon className="h-4 w-4" />
+      </button>
+      
+      {isOpen && (
+        <>
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 z-40" 
+            onClick={() => setIsOpen(false)}
+          />
+          
+          {/* Dropdown */}
+          <div className="absolute right-0 mt-2 w-56 bg-white rounded-md shadow-lg border border-gray-200 z-50">
+            <div className="py-1">
+              {/* User Info */}
+              <div className="px-4 py-3 border-b border-gray-200">
+                <p className="text-sm font-medium text-gray-900 truncate">
+                  {profile?.full_name || 'Usuario'}
+                </p>
+                <p className="text-xs text-gray-500 truncate">{user?.email}</p>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
+                    {isAdmin ? 'Admin' : 'Usuario'}
+                  </span>
+                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
+                    {profile?.area || 'Sin área'}
+                  </span>
+                </div>
+              </div>
+              
+              {/* Menu Items */}
+              <button
+                onClick={handleProfileClick}
+                className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+              >
+                <UserIcon className="h-4 w-4 mr-2 inline" />
+                Mi Perfil
+              </button>
+              
+              {isAdmin && (
+                <button
+                  onClick={handleAdminClick}
+                  className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                >
+                  <CogIcon className="h-4 w-4 mr-2 inline" />
+                  Panel Admin
+                </button>
               )}
-            </div>
-            <p className="text-xs leading-none text-muted-foreground">
-              {user.email}
-            </p>
-            <div className="flex gap-1">
-              <Badge variant="outline" className="text-xs">
-                {profile.area}
-              </Badge>
-              <Badge variant="outline" className="text-xs">
-                {profile.rol_empresa}
-              </Badge>
+              
+              <div className="border-t border-gray-200 my-1" />
+              
+              <button
+                onClick={handleLogout}
+                className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+              >
+                <ArrowRightOnRectangleIcon className="h-4 w-4 mr-2 inline" />
+                Cerrar Sesión
+              </button>
             </div>
           </div>
-        </DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem>
-          <User className="mr-2 h-4 w-4" />
-          <span>Perfil</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem>
-          <Settings className="mr-2 h-4 w-4" />
-          <span>Configuración</span>
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={handleLogout} className="text-red-600">
-          <LogOut className="mr-2 h-4 w-4" />
-          <span>Cerrar sesión</span>
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+        </>
+      )}
+    </div>
   )
 }
 
