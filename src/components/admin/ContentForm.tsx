@@ -1,181 +1,170 @@
 
-import React, { useState, useEffect } from 'react'
-import { useMutation } from '@tanstack/react-query'
-import { supabase } from '@/integrations/supabase/client'
-import { useAuth } from '@/hooks/useAuth'
+import React, { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Switch } from '@/components/ui/switch'
-import { toast } from '@/hooks/use-toast'
+import { Badge } from '@/components/ui/badge'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { X } from 'lucide-react'
+import { useKnowledgeBase } from '@/hooks/useKnowledgeBase'
+import { KnowledgeBase } from '@/types/database'
 
 interface ContentFormProps {
-  content?: any
+  content?: KnowledgeBase | null
   onClose: () => void
   onSave: () => void
 }
 
 const ContentForm: React.FC<ContentFormProps> = ({ content, onClose, onSave }) => {
-  const [title, setTitle] = useState('')
-  const [contentText, setContentText] = useState('')
-  const [project, setProject] = useState('')
-  const [tags, setTags] = useState('')
-  const [active, setActive] = useState(true)
-  const { user } = useAuth()
-
-  useEffect(() => {
-    if (content) {
-      setTitle(content.title || '')
-      setContentText(content.content || '')
-      setProject(content.project || '')
-      setTags(content.tags?.join(', ') || '')
-      setActive(content.active ?? true)
-    }
-  }, [content])
-
-  const saveMutation = useMutation({
-    mutationFn: async (formData: any) => {
-      const tagsArray = formData.tags.split(',').map((tag: string) => tag.trim()).filter((tag: string) => tag.length > 0)
-      
-      const data = {
-        title: formData.title,
-        content: formData.content,
-        project: formData.project || 'General',
-        tags: tagsArray,
-        active: formData.active,
-        created_by: user?.id
-      }
-
-      if (content) {
-        // Update existing
-        const { error } = await supabase
-          .from('knowledge_base')
-          .update(data)
-          .eq('id', content.id)
-        
-        if (error) throw error
-      } else {
-        // Create new
-        const { error } = await supabase
-          .from('knowledge_base')
-          .insert(data)
-        
-        if (error) throw error
-      }
-    },
-    onSuccess: () => {
-      toast({
-        title: content ? "Contenido actualizado" : "Contenido creado",
-        description: "El contenido ha sido guardado correctamente."
-      })
-      onSave()
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive"
-      })
-    }
+  const { addItem, updateItem } = useKnowledgeBase()
+  const [formData, setFormData] = useState({
+    title: content?.title || '',
+    content: content?.content || '',
+    project: content?.project || 'General',
+    tags: content?.tags || []
   })
+  const [tagInput, setTagInput] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleTagAdd = () => {
+    if (tagInput.trim() && !formData.tags.includes(tagInput.trim())) {
+      setFormData(prev => ({
+        ...prev,
+        tags: [...prev.tags, tagInput.trim()]
+      }))
+      setTagInput('')
+    }
+  }
+
+  const handleTagRemove = (tagToRemove: string) => {
+    setFormData(prev => ({
+      ...prev,
+      tags: prev.tags.filter(tag => tag !== tagToRemove)
+    }))
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (!title.trim() || !contentText.trim()) {
-      toast({
-        title: "Campos requeridos",
-        description: "Por favor completa el título y contenido.",
-        variant: "destructive"
-      })
+    if (!formData.title.trim() || !formData.content.trim()) {
       return
     }
 
-    saveMutation.mutate({
-      title: title.trim(),
-      content: contentText.trim(),
-      project: project.trim(),
-      tags: tags.trim(),
-      active
-    })
+    setIsSubmitting(true)
+
+    try {
+      if (content) {
+        await updateItem(content.id, formData)
+      } else {
+        await addItem({
+          ...formData,
+          active: true
+        })
+      }
+      onSave()
+    } catch (error) {
+      console.error('Error saving content:', error)
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
-    <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>
-            {content ? 'Editar Contenido' : 'Agregar Contenido'}
-          </DialogTitle>
-        </DialogHeader>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <Label htmlFor="title">Título *</Label>
-            <Input
-              id="title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Título del contenido"
-              required
-            />
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle>
+              {content ? 'Editar Contenido' : 'Agregar Nuevo Contenido'}
+            </CardTitle>
+            <Button variant="ghost" size="sm" onClick={onClose}>
+              <X className="w-4 h-4" />
+            </Button>
           </div>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <Label htmlFor="title">Título</Label>
+              <Input
+                id="title"
+                value={formData.title}
+                onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+                placeholder="Título del contenido"
+                required
+              />
+            </div>
 
-          <div>
-            <Label htmlFor="content">Contenido *</Label>
-            <Textarea
-              id="content"
-              value={contentText}
-              onChange={(e) => setContentText(e.target.value)}
-              placeholder="Contenido detallado..."
-              rows={8}
-              required
-            />
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <Label htmlFor="project">Proyecto</Label>
               <Input
                 id="project"
-                value={project}
-                onChange={(e) => setProject(e.target.value)}
-                placeholder="Ej: ATC, Research, Onboarding..."
+                value={formData.project}
+                onChange={(e) => setFormData(prev => ({ ...prev, project: e.target.value }))}
+                placeholder="Nombre del proyecto"
               />
             </div>
+
             <div>
-              <Label htmlFor="tags">Tags (separados por comas)</Label>
-              <Input
-                id="tags"
-                value={tags}
-                onChange={(e) => setTags(e.target.value)}
-                placeholder="Ej: política, procedimiento, FAQ..."
+              <Label htmlFor="content">Contenido</Label>
+              <Textarea
+                id="content"
+                value={formData.content}
+                onChange={(e) => setFormData(prev => ({ ...prev, content: e.target.value }))}
+                placeholder="Contenido del documento..."
+                className="min-h-32"
+                required
               />
             </div>
-          </div>
 
-          <div className="flex items-center space-x-2">
-            <Switch
-              id="active"
-              checked={active}
-              onCheckedChange={setActive}
-            />
-            <Label htmlFor="active">Contenido activo</Label>
-          </div>
+            <div>
+              <Label htmlFor="tags">Tags</Label>
+              <div className="flex gap-2 mb-2">
+                <Input
+                  id="tags"
+                  value={tagInput}
+                  onChange={(e) => setTagInput(e.target.value)}
+                  placeholder="Agregar tag"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      handleTagAdd()
+                    }
+                  }}
+                />
+                <Button type="button" onClick={handleTagAdd}>
+                  Agregar
+                </Button>
+              </div>
+              {formData.tags.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {formData.tags.map(tag => (
+                    <Badge 
+                      key={tag} 
+                      variant="secondary" 
+                      className="cursor-pointer"
+                      onClick={() => handleTagRemove(tag)}
+                    >
+                      {tag} <X className="w-3 h-3 ml-1" />
+                    </Badge>
+                  ))}
+                </div>
+              )}
+            </div>
 
-          <div className="flex justify-end space-x-2 pt-4">
-            <Button variant="outline" type="button" onClick={onClose}>
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={saveMutation.isPending}>
-              {saveMutation.isPending ? 'Guardando...' : 'Guardar'}
-            </Button>
-          </div>
-        </form>
-      </DialogContent>
-    </Dialog>
+            <div className="flex justify-end gap-2 pt-4">
+              <Button type="button" variant="outline" onClick={onClose}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? 'Guardando...' : content ? 'Actualizar' : 'Guardar'}
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
   )
 }
 

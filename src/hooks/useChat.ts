@@ -56,7 +56,7 @@ Instrucciones:
 
 Como Cerebro, el asistente de Retorna, no tengo información específica sobre este tema en mi base de conocimiento actual. Te recomiendo consultar con tu supervisor o revisar la documentación interna correspondiente.`
 
-      // 3. Simulate AI response (replace with actual AI call)
+      // 3. Simulate AI response (replace with actual AI call when OpenAI is configured)
       const aiResponse = await generateAIResponse(contextPrompt, knowledgeResults)
       
       const assistantMessage: Message = {

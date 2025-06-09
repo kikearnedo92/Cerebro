@@ -1,83 +1,38 @@
 
-import React, { useState } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { supabase } from '@/integrations/supabase/client'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import React from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { toast } from '@/hooks/use-toast'
-import { Search, Users, Shield, Calendar, Mail, Building, UserCheck } from 'lucide-react'
-
-interface UserProfile {
-  id: string
-  email: string
-  full_name: string
-  area: string
-  rol_empresa: string
-  role_system: string
-  last_login: string | null
-  created_at: string
-}
+import { Users, UserPlus, Shield, Clock } from 'lucide-react'
 
 const UserManagement = () => {
-  const [searchQuery, setSearchQuery] = useState('')
-  const queryClient = useQueryClient()
-
-  // Fetch all users
-  const { data: users, isLoading } = useQuery({
-    queryKey: ['users', searchQuery],
-    queryFn: async () => {
-      let query = supabase
-        .from('profiles')
-        .select('*')
-        .order('created_at', { ascending: false })
-
-      if (searchQuery) {
-        query = query.or(`full_name.ilike.%${searchQuery}%,email.ilike.%${searchQuery}%,area.ilike.%${searchQuery}%`)
-      }
-
-      const { data, error } = await query
-      if (error) throw error
-      return data as UserProfile[]
-    }
-  })
-
-  // Update user role mutation
-  const updateRoleMutation = useMutation({
-    mutationFn: async ({ userId, newRole }: { userId: string, newRole: string }) => {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ role_system: newRole })
-        .eq('id', userId)
-      
-      if (error) throw error
+  // Mock user data - replace with actual data from Supabase
+  const users = [
+    {
+      id: '1',
+      email: 'eduardo@retorna.app',
+      full_name: 'Eduardo Retorna',
+      area: 'Administración',
+      rol_empresa: 'Director',
+      role_system: 'admin',
+      last_login: new Date(Date.now() - 3600000),
+      created_at: new Date(Date.now() - 86400000 * 30)
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['users'] })
-      toast({
-        title: "Rol actualizado",
-        description: "El rol del usuario ha sido actualizado correctamente."
-      })
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive"
-      })
+    {
+      id: '2',
+      email: 'ana.garcia@retorna.app',
+      full_name: 'Ana García',
+      area: 'Customer Success',
+      rol_empresa: 'Manager',
+      role_system: 'user',
+      last_login: new Date(Date.now() - 7200000),
+      created_at: new Date(Date.now() - 86400000 * 15)
     }
-  })
+  ]
 
-  const handleRoleChange = (userId: string, currentRole: string) => {
-    const newRole = currentRole === 'admin' ? 'user' : 'admin'
-    updateRoleMutation.mutate({ userId, newRole })
-  }
-
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return 'Nunca'
-    return new Date(dateString).toLocaleDateString('es-ES', {
+  const formatDate = (date: Date) => {
+    return date.toLocaleDateString('es-ES', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
@@ -88,207 +43,172 @@ const UserManagement = () => {
 
   const getAreaColor = (area: string) => {
     const colors: Record<string, string> = {
-      'People': 'bg-blue-100 text-blue-800',
-      'Growth': 'bg-green-100 text-green-800',
-      'Producto': 'bg-purple-100 text-purple-800',
-      'Customer Success': 'bg-orange-100 text-orange-800',
+      'Administración': 'bg-purple-100 text-purple-800',
+      'Customer Success': 'bg-green-100 text-green-800',
+      'Producto': 'bg-blue-100 text-blue-800',
+      'Growth': 'bg-orange-100 text-orange-800',
       'Tesorería': 'bg-yellow-100 text-yellow-800',
       'Operaciones': 'bg-cyan-100 text-cyan-800',
-      'Administración': 'bg-gray-100 text-gray-800',
-      'Compliance': 'bg-red-100 text-red-800'
+      'Compliance': 'bg-red-100 text-red-800',
+      'People': 'bg-pink-100 text-pink-800'
     }
     return colors[area] || 'bg-gray-100 text-gray-800'
   }
 
-  const getRoleColor = (role: string) => {
-    return role === 'admin' 
-      ? 'bg-red-100 text-red-800' 
-      : 'bg-blue-100 text-blue-800'
-  }
-
   return (
-    <div className="h-full flex flex-col">
-      <div className="p-6 border-b bg-white">
-        <div className="flex justify-between items-center mb-4">
-          <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <Users className="w-6 h-6" />
-              Gestión de Usuarios
-            </h1>
-            <p className="text-gray-600">Administra usuarios y permisos del sistema</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge variant="secondary" className="text-sm">
-              {users?.length || 0} usuarios registrados
-            </Badge>
-          </div>
+    <div className="h-full p-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <Users className="w-6 h-6" />
+            Gestión de Usuarios
+          </h1>
+          <p className="text-gray-600">Administra usuarios y permisos del sistema</p>
         </div>
-
-        {/* Search */}
-        <div className="relative max-w-md">
-          <Search className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
-          <Input
-            placeholder="Buscar usuarios..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
-          />
-        </div>
+        <Button className="flex items-center gap-2">
+          <UserPlus className="w-4 h-4" />
+          Invitar Usuario
+        </Button>
       </div>
 
-      <div className="flex-1 overflow-auto p-6">
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center space-x-2">
-                <Users className="w-8 h-8 text-blue-500" />
-                <div>
-                  <p className="text-2xl font-bold">{users?.length || 0}</p>
-                  <p className="text-sm text-gray-600">Total Usuarios</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center space-x-2">
-                <Shield className="w-8 h-8 text-red-500" />
-                <div>
-                  <p className="text-2xl font-bold">
-                    {users?.filter(u => u.role_system === 'admin').length || 0}
-                  </p>
-                  <p className="text-sm text-gray-600">Administradores</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center space-x-2">
-                <UserCheck className="w-8 h-8 text-green-500" />
-                <div>
-                  <p className="text-2xl font-bold">
-                    {users?.filter(u => u.last_login).length || 0}
-                  </p>
-                  <p className="text-sm text-gray-600">Activos</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center space-x-2">
-                <Building className="w-8 h-8 text-purple-500" />
-                <div>
-                  <p className="text-2xl font-bold">
-                    {new Set(users?.map(u => u.area)).size || 0}
-                  </p>
-                  <p className="text-sm text-gray-600">Áreas</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Users Table */}
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
-          <CardHeader>
-            <CardTitle>Lista de Usuarios</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <div className="text-center py-8">Cargando usuarios...</div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Usuario</TableHead>
-                    <TableHead>Área</TableHead>
-                    <TableHead>Rol Empresa</TableHead>
-                    <TableHead>Permisos Sistema</TableHead>
-                    <TableHead>Último Acceso</TableHead>
-                    <TableHead>Registro</TableHead>
-                    <TableHead>Acciones</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {users?.map((user) => (
-                    <TableRow key={user.id}>
-                      <TableCell>
-                        <div className="flex items-center space-x-3">
-                          <div className="w-8 h-8 bg-gradient-to-br from-primary-500 to-primary-700 rounded-full flex items-center justify-center text-white text-sm font-medium">
-                            {user.full_name.split(' ').map(n => n.charAt(0)).join('').toUpperCase().slice(0, 2)}
-                          </div>
-                          <div>
-                            <div className="font-medium">{user.full_name}</div>
-                            <div className="text-sm text-gray-500 flex items-center gap-1">
-                              <Mail className="w-3 h-3" />
-                              {user.email}
-                            </div>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className={getAreaColor(user.area)}>
-                          {user.area}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">
-                          {user.rol_empresa}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className={getRoleColor(user.role_system)}>
-                          {user.role_system === 'admin' ? (
-                            <>
-                              <Shield className="w-3 h-3 mr-1" />
-                              Administrador
-                            </>
-                          ) : (
-                            'Usuario'
-                          )}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="text-sm flex items-center gap-1">
-                          <Calendar className="w-3 h-3 text-gray-400" />
-                          {formatDate(user.last_login)}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="text-sm text-gray-500">
-                          {formatDate(user.created_at)}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleRoleChange(user.id, user.role_system)}
-                          disabled={updateRoleMutation.isPending}
-                        >
-                          {user.role_system === 'admin' ? 'Quitar Admin' : 'Hacer Admin'}
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-
-            {users?.length === 0 && !isLoading && (
-              <div className="text-center py-8 text-gray-500">
-                No se encontraron usuarios
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-2">
+              <Users className="w-6 h-6 text-blue-500" />
+              <div>
+                <p className="text-lg font-bold">{users.length}</p>
+                <p className="text-sm text-gray-600">Total Usuarios</p>
               </div>
-            )}
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-2">
+              <Shield className="w-6 h-6 text-purple-500" />
+              <div>
+                <p className="text-lg font-bold">
+                  {users.filter(u => u.role_system === 'admin').length}
+                </p>
+                <p className="text-sm text-gray-600">Administradores</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-2">
+              <Clock className="w-6 h-6 text-green-500" />
+              <div>
+                <p className="text-lg font-bold">
+                  {users.filter(u => u.last_login && new Date().getTime() - u.last_login.getTime() < 86400000).length}
+                </p>
+                <p className="text-sm text-gray-600">Activos Hoy</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-2">
+              <UserPlus className="w-6 h-6 text-orange-500" />
+              <div>
+                <p className="text-lg font-bold">
+                  {users.filter(u => new Date().getTime() - u.created_at.getTime() < 86400000 * 7).length}
+                </p>
+                <p className="text-sm text-gray-600">Nuevos (7 días)</p>
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>
+
+      {/* Users Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Usuarios Registrados</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Usuario</TableHead>
+                <TableHead>Área</TableHead>
+                <TableHead>Rol Empresa</TableHead>
+                <TableHead>Permisos</TableHead>
+                <TableHead>Último Acceso</TableHead>
+                <TableHead>Registro</TableHead>
+                <TableHead>Acciones</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {users.map((user) => (
+                <TableRow key={user.id}>
+                  <TableCell>
+                    <div>
+                      <div className="font-medium">{user.full_name}</div>
+                      <div className="text-sm text-gray-500">{user.email}</div>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <Badge className={getAreaColor(user.area)}>
+                      {user.area}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline">
+                      {user.rol_empresa}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={user.role_system === 'admin' ? 'default' : 'secondary'}>
+                      {user.role_system === 'admin' ? (
+                        <>
+                          <Shield className="w-3 h-3 mr-1" />
+                          Admin
+                        </>
+                      ) : (
+                        'Usuario'
+                      )}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    {user.last_login ? (
+                      <span className="text-sm text-gray-600">
+                        {formatDate(user.last_login)}
+                      </span>
+                    ) : (
+                      <span className="text-sm text-gray-400">Nunca</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <span className="text-sm text-gray-600">
+                      {formatDate(user.created_at)}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      <Button variant="ghost" size="sm">
+                        Editar
+                      </Button>
+                      {user.role_system !== 'admin' && (
+                        <Button variant="ghost" size="sm" className="text-red-600">
+                          Desactivar
+                        </Button>
+                      )}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
     </div>
   )
 }

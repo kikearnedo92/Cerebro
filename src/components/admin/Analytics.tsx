@@ -1,258 +1,200 @@
 
 import React from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { supabase } from '@/integrations/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { BarChart3, Users, MessageSquare, Database, TrendingUp, Clock, FileText, Activity } from 'lucide-react'
+import { BarChart3, TrendingUp, MessageSquare, Users, FileText, Clock } from 'lucide-react'
 
 const Analytics = () => {
-  // Fetch usage analytics
-  const { data: analytics } = useQuery({
-    queryKey: ['analytics'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('usage_analytics')
-        .select('*')
-        .order('created_at', { ascending: false })
-      
-      if (error) throw error
-      return data || []
-    }
-  })
-
-  // Fetch knowledge base stats
-  const { data: knowledgeStats } = useQuery({
-    queryKey: ['knowledge-stats'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('knowledge_base')
-        .select('project, created_at, active')
-      
-      if (error) throw error
-      return data || []
-    }
-  })
-
-  // Fetch user stats
-  const { data: userStats } = useQuery({
-    queryKey: ['user-stats'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('area, rol_empresa, last_login, created_at')
-      
-      if (error) throw error
-      return data || []
-    }
-  })
-
-  // Calculate metrics
-  const totalQueries = analytics?.length || 0
-  const activeUsers = userStats?.filter(u => u.last_login)?.length || 0
-  const totalUsers = userStats?.length || 0
-  const activeKnowledge = knowledgeStats?.filter(k => k.active)?.length || 0
-  const totalKnowledge = knowledgeStats?.length || 0
-
-  // Calculate average response time
-  const avgResponseTime = analytics?.length > 0 
-    ? Math.round(analytics.reduce((sum, item) => sum + (item.response_time || 0), 0) / analytics.length)
-    : 0
-
-  // Group analytics by area
-  const querysByArea = userStats?.reduce((acc: Record<string, number>, user) => {
-    const area = user.area || 'Sin área'
-    acc[area] = (acc[area] || 0) + 1
-    return acc
-  }, {}) || {}
-
-  // Group knowledge by project
-  const knowledgeByProject = knowledgeStats?.reduce((acc: Record<string, number>, item) => {
-    const project = item.project || 'General'
-    acc[project] = (acc[project] || 0) + 1
-    return acc
-  }, {}) || {}
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('es-ES', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    })
+  // Mock analytics data - replace with actual data from Supabase
+  const stats = {
+    totalQueries: 1247,
+    activeUsers: 68,
+    avgResponseTime: 2.3,
+    knowledgeBaseItems: 156,
+    popularQueries: [
+      { query: "Políticas de remesas a Colombia", count: 45 },
+      { query: "Scripts de atención al cliente", count: 38 },
+      { query: "Procedimientos ATC", count: 32 },
+      { query: "Regulaciones Chile", count: 28 },
+      { query: "Compliance Brasil", count: 24 }
+    ],
+    userActivity: [
+      { area: "Customer Success", queries: 425 },
+      { area: "Operaciones", queries: 312 },
+      { area: "Producto", queries: 198 },
+      { area: "Compliance", queries: 156 },
+      { area: "Administración", queries: 89 }
+    ],
+    contentPerformance: [
+      { title: "Manual ATC v2.1", views: 89, rating: 4.8 },
+      { title: "Regulaciones Colombia 2024", views: 76, rating: 4.6 },
+      { title: "Scripts Comunes", views: 65, rating: 4.7 },
+      { title: "Procedimientos Operativos", views: 54, rating: 4.5 }
+    ]
   }
 
   return (
-    <div className="h-full flex flex-col">
-      <div className="p-6 border-b bg-white">
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <BarChart3 className="w-6 h-6" />
-              Analytics
-            </h1>
-            <p className="text-gray-600">Métricas de uso y rendimiento de Cerebro</p>
-          </div>
-          <Badge variant="secondary" className="text-sm">
-            Datos en tiempo real
-          </Badge>
+    <div className="h-full p-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <BarChart3 className="w-6 h-6" />
+            Analytics y Métricas
+          </h1>
+          <p className="text-gray-600">Monitoreo de uso y rendimiento de Cerebro</p>
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto p-6">
-        {/* Key Metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center space-x-2">
-                <MessageSquare className="w-8 h-8 text-blue-500" />
-                <div>
-                  <p className="text-2xl font-bold">{totalQueries}</p>
-                  <p className="text-sm text-gray-600">Consultas Totales</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center space-x-2">
-                <Users className="w-8 h-8 text-green-500" />
-                <div>
-                  <p className="text-2xl font-bold">{activeUsers}/{totalUsers}</p>
-                  <p className="text-sm text-gray-600">Usuarios Activos</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center space-x-2">
-                <Database className="w-8 h-8 text-purple-500" />
-                <div>
-                  <p className="text-2xl font-bold">{activeKnowledge}/{totalKnowledge}</p>
-                  <p className="text-sm text-gray-600">Contenido Activo</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center space-x-2">
-                <Clock className="w-8 h-8 text-orange-500" />
-                <div>
-                  <p className="text-2xl font-bold">{avgResponseTime}ms</p>
-                  <p className="text-sm text-gray-600">Tiempo Respuesta</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          {/* Usage by Area */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <TrendingUp className="w-5 h-5" />
-                Usuarios por Área
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {Object.entries(querysByArea).map(([area, count]) => (
-                  <div key={area} className="flex items-center justify-between">
-                    <span className="text-sm font-medium">{area}</span>
-                    <div className="flex items-center gap-2">
-                      <div className="w-24 bg-gray-200 rounded-full h-2">
-                        <div 
-                          className="bg-blue-500 h-2 rounded-full" 
-                          style={{ width: `${(count / totalUsers) * 100}%` }}
-                        />
-                      </div>
-                      <span className="text-sm text-gray-600 w-8">{count}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Knowledge Base by Project */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="w-5 h-5" />
-                Contenido por Proyecto
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {Object.entries(knowledgeByProject).map(([project, count]) => (
-                  <div key={project} className="flex items-center justify-between">
-                    <span className="text-sm font-medium">{project}</span>
-                    <div className="flex items-center gap-2">
-                      <div className="w-24 bg-gray-200 rounded-full h-2">
-                        <div 
-                          className="bg-green-500 h-2 rounded-full" 
-                          style={{ width: `${(count / totalKnowledge) * 100}%` }}
-                        />
-                      </div>
-                      <span className="text-sm text-gray-600 w-8">{count}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Recent Activity */}
+      {/* Key Metrics */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Activity className="w-5 h-5" />
-              Actividad Reciente
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {analytics && analytics.length > 0 ? (
-              <div className="space-y-3">
-                {analytics.slice(0, 10).map((item, index) => (
-                  <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded">
-                    <div className="flex-1">
-                      <p className="text-sm font-medium truncate">{item.query}</p>
-                      <p className="text-xs text-gray-500">
-                        {item.created_at ? formatDate(item.created_at) : 'Fecha desconocida'}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {item.response_time && (
-                        <Badge variant="outline" className="text-xs">
-                          {item.response_time}ms
-                        </Badge>
-                      )}
-                      {item.rating && (
-                        <Badge 
-                          variant={item.rating === 1 ? "default" : "destructive"} 
-                          className="text-xs"
-                        >
-                          {item.rating === 1 ? '👍' : '👎'}
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                ))}
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-2">
+              <MessageSquare className="w-6 h-6 text-blue-500" />
+              <div>
+                <p className="text-2xl font-bold">{stats.totalQueries.toLocaleString()}</p>
+                <p className="text-sm text-gray-600">Consultas Totales</p>
+                <div className="flex items-center mt-1">
+                  <TrendingUp className="w-3 h-3 text-green-500 mr-1" />
+                  <span className="text-xs text-green-600">+12% vs mes anterior</span>
+                </div>
               </div>
-            ) : (
-              <div className="text-center py-8 text-gray-500">
-                No hay actividad reciente
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-2">
+              <Users className="w-6 h-6 text-green-500" />
+              <div>
+                <p className="text-2xl font-bold">{stats.activeUsers}</p>
+                <p className="text-sm text-gray-600">Usuarios Activos</p>
+                <div className="flex items-center mt-1">
+                  <TrendingUp className="w-3 h-3 text-green-500 mr-1" />
+                  <span className="text-xs text-green-600">+8% vs mes anterior</span>
+                </div>
               </div>
-            )}
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-2">
+              <Clock className="w-6 h-6 text-orange-500" />
+              <div>
+                <p className="text-2xl font-bold">{stats.avgResponseTime}s</p>
+                <p className="text-sm text-gray-600">Tiempo Respuesta</p>
+                <div className="flex items-center mt-1">
+                  <TrendingUp className="w-3 h-3 text-green-500 mr-1" />
+                  <span className="text-xs text-green-600">-0.5s vs mes anterior</span>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-2">
+              <FileText className="w-6 h-6 text-purple-500" />
+              <div>
+                <p className="text-2xl font-bold">{stats.knowledgeBaseItems}</p>
+                <p className="text-sm text-gray-600">Documentos KB</p>
+                <div className="flex items-center mt-1">
+                  <TrendingUp className="w-3 h-3 text-green-500 mr-1" />
+                  <span className="text-xs text-green-600">+15 este mes</span>
+                </div>
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Popular Queries */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Consultas Más Populares</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {stats.popularQueries.map((item, index) => (
+                <div key={index} className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <p className="text-sm font-medium truncate">{item.query}</p>
+                  </div>
+                  <Badge variant="secondary" className="ml-2">
+                    {item.count}
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* User Activity by Area */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Actividad por Área</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {stats.userActivity.map((item, index) => (
+                <div key={index} className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">{item.area}</p>
+                    <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
+                      <div 
+                        className="bg-blue-500 h-2 rounded-full" 
+                        style={{ width: `${(item.queries / stats.totalQueries) * 100}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                  <Badge variant="outline" className="ml-2">
+                    {item.queries}
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Content Performance */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Rendimiento de Contenido</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {stats.contentPerformance.map((item, index) => (
+              <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
+                <div className="flex-1">
+                  <p className="font-medium">{item.title}</p>
+                  <div className="flex items-center gap-4 mt-1">
+                    <span className="text-sm text-gray-600">{item.views} visualizaciones</span>
+                    <div className="flex items-center">
+                      <span className="text-sm text-gray-600">Rating: {item.rating}/5</span>
+                      <div className="flex ml-2">
+                        {[...Array(5)].map((_, i) => (
+                          <span 
+                            key={i} 
+                            className={`text-xs ${i < Math.floor(item.rating) ? 'text-yellow-400' : 'text-gray-300'}`}
+                          >
+                            ★
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }
