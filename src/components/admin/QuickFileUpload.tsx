@@ -53,7 +53,11 @@ const QuickFileUpload = () => {
     const tagsArray = tags.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0)
     
     for (const file of files) {
-      uploadFile({ file, project: project || 'General', tags: tagsArray })
+      await uploadFile(file, {
+        title: file.name,
+        project: project || 'General',
+        tags: tagsArray
+      })
     }
     
     // Reset form
