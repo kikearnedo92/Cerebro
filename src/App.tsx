@@ -1,119 +1,61 @@
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { useAuth } from "@/hooks/useAuth";
-import Index from "./pages/Index";
-import ProfilePage from "./pages/ProfilePage";
-import MainLayout from "./components/layout/MainLayout";
-import UsersPage from "./pages/admin/UsersPage";
-import KnowledgeBasePage from "./pages/admin/KnowledgeBasePage";
-import AnalyticsPage from "./pages/admin/AnalyticsPage";
-import ChatInterface from "./components/chat/ChatInterface";
 
-const queryClient = new QueryClient();
+import React from 'react'
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom"
+import { Toaster } from "@/components/ui/toaster"
+import { Toaster as Sonner } from "@/components/ui/sonner"
+import { TooltipProvider } from "@/components/ui/tooltip"
+import { useAuth } from "@/hooks/useAuth"
+import LandingPage from "./pages/LandingPage"
+import Dashboard from "./pages/Dashboard"
+import './index.css'
+
+const queryClient = new QueryClient()
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { user, loading } = useAuth();
+  const { user, loading } = useAuth()
   
   if (loading) {
     return (
-      <div className="h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+      <div className="h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-purple-100">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
+          <p className="text-purple-600 font-medium">Cargando Cerebro...</p>
+        </div>
       </div>
-    );
+    )
   }
   
   if (!user) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/" replace />
   }
   
-  return <>{children}</>;
-};
+  return <>{children}</>
+}
 
-const AdminRoute = ({ children }: { children: React.ReactNode }) => {
-  const { isAdmin, loading } = useAuth();
-  
-  if (loading) {
-    return (
-      <div className="h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
-      </div>
-    );
-  }
-  
-  if (!isAdmin) {
-    return <Navigate to="/chat" replace />;
-  }
-  
-  return <>{children}</>;
-};
+const App = () => {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<LandingPage />} />
+            <Route 
+              path="/dashboard" 
+              element={
+                <ProtectedRoute>
+                  <Dashboard />
+                </ProtectedRoute>
+              } 
+            />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </BrowserRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
+  )
+}
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          {/* Public routes */}
-          <Route path="/" element={<Index />} />
-          
-          {/* Protected routes */}
-          <Route path="/chat" element={
-            <ProtectedRoute>
-              <MainLayout>
-                <ChatInterface />
-              </MainLayout>
-            </ProtectedRoute>
-          } />
-          
-          <Route path="/profile" element={
-            <ProtectedRoute>
-              <MainLayout>
-                <ProfilePage />
-              </MainLayout>
-            </ProtectedRoute>
-          } />
-          
-          {/* Admin routes */}
-          <Route path="/admin" element={
-            <AdminRoute>
-              <Navigate to="/admin/analytics" replace />
-            </AdminRoute>
-          } />
-          
-          <Route path="/admin/analytics" element={
-            <AdminRoute>
-              <MainLayout>
-                <AnalyticsPage />
-              </MainLayout>
-            </AdminRoute>
-          } />
-          
-          <Route path="/admin/knowledge" element={
-            <AdminRoute>
-              <MainLayout>
-                <KnowledgeBasePage />
-              </MainLayout>
-            </AdminRoute>
-          } />
-          
-          <Route path="/admin/users" element={
-            <AdminRoute>
-              <MainLayout>
-                <UsersPage />
-              </MainLayout>
-            </AdminRoute>
-          } />
-          
-          {/* Catch all */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
-
-export default App;
+export default App

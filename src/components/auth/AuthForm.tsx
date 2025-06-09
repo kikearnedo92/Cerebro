@@ -57,154 +57,152 @@ const AuthForm = () => {
   }
 
   return (
-    <div className="min-h-screen gradient-purple-light flex items-center justify-center p-4">
-      <Card className="w-full max-w-md shadow-2xl border-0 bg-white/95 backdrop-blur-sm">
-        <CardHeader className="text-center space-y-4">
-          <div className="flex items-center justify-center space-x-3">
-            <div className="relative">
-              <div className="w-12 h-12 bg-gradient-to-br from-primary-500 to-primary-700 rounded-xl flex items-center justify-center shadow-lg">
-                <Brain className="w-7 h-7 text-white brain-glow" />
-              </div>
-            </div>
-            <div className="flex flex-col">
-              <h1 className="text-2xl font-bold cerebro-brand">CEREBRO</h1>
-              <span className="text-sm text-gray-500 font-medium">by Retorna</span>
-            </div>
+    <Card className="w-full max-w-md shadow-2xl border-0 bg-white/95 backdrop-blur-sm">
+      <CardHeader className="text-center space-y-4">
+        <div className="flex items-center justify-center space-x-3">
+          <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-purple-700 rounded-xl flex items-center justify-center shadow-lg">
+            <Brain className="w-7 h-7 text-white" />
           </div>
-          <div>
-            <CardTitle className="text-xl">
-              {isLogin ? 'Accede a tu conocimiento' : 'Únete a Cerebro'}
-            </CardTitle>
-            <p className="text-sm text-muted-foreground">
-              {isLogin ? 'La plataforma de conocimiento de Retorna' : 'Solo empleados con email @retorna.app'}
-            </p>
+          <div className="flex flex-col">
+            <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-purple-800 bg-clip-text text-transparent">
+              CEREBRO
+            </h1>
+            <span className="text-sm text-gray-500 font-medium">by Retorna</span>
           </div>
-        </CardHeader>
-        
-        <CardContent className="space-y-4">
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {!isLogin && (
-              <div className="space-y-2">
-                <Label htmlFor="full_name">Nombre completo</Label>
-                <div className="relative">
-                  <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="full_name"
-                    type="text"
-                    placeholder="Tu nombre completo"
-                    value={formData.full_name}
-                    onChange={(e) => setFormData({...formData, full_name: e.target.value})}
-                    className="pl-10"
-                    required
-                  />
-                </div>
-              </div>
-            )}
-
+        </div>
+        <div>
+          <CardTitle className="text-xl">
+            {isLogin ? 'Accede a tu conocimiento' : 'Únete a Cerebro'}
+          </CardTitle>
+          <p className="text-sm text-muted-foreground">
+            {isLogin ? 'La plataforma de conocimiento de Retorna' : 'Solo empleados con email @retorna.app'}
+          </p>
+        </div>
+      </CardHeader>
+      
+      <CardContent className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {!isLogin && (
             <div className="space-y-2">
-              <Label htmlFor="email">Correo electrónico</Label>
+              <Label htmlFor="full_name">Nombre completo</Label>
               <div className="relative">
-                <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
-                  id="email"
-                  type="email"
-                  placeholder="tu@retorna.app"
-                  value={formData.email}
-                  onChange={(e) => setFormData({...formData, email: e.target.value})}
+                  id="full_name"
+                  type="text"
+                  placeholder="Tu nombre completo"
+                  value={formData.full_name}
+                  onChange={(e) => setFormData({...formData, full_name: e.target.value})}
                   className="pl-10"
                   required
                 />
               </div>
             </div>
+          )}
 
-            <div className="space-y-2">
-              <Label htmlFor="password">Contraseña</Label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  placeholder="••••••••"
-                  value={formData.password}
-                  onChange={(e) => setFormData({...formData, password: e.target.value})}
-                  className="pl-10 pr-10"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-3 h-4 w-4 text-muted-foreground hover:text-foreground"
-                >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
+          <div className="space-y-2">
+            <Label htmlFor="email">Correo electrónico</Label>
+            <div className="relative">
+              <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+              <Input
+                id="email"
+                type="email"
+                placeholder="tu@retorna.app"
+                value={formData.email}
+                onChange={(e) => setFormData({...formData, email: e.target.value})}
+                className="pl-10"
+                required
+              />
             </div>
-
-            {!isLogin && (
-              <>
-                <div className="space-y-2">
-                  <Label htmlFor="area">Área</Label>
-                  <Select onValueChange={(value) => setFormData({...formData, area: value})} required>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecciona tu área" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="People">People</SelectItem>
-                      <SelectItem value="Growth">Growth</SelectItem>
-                      <SelectItem value="Producto">Producto</SelectItem>
-                      <SelectItem value="Customer Success">Customer Success</SelectItem>
-                      <SelectItem value="Tesorería">Tesorería</SelectItem>
-                      <SelectItem value="Operaciones">Operaciones</SelectItem>
-                      <SelectItem value="Administración">Administración</SelectItem>
-                      <SelectItem value="Compliance">Compliance</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="rol_empresa">Rol en la empresa</Label>
-                  <Select onValueChange={(value) => setFormData({...formData, rol_empresa: value})} required>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecciona tu rol" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Agente">Agente</SelectItem>
-                      <SelectItem value="Analista">Analista</SelectItem>
-                      <SelectItem value="Manager">Manager</SelectItem>
-                      <SelectItem value="Director">Director</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </>
-            )}
-
-            <Button 
-              type="submit" 
-              className="w-full bg-gradient-to-r from-primary-500 to-primary-700 hover:from-primary-600 hover:to-primary-800 shadow-lg" 
-              disabled={loading}
-            >
-              {loading 
-                ? (isLogin ? "Accediendo..." : "Registrando...") 
-                : (isLogin ? "Acceder a Cerebro" : "Unirse a Cerebro")
-              }
-            </Button>
-          </form>
-
-          <div className="text-center">
-            <button
-              type="button"
-              onClick={() => setIsLogin(!isLogin)}
-              className="text-sm text-primary-600 hover:text-primary-700 hover:underline"
-            >
-              {isLogin 
-                ? "¿No tienes cuenta? Regístrate aquí" 
-                : "¿Ya tienes cuenta? Inicia sesión"
-              }
-            </button>
           </div>
-        </CardContent>
-      </Card>
-    </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="password">Contraseña</Label>
+            <div className="relative">
+              <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+              <Input
+                id="password"
+                type={showPassword ? "text" : "password"}
+                placeholder="••••••••"
+                value={formData.password}
+                onChange={(e) => setFormData({...formData, password: e.target.value})}
+                className="pl-10 pr-10"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-3 h-4 w-4 text-muted-foreground hover:text-foreground"
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+          </div>
+
+          {!isLogin && (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="area">Área</Label>
+                <Select onValueChange={(value) => setFormData({...formData, area: value})} required>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecciona tu área" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="People">People</SelectItem>
+                    <SelectItem value="Growth">Growth</SelectItem>
+                    <SelectItem value="Producto">Producto</SelectItem>
+                    <SelectItem value="Customer Success">Customer Success</SelectItem>
+                    <SelectItem value="Tesorería">Tesorería</SelectItem>
+                    <SelectItem value="Operaciones">Operaciones</SelectItem>
+                    <SelectItem value="Administración">Administración</SelectItem>
+                    <SelectItem value="Compliance">Compliance</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="rol_empresa">Rol en la empresa</Label>
+                <Select onValueChange={(value) => setFormData({...formData, rol_empresa: value})} required>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecciona tu rol" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Agente">Agente</SelectItem>
+                    <SelectItem value="Analista">Analista</SelectItem>
+                    <SelectItem value="Manager">Manager</SelectItem>
+                    <SelectItem value="Director">Director</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </>
+          )}
+
+          <Button 
+            type="submit" 
+            className="w-full bg-gradient-to-r from-purple-500 to-purple-700 hover:from-purple-600 hover:to-purple-800 shadow-lg" 
+            disabled={loading}
+          >
+            {loading 
+              ? (isLogin ? "Accediendo..." : "Registrando...") 
+              : (isLogin ? "Acceder a Cerebro" : "Unirse a Cerebro")
+            }
+          </Button>
+        </form>
+
+        <div className="text-center">
+          <button
+            type="button"
+            onClick={() => setIsLogin(!isLogin)}
+            className="text-sm text-purple-600 hover:text-purple-700 hover:underline"
+          >
+            {isLogin 
+              ? "¿No tienes cuenta? Regístrate aquí" 
+              : "¿Ya tienes cuenta? Inicia sesión"
+            }
+          </button>
+        </div>
+      </CardContent>
+    </Card>
   )
 }
 
