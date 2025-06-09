@@ -4,193 +4,291 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { Upload, FileText, Search, Plus, Download, Trash2 } from 'lucide-react'
-
-interface Document {
-  id: string
-  title: string
-  content: string
-  tags: string[]
-  uploadedBy: string
-  uploadedAt: Date
-  size: string
-}
+import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Upload, FileText, Search, Plus, Trash2, Download } from 'lucide-react'
+import { useKnowledgeBase } from '@/hooks/useKnowledgeBase'
+import { useAuth } from '@/hooks/useAuth'
+import { toast } from '@/hooks/use-toast'
 
 const KnowledgePage = () => {
-  const [documents, setDocuments] = useState<Document[]>([
-    {
-      id: '1',
-      title: 'Manual de Onboarding Retorna.pdf',
-      content: 'Proceso de onboarding para nuevos empleados...',
-      tags: ['Onboarding', 'RRHH'],
-      uploadedBy: 'eduardo@retorna.app',
-      uploadedAt: new Date('2024-01-15'),
-      size: '2.3 MB'
-    },
-    {
-      id: '2',
-      title: 'Scripts ATC Colombia.docx',
-      content: 'Scripts de atención al cliente para Colombia...',
-      tags: ['ATC', 'Colombia'],
-      uploadedBy: 'maria@retorna.app',
-      uploadedAt: new Date('2024-01-10'),
-      size: '1.8 MB'
-    }
-  ])
-  
+  const { items, isLoading, isUploading, uploadFile, deleteItem } = useKnowledgeBase()
+  const { isAdmin } = useAuth()
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedTag, setSelectedTag] = useState('')
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
+  const [dragActive, setDragActive] = useState(false)
 
-  const allTags = Array.from(new Set(documents.flatMap(doc => doc.tags)))
+  // Upload form state
+  const [uploadForm, setUploadForm] = useState({
+    title: '',
+    project: '',
+    tags: [] as string[]
+  })
 
-  const filteredDocuments = documents.filter(doc => {
-    const matchesSearch = doc.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         doc.content.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesTag = !selectedTag || doc.tags.includes(selectedTag)
+  const handleFileUpload = async (files: FileList) => {
+    if (!isAdmin) {
+      toast({
+        title: "Acceso denegado",
+        description: "Solo los administradores pueden subir documentos",
+        variant: "destructive"
+      })
+      return
+    }
+
+    const file = files[0]
+    if (!file) return
+
+    try {
+      await uploadFile(file, {
+        title: uploadForm.title || file.name.replace(/\.[^/.]+$/, ""),
+        project: uploadForm.project || 'General',
+        tags: uploadForm.tags.length > 0 ? uploadForm.tags : ['general']
+      })
+
+      setIsUploadModalOpen(false)
+      setUploadForm({ title: '', project: '', tags: [] })
+    } catch (error) {
+      console.error('Upload failed:', error)
+    }
+  }
+
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true)
+    } else if (e.type === "dragleave") {
+      setDragActive(false)
+    }
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragActive(false)
+    
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleFileUpload(e.dataTransfer.files)
+    }
+  }
+
+  const filteredItems = items.filter(item => {
+    const matchesSearch = item.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         item.content.toLowerCase().includes(searchTerm.toLowerCase())
+    const matchesTag = !selectedTag || item.tags?.includes(selectedTag)
     return matchesSearch && matchesTag
   })
 
-  const handleFileUpload = () => {
-    // Simulate file upload
-    const newDoc: Document = {
-      id: Date.now().toString(),
-      title: 'Nuevo Documento.pdf',
-      content: 'Contenido del nuevo documento...',
-      tags: ['General'],
-      uploadedBy: 'usuario@retorna.app',
-      uploadedAt: new Date(),
-      size: '1.2 MB'
-    }
-    setDocuments(prev => [newDoc, ...prev])
-  }
+  const allTags = Array.from(new Set(items.flatMap(item => item.tags || [])))
 
-  const handleDeleteDocument = (id: string) => {
-    setDocuments(prev => prev.filter(doc => doc.id !== id))
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+        <span className="ml-2 text-gray-600">Cargando documentos...</span>
+      </div>
+    )
   }
 
   return (
     <div className="p-6 space-y-6">
-      {/* Header Actions */}
+      {/* Header */}
       <div className="flex flex-col sm:flex-row gap-4 justify-between">
-        <div className="flex gap-2">
-          <div className="relative flex-1 sm:w-80">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-            <Input
-              placeholder="Buscar documentos..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-          <select
-            value={selectedTag}
-            onChange={(e) => setSelectedTag(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-md text-sm"
-          >
-            <option value="">Todos los tags</option>
-            {allTags.map(tag => (
-              <option key={tag} value={tag}>{tag}</option>
-            ))}
-          </select>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Base de Conocimiento</h1>
+          <p className="text-gray-600">
+            {items.length === 0 
+              ? "No hay documentos. " + (isAdmin ? "Sube el primer documento." : "Esperando que un administrador suba documentos.")
+              : `${items.length} documento${items.length === 1 ? '' : 's'} disponible${items.length === 1 ? '' : 's'}`
+            }
+          </p>
         </div>
         
-        <Button 
-          onClick={handleFileUpload}
-          className="bg-purple-600 hover:bg-purple-700"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Subir Documento
-        </Button>
+        {isAdmin && (
+          <Dialog open={isUploadModalOpen} onOpenChange={setIsUploadModalOpen}>
+            <DialogTrigger asChild>
+              <Button className="bg-purple-600 hover:bg-purple-700">
+                <Plus className="w-4 h-4 mr-2" />
+                Subir Documento
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Subir Nuevo Documento</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="title">Título (opcional)</Label>
+                  <Input
+                    id="title"
+                    placeholder="Ej: Manual de Onboarding"
+                    value={uploadForm.title}
+                    onChange={(e) => setUploadForm(prev => ({ ...prev, title: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="project">Proyecto</Label>
+                  <Select value={uploadForm.project} onValueChange={(value) => setUploadForm(prev => ({ ...prev, project: value }))}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar proyecto" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ATC">ATC</SelectItem>
+                      <SelectItem value="Research">Research</SelectItem>
+                      <SelectItem value="Onboarding">Onboarding</SelectItem>
+                      <SelectItem value="Politicas">Políticas</SelectItem>
+                      <SelectItem value="General">General</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div
+                  className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+                    dragActive ? 'border-purple-500 bg-purple-50' : 'border-gray-300'
+                  }`}
+                  onDragEnter={handleDrag}
+                  onDragLeave={handleDrag}
+                  onDragOver={handleDrag}
+                  onDrop={handleDrop}
+                >
+                  <Upload className="w-12 h-12 text-purple-600 mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                    Arrastra un archivo aquí
+                  </h3>
+                  <p className="text-gray-600 mb-4">
+                    O haz clic para seleccionar
+                  </p>
+                  <input
+                    type="file"
+                    className="hidden"
+                    id="file-input"
+                    accept=".pdf,.docx,.txt,.csv"
+                    onChange={(e) => e.target.files && handleFileUpload(e.target.files)}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => document.getElementById('file-input')?.click()}
+                    disabled={isUploading}
+                  >
+                    {isUploading ? 'Subiendo...' : 'Seleccionar Archivo'}
+                  </Button>
+                  <p className="text-xs text-gray-500 mt-2">
+                    PDF, DOCX, TXT, CSV (máximo 10MB)
+                  </p>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
 
-      {/* Upload Area */}
-      <Card className="border-dashed border-2 border-purple-300 bg-purple-50">
-        <CardContent className="p-8">
-          <div className="text-center">
-            <Upload className="w-12 h-12 text-purple-600 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">
-              Arrastra y suelta archivos aquí
-            </h3>
-            <p className="text-gray-600 mb-4">
-              Soporta PDF, DOCX, TXT, CSV y Excel (máximo 10MB)
-            </p>
-            <Button variant="outline" onClick={handleFileUpload}>
-              Seleccionar Archivos
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Search and Filters */}
+      <div className="flex gap-4">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+          <Input
+            placeholder="Buscar documentos..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+        {allTags.length > 0 && (
+          <Select value={selectedTag} onValueChange={setSelectedTag}>
+            <SelectTrigger className="w-48">
+              <SelectValue placeholder="Filtrar por tag" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">Todos los tags</SelectItem>
+              {allTags.map(tag => (
+                <SelectItem key={tag} value={tag}>{tag}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+      </div>
 
       {/* Documents List */}
-      <div className="grid gap-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold">
-            Documentos ({filteredDocuments.length})
-          </h3>
-        </div>
-
-        {filteredDocuments.length === 0 ? (
-          <Card>
-            <CardContent className="p-8 text-center">
-              <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">
-                No se encontraron documentos
-              </h3>
-              <p className="text-gray-600">
-                {searchTerm || selectedTag ? 'Intenta con otros términos de búsqueda' : 'Sube tu primer documento para comenzar'}
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="space-y-3">
-            {filteredDocuments.map((doc) => (
-              <Card key={doc.id} className="hover:shadow-md transition-shadow">
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-start space-x-3">
-                      <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                        <FileText className="w-5 h-5 text-purple-600" />
-                      </div>
-                      <div>
-                        <CardTitle className="text-base">{doc.title}</CardTitle>
-                        <p className="text-sm text-gray-600 mt-1">
-                          Por {doc.uploadedBy} • {doc.uploadedAt.toLocaleDateString()} • {doc.size}
-                        </p>
+      {filteredItems.length === 0 ? (
+        <Card>
+          <CardContent className="p-12 text-center">
+            <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">
+              {items.length === 0 ? 'Sin documentos' : 'No se encontraron documentos'}
+            </h3>
+            <p className="text-gray-600 mb-4">
+              {items.length === 0 
+                ? (isAdmin 
+                   ? 'La base de conocimiento está vacía. Sube el primer documento para comenzar.' 
+                   : 'La base de conocimiento está vacía. Un administrador debe subir documentos.')
+                : 'Intenta con otros términos de búsqueda'
+              }
+            </p>
+            {isAdmin && items.length === 0 && (
+              <Button onClick={() => setIsUploadModalOpen(true)} className="bg-purple-600 hover:bg-purple-700">
+                <Plus className="w-4 h-4 mr-2" />
+                Subir Primer Documento
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-4">
+          {filteredItems.map((item) => (
+            <Card key={item.id} className="hover:shadow-md transition-shadow">
+              <CardHeader className="pb-3">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-start space-x-3">
+                    <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                      <FileText className="w-5 h-5 text-purple-600" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-base">{item.title}</CardTitle>
+                      <p className="text-sm text-gray-600 mt-1">
+                        Proyecto: {item.project} • {new Date(item.created_at).toLocaleDateString()}
+                      </p>
+                      {item.tags && item.tags.length > 0 && (
                         <div className="flex gap-1 mt-2">
-                          {doc.tags.map(tag => (
+                          {item.tags.map(tag => (
                             <Badge key={tag} variant="secondary" className="text-xs">
                               {tag}
                             </Badge>
                           ))}
                         </div>
-                      </div>
+                      )}
                     </div>
-                    
-                    <div className="flex gap-2">
+                  </div>
+                  
+                  <div className="flex gap-2">
+                    {item.file_url && (
                       <Button variant="ghost" size="sm">
                         <Download className="w-4 h-4" />
                       </Button>
+                    )}
+                    {isAdmin && (
                       <Button 
                         variant="ghost" 
                         size="sm"
-                        onClick={() => handleDeleteDocument(doc.id)}
+                        onClick={() => deleteItem(item.id)}
                         className="text-red-600 hover:text-red-700"
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
-                    </div>
+                    )}
                   </div>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <p className="text-sm text-gray-700 line-clamp-2">
-                    {doc.content}
-                  </p>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
-      </div>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <p className="text-sm text-gray-700 line-clamp-3">
+                  {item.content}
+                </p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

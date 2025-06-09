@@ -67,11 +67,13 @@ export const useAuth = () => {
   }) => {
     console.log('📝 Signing up user:', email)
     
+    // SOLO permitir emails @retorna.app
     if (!email.endsWith('@retorna.app')) {
       throw new Error('Solo se permiten emails con dominio @retorna.app')
     }
 
-    const redirectUrl = `${window.location.origin}/`
+    const redirectUrl = `${window.location.origin}/dashboard`
+    // eduardo@retorna.app es admin automático
     const role_system = email === 'eduardo@retorna.app' ? 'admin' : 'user'
     
     const { error } = await supabase.auth.signUp({

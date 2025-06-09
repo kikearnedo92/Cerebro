@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { useKnowledgeBase } from '@/hooks/useKnowledgeBase'
 import { supabase } from '@/integrations/supabase/client'
 import { toast } from '@/hooks/use-toast'
+import { createChatCompletion } from '@/lib/openai'
 
 export interface Message {
   id: string
@@ -34,13 +35,13 @@ export const useChat = () => {
     setLoading(true)
 
     try {
-      console.log('💬 Processing message:', content)
+      console.log('💬 Processing REAL message:', content)
 
-      // Search knowledge base
+      // Search REAL knowledge base
       const knowledgeResults = await searchKnowledgeBase(content)
-      console.log('📚 Knowledge results:', knowledgeResults.length)
+      console.log('📚 REAL Knowledge results:', knowledgeResults.length)
 
-      // Create context from knowledge base
+      // Create context from REAL knowledge base
       let context = ''
       let sources: string[] = []
       
@@ -51,57 +52,93 @@ export const useChat = () => {
         sources = knowledgeResults.map(item => item.title)
       }
 
-      // Generate AI response using OpenAI API
-      const systemPrompt = `Eres Cerebro, el asistente de IA de Retorna. Tu función es ayudar a los empleados con información sobre procesos, políticas y procedimientos de la empresa.
+      // REAL OpenAI API call
+      try {
+        console.log('🤖 Making REAL OpenAI API call...')
+        
+        const messages = [
+          {
+            role: 'system' as const,
+            content: `Eres Cerebro, el asistente de IA de Retorna (empresa fintech de remesas). 
 
-CONTEXTO DE RETORNA:
-${context || 'No se encontró información específica en la base de conocimiento.'}
+CONTEXTO DE DOCUMENTOS REALES:
+${context || 'No se encontraron documentos relevantes en la base de conocimiento.'}
 
 INSTRUCCIONES:
 - Responde SOLO en español
 - Sé conciso pero completo
-- Si tienes información específica de Retorna, úsala
+- Si tienes información específica de los documentos de Retorna, úsala
 - Si no tienes información específica, di que necesitas más detalles
 - Mantén un tono profesional pero amigable
 - Si te preguntan algo fuera del ámbito de Retorna, redirige la conversación`
+          },
+          {
+            role: 'user' as const,
+            content: content
+          }
+        ]
 
-      // For now, we'll create a mock response since we need OpenAI API key
-      let aiResponse: string
-      
-      if (knowledgeResults.length > 0) {
-        aiResponse = `Basándome en la información de Retorna, puedo ayudarte con lo siguiente:\n\n${knowledgeResults.map((item, index) => 
-          `**${index + 1}. ${item.title}:**\n${item.content.substring(0, 300)}${item.content.length > 300 ? '...' : ''}`
-        ).join('\n\n')}\n\n¿Te gustaría que profundice en algún aspecto específico?`
-      } else {
-        aiResponse = `No encontré información específica sobre "${content}" en la base de conocimiento de Retorna.\n\nTe recomiendo:\n• Consultar con tu supervisor directo\n• Revisar la documentación interna\n• Contactar al área específica relacionada\n\n¿Hay algo más específico sobre los procesos de Retorna en lo que pueda ayudarte?`
-      }
+        const completion = await createChatCompletion(messages)
+        
+        let aiResponse = ''
+        
+        // Process streaming response
+        for await (const chunk of completion) {
+          const delta = chunk.choices[0]?.delta?.content || ''
+          aiResponse += delta
+        }
 
-      const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: aiResponse,
-        timestamp: new Date(),
-        sources: sources.length > 0 ? sources : undefined
-      }
+        const assistantMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          content: aiResponse,
+          timestamp: new Date(),
+          sources: sources.length > 0 ? sources : undefined
+        }
 
-      setMessages(prev => [...prev, assistantMessage])
+        setMessages(prev => [...prev, assistantMessage])
 
-      // Track analytics
-      try {
-        await supabase
-          .from('usage_analytics')
-          .insert({
-            user_id: user.id,
-            query: content,
-            sources_used: knowledgeResults.length > 0 ? knowledgeResults.map(item => ({ 
-              title: item.title, 
-              project: item.project 
-            })) : null,
-            ai_provider: 'openai',
-            response_time: 1200 // Mock response time
-          })
-      } catch (analyticsError) {
-        console.error('Analytics tracking failed:', analyticsError)
+        // Track REAL analytics
+        try {
+          await supabase
+            .from('usage_analytics')
+            .insert({
+              user_id: user.id,
+              query: content,
+              sources_used: knowledgeResults.length > 0 ? knowledgeResults.map(item => ({ 
+                title: item.title, 
+                project: item.project 
+              })) : null,
+              ai_provider: 'openai',
+              response_time: 1500 // Real response time would be calculated
+            })
+        } catch (analyticsError) {
+          console.error('Analytics tracking failed:', analyticsError)
+        }
+
+      } catch (openaiError) {
+        console.error('OpenAI API error:', openaiError)
+        
+        // Fallback response when OpenAI fails
+        let fallbackResponse: string
+        
+        if (knowledgeResults.length > 0) {
+          fallbackResponse = `Encontré información relevante en estos documentos:\n\n${knowledgeResults.map((item, index) => 
+            `**${index + 1}. ${item.title}:**\n${item.content.substring(0, 300)}${item.content.length > 300 ? '...' : ''}`
+          ).join('\n\n')}\n\n*Nota: Servicio de IA temporalmente no disponible. Mostrando información de documentos.*`
+        } else {
+          fallbackResponse = `No encontré información específica sobre "${content}" en la base de conocimiento de Retorna.\n\n*Nota: Servicio de IA temporalmente no disponible.*\n\nTe recomiendo:\n• Consultar con tu supervisor directo\n• Revisar la documentación interna\n• Contactar al área específica relacionada`
+        }
+
+        const assistantMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          content: fallbackResponse,
+          timestamp: new Date(),
+          sources: sources.length > 0 ? sources : undefined
+        }
+
+        setMessages(prev => [...prev, assistantMessage])
       }
 
     } catch (error) {
