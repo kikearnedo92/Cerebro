@@ -20,6 +20,7 @@ export const useAuth = () => {
         setUser(session?.user ?? null)
         
         if (session?.user) {
+          console.log('👤 User authenticated, fetching profile...')
           setTimeout(async () => {
             try {
               console.log('👤 Fetching profile for:', session.user.email)
@@ -32,27 +33,44 @@ export const useAuth = () => {
               
               if (profileError) {
                 console.error('❌ Profile fetch error:', profileError)
+                // Si no hay perfil, intentar crear uno básico
+                if (profileError.code === 'PGRST116') {
+                  console.log('📝 Profile not found, will be created by trigger on next login')
+                }
+                setProfile(null)
               } else if (profileData) {
                 console.log('✅ Profile loaded:', profileData)
                 setProfile(profileData)
               }
             } catch (error) {
               console.error('❌ Error fetching profile:', error)
+              setProfile(null)
+            } finally {
+              setLoading(false)
             }
           }, 100)
         } else {
+          console.log('🚪 User signed out')
           setProfile(null)
+          setLoading(false)
         }
-        
-        setLoading(false)
       }
     )
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    // Obtener sesión inicial
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (error) {
+        console.error('❌ Error getting initial session:', error)
+        setLoading(false)
+        return
+      }
+      
       console.log('🔐 Initial session:', session?.user?.email)
       setSession(session)
       setUser(session?.user ?? null)
+      
       if (!session) {
+        console.log('📭 No initial session found')
         setLoading(false)
       }
     })
@@ -72,7 +90,7 @@ export const useAuth = () => {
       throw new Error('Solo se permiten emails con dominio @retorna.app o eduardoarnedog@gmail.com')
     }
 
-    const redirectUrl = `${window.location.origin}/dashboard`
+    const redirectUrl = `${window.location.origin}/chat`
     // eduardo@retorna.app es admin automático, eduardoarnedog@gmail.com es super_admin
     let role_system = 'user'
     if (email === 'eduardo@retorna.app') {
@@ -133,8 +151,16 @@ export const useAuth = () => {
     console.log('✅ Signout successful')
   }
 
-  const isAdmin = profile?.role_system === 'admin' || user?.email === 'eduardo@retorna.app'
-  const isSuperAdmin = profile?.is_super_admin === true || profile?.role_system === 'super_admin'
+  const isAdmin = profile?.role_system === 'admin' || profile?.role_system === 'super_admin' || user?.email === 'eduardo@retorna.app'
+  const isSuperAdmin = profile?.is_super_admin === true || profile?.role_system === 'super_admin' || user?.email === 'eduardoarnedog@gmail.com'
+
+  console.log('🔍 Auth state:', { 
+    user: user?.email, 
+    profile: profile?.role_system, 
+    loading, 
+    isAdmin, 
+    isSuperAdmin 
+  })
 
   return {
     user,
