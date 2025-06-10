@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react'
 import { User, Session } from '@supabase/supabase-js'
 import { supabase } from '@/integrations/supabase/client'
@@ -31,11 +30,14 @@ export const useAuth = () => {
             console.log('✅ Profile loaded:', profileData)
             setProfile(profileData)
           }
+          // Always set loading to false after profile fetch attempt
+          setLoading(false)
         }
       } catch (error) {
         console.error('❌ Error fetching profile:', error)
         if (mounted) {
           setProfile(null)
+          setLoading(false)
         }
       }
     }
@@ -60,10 +62,12 @@ export const useAuth = () => {
           setUser(session?.user ?? null)
           
           if (session?.user) {
+            // Fetch profile for authenticated user
             await fetchProfile(session.user.id)
+          } else {
+            // No user, stop loading
+            setLoading(false)
           }
-          
-          setLoading(false)
         }
       } catch (error) {
         console.error('❌ Error in initializeAuth:', error)
@@ -83,13 +87,11 @@ export const useAuth = () => {
           setUser(session?.user ?? null)
           
           if (session?.user && event !== 'INITIAL_SESSION') {
+            // Fetch profile for newly authenticated user
             await fetchProfile(session.user.id)
           } else if (!session) {
             console.log('🚪 User signed out')
             setProfile(null)
-          }
-          
-          if (event !== 'INITIAL_SESSION') {
             setLoading(false)
           }
         }
@@ -103,7 +105,7 @@ export const useAuth = () => {
       mounted = false
       subscription.unsubscribe()
     }
-  }, []) // Empty dependency array to run only once
+  }, [])
 
   const signUp = async (email: string, password: string, userData: {
     full_name: string
