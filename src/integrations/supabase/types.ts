@@ -33,6 +33,44 @@ export type Database = {
         }
         Relationships: []
       }
+      email_logs: {
+        Row: {
+          created_by: string | null
+          error_message: string | null
+          id: string
+          sent_at: string | null
+          status: string | null
+          subject: string
+          to_email: string
+        }
+        Insert: {
+          created_by?: string | null
+          error_message?: string | null
+          id?: string
+          sent_at?: string | null
+          status?: string | null
+          subject: string
+          to_email: string
+        }
+        Update: {
+          created_by?: string | null
+          error_message?: string | null
+          id?: string
+          sent_at?: string | null
+          status?: string | null
+          subject?: string
+          to_email?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_logs_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       knowledge_base: {
         Row: {
           active: boolean | null
