@@ -7,8 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Upload, FileText, X, Plus, AlertCircle } from 'lucide-react'
-import { supabase } from '@/integrations/supabase/client'
+import { Upload, FileText, X, Plus, AlertCircle, CheckCircle } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 
 const QuickFileUpload = () => {
@@ -16,10 +15,8 @@ const QuickFileUpload = () => {
   const [files, setFiles] = useState<File[]>([])
   const [project, setProject] = useState('')
   const [tags, setTags] = useState('')
-  const [uploading, setUploading] = useState(false)
-  const [uploadError, setUploadError] = useState(null)
-  const { fetchItems } = useKnowledgeBase()
-  const { user } = useAuth()
+  const { uploadFile, isUploading } = useKnowledgeBase()
+  const { user, isAdmin } = useAuth()
 
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -53,121 +50,39 @@ const QuickFileUpload = () => {
     setFiles(prev => prev.filter((_, i) => i !== index))
   }
 
-  const extractTextContent = async (file: File): Promise<string> => {
-    try {
-      if (file.type === 'text/plain') {
-        return await file.text()
-      } else if (file.type === 'text/csv') {
-        const text = await file.text()
-        return `Datos CSV:\n${text}`
-      } else if (file.type === 'application/json') {
-        const text = await file.text()
-        return `Datos JSON:\n${text}`
-      } else {
-        return `Documento: ${file.name}\nTipo: ${file.type}\nTamaño: ${(file.size / 1024).toFixed(1)}KB\n\nContenido será procesado por el administrador.`
-      }
-    } catch (error) {
-      console.warn('Text extraction failed:', error)
-      return `Archivo: ${file.name} - requiere procesamiento manual`
-    }
-  }
-
   const handleUpload = async () => {
-    if (files.length === 0) return
+    if (files.length === 0) {
+      toast({
+        title: "No hay archivos",
+        description: "Por favor selecciona al menos un archivo para subir.",
+        variant: "destructive"
+      })
+      return
+    }
 
-    console.log('🔄 Starting enhanced file upload process...')
-    setUploading(true)
-    setUploadError(null)
+    if (!isAdmin) {
+      toast({
+        title: "Sin permisos",
+        description: "Solo los administradores pueden subir documentos.",
+        variant: "destructive"
+      })
+      return
+    }
+
+    console.log('🔄 Starting REAL file upload process...')
 
     try {
-      // 1. Verify auth
-      const { data: { user: currentUser }, error: authError } = await supabase.auth.getUser()
-      if (authError) throw new Error(`Auth error: ${authError.message}`)
-      if (!currentUser) throw new Error('Usuario no autenticado')
-      console.log('✅ User authenticated:', currentUser.email)
-
-      // 2. Verify admin permissions
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('role_system, full_name')
-        .eq('id', currentUser.id)
-        .single()
-
-      if (profileError) throw new Error(`Profile error: ${profileError.message}`)
-      console.log('✅ User profile loaded:', profile)
-
-      // 3. Test storage connection
-      const { data: buckets, error: bucketsError } = await supabase.storage.listBuckets()
-      if (bucketsError) throw new Error(`Storage error: ${bucketsError.message}`)
-      console.log('✅ Storage accessible, buckets:', buckets.map(b => b.name))
-
-      // 4. Process each file with detailed logging
       const tagsArray = tags.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0)
       
       for (const file of files) {
-        console.log(`📄 Processing: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB)`)
-
-        // Validate file size
-        if (file.size > 10 * 1024 * 1024) {
-          throw new Error(`${file.name} excede el límite de 10MB`)
-        }
-
-        // Upload to storage
-        const fileName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`
-        const filePath = `knowledge/${fileName}`
-
-        console.log(`📤 Uploading to storage: ${filePath}`)
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from('retorna-files')
-          .upload(filePath, file, {
-            cacheControl: '3600',
-            upsert: false
-          })
-
-        if (uploadError) {
-          console.error('❌ Storage upload failed:', uploadError)
-          throw new Error(`Error subiendo ${file.name}: ${uploadError.message}`)
-        }
-        console.log('✅ File uploaded to storage:', uploadData.path)
-
-        // Extract text content
-        console.log(`📝 Extracting content from: ${file.name}`)
-        const textContent = await extractTextContent(file)
-        console.log(`📝 Content extracted: ${textContent.substring(0, 100)}...`)
-
-        // Save to knowledge base
-        console.log(`💾 Saving to knowledge base...`)
-        const { data: kbData, error: kbError } = await supabase
-          .from('knowledge_base')
-          .insert({
-            title: file.name.replace(/\.[^/.]+$/, ""),
-            content: textContent,
-            project: project || 'General',
-            created_by: currentUser.id,
-            file_url: uploadData.path,
-            active: true,
-            tags: tagsArray
-          })
-          .select('*')
-          .single()
-
-        if (kbError) {
-          console.error('❌ Knowledge base insert failed:', kbError)
-          // Cleanup uploaded file
-          await supabase.storage.from('retorna-files').remove([filePath])
-          throw new Error(`Error guardando ${file.name}: ${kbError.message}`)
-        }
-
-        console.log('✅ Knowledge base entry created:', kbData.id)
-        toast({
-          title: "Archivo procesado",
-          description: `✅ ${file.name} agregado correctamente`,
+        console.log(`📄 Processing: ${file.name}`)
+        
+        await uploadFile(file, {
+          title: file.name.replace(/\.[^/.]+$/, ""),
+          project: project || 'General',
+          tags: tagsArray
         })
       }
-
-      // Refresh knowledge base list
-      console.log('🔄 Refreshing knowledge base list...')
-      await fetchItems()
 
       // Reset form
       setFiles([])
@@ -175,21 +90,34 @@ const QuickFileUpload = () => {
       setTags('')
 
       toast({
-        title: "Upload completado",
+        title: "¡Éxito!",
         description: `Se procesaron ${files.length} archivo(s) correctamente`,
       })
 
     } catch (error) {
       console.error('💥 Upload process failed:', error)
-      setUploadError(error.message)
       toast({
         title: "Error en upload",
         description: `❌ ${error.message}`,
         variant: "destructive"
       })
-    } finally {
-      setUploading(false)
     }
+  }
+
+  if (!isAdmin) {
+    return (
+      <Card>
+        <CardContent className="p-6 text-center">
+          <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">
+            Acceso restringido
+          </h3>
+          <p className="text-gray-600">
+            Solo los administradores pueden subir documentos a la base de conocimiento.
+          </p>
+        </CardContent>
+      </Card>
+    )
   }
 
   return (
@@ -197,21 +125,16 @@ const QuickFileUpload = () => {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Upload className="w-5 h-5" />
-          Subida Rápida de Archivos
+          Subida de Archivos - Sistema Real
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Upload Error Display */}
-        {uploadError && (
-          <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-md">
-            <AlertCircle className="w-4 h-4 text-red-500" />
-            <span className="text-sm text-red-700">{uploadError}</span>
-          </div>
-        )}
-
-        {/* Debug Info */}
-        <div className="text-xs text-gray-500 bg-gray-50 p-2 rounded">
-          Debug: Usuario {user?.email} - Storage: retorna-files - Admin: {user?.email === 'eduardo@retorna.app' ? 'Sí' : 'No'}
+        {/* Status Info */}
+        <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-md">
+          <CheckCircle className="w-4 h-4 text-green-500" />
+          <span className="text-sm text-green-700">
+            Sistema real activado - Usuario: {user?.email} - Admin: {isAdmin ? 'Sí' : 'No'}
+          </span>
         </div>
 
         {/* Drag and Drop Area */}
@@ -283,7 +206,7 @@ const QuickFileUpload = () => {
               id="project"
               value={project}
               onChange={(e) => setProject(e.target.value)}
-              placeholder="ATC, Research, Onboarding..."
+              placeholder="Customer Success, Compliance, Growth..."
               className="h-8"
             />
           </div>
@@ -302,14 +225,14 @@ const QuickFileUpload = () => {
         {/* Upload Button */}
         <Button 
           onClick={handleUpload}
-          disabled={files.length === 0 || uploading}
+          disabled={files.length === 0 || isUploading}
           className="w-full"
           size="sm"
         >
-          {uploading ? (
+          {isUploading ? (
             <>
               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-              Subiendo...
+              Procesando archivos...
             </>
           ) : (
             <>

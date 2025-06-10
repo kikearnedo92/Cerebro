@@ -10,6 +10,25 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { toast } from '@/hooks/use-toast'
 import { useAuth } from '@/hooks/useAuth'
 
+const RETORNA_AREAS = [
+  'Customer Success',
+  'Tesorería', 
+  'Compliance',
+  'Growth',
+  'Producto',
+  'Operaciones',
+  'People',
+  'Administración',
+  'Otros'
+]
+
+const ROLES_EMPRESA = [
+  'Agente',
+  'Analista',
+  'Manager',
+  'Director'
+]
+
 interface InviteUserFormProps {
   onClose: () => void
   onSuccess: () => void
@@ -24,7 +43,7 @@ const InviteUserForm: React.FC<InviteUserFormProps> = ({ onClose, onSuccess }) =
 
   const inviteMutation = useMutation({
     mutationFn: async (formData: any) => {
-      console.log('📧 Sending REAL invitation email...')
+      console.log('📧 Sending REAL invitation email to Retorna employee...')
       
       // Call the REAL send-invitation edge function
       const { data, error } = await supabase.functions.invoke('send-invitation', {
@@ -33,7 +52,8 @@ const InviteUserForm: React.FC<InviteUserFormProps> = ({ onClose, onSuccess }) =
           fullName: formData.fullName,
           area: formData.area,
           rolEmpresa: formData.rolEmpresa,
-          invitedBy: user?.id
+          invitedBy: user?.id,
+          company: 'Retorna'
         }
       })
 
@@ -46,7 +66,7 @@ const InviteUserForm: React.FC<InviteUserFormProps> = ({ onClose, onSuccess }) =
     onSuccess: (data) => {
       toast({
         title: "Usuario invitado exitosamente",
-        description: `Se ha enviado una invitación REAL a ${data.email}. Password temporal: ${data.tempPassword}`,
+        description: `Se ha enviado una invitación REAL a ${data.email} para unirse a Retorna en Cerebro.`,
         duration: 10000
       })
       onSuccess()
@@ -72,6 +92,15 @@ const InviteUserForm: React.FC<InviteUserFormProps> = ({ onClose, onSuccess }) =
       return
     }
 
+    if (!email.endsWith('@retorna.app')) {
+      toast({
+        title: "Email inválido",
+        description: "Solo se permiten emails con dominio @retorna.app",
+        variant: "destructive"
+      })
+      return
+    }
+
     inviteMutation.mutate({
       email: email.trim(),
       fullName: fullName.trim(),
@@ -84,7 +113,7 @@ const InviteUserForm: React.FC<InviteUserFormProps> = ({ onClose, onSuccess }) =
     <Dialog open onOpenChange={onClose}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Invitar Nuevo Usuario</DialogTitle>
+          <DialogTitle>Invitar Nuevo Usuario - Retorna</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -115,19 +144,15 @@ const InviteUserForm: React.FC<InviteUserFormProps> = ({ onClose, onSuccess }) =
           </div>
 
           <div>
-            <Label htmlFor="area">Área *</Label>
+            <Label htmlFor="area">Área de Retorna *</Label>
             <Select value={area} onValueChange={setArea} required>
               <SelectTrigger>
                 <SelectValue placeholder="Selecciona un área" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="ATC">ATC</SelectItem>
-                <SelectItem value="Research">Research</SelectItem>
-                <SelectItem value="Onboarding">Onboarding</SelectItem>
-                <SelectItem value="Data">Data</SelectItem>
-                <SelectItem value="Management">Management</SelectItem>
-                <SelectItem value="Otro">Otro</SelectItem>
-                <SelectItem value="General">General</SelectItem>
+                {RETORNA_AREAS.map(areaOption => (
+                  <SelectItem key={areaOption} value={areaOption}>{areaOption}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -139,10 +164,9 @@ const InviteUserForm: React.FC<InviteUserFormProps> = ({ onClose, onSuccess }) =
                 <SelectValue placeholder="Selecciona un rol" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="Agente">Agente</SelectItem>
-                <SelectItem value="Analista">Analista</SelectItem>
-                <SelectItem value="Manager">Manager</SelectItem>
-                <SelectItem value="Director">Director</SelectItem>
+                {ROLES_EMPRESA.map(rol => (
+                  <SelectItem key={rol} value={rol}>{rol}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -152,7 +176,7 @@ const InviteUserForm: React.FC<InviteUserFormProps> = ({ onClose, onSuccess }) =
               Cancelar
             </Button>
             <Button type="submit" disabled={inviteMutation.isPending}>
-              {inviteMutation.isPending ? 'Enviando email real...' : 'Enviar Invitación'}
+              {inviteMutation.isPending ? 'Enviando invitación real...' : 'Enviar Invitación'}
             </Button>
           </div>
         </form>

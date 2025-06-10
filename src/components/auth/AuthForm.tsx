@@ -9,6 +9,25 @@ import { Brain, Mail, Lock, Eye, EyeOff, User } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { toast } from '@/hooks/use-toast'
 
+const RETORNA_AREAS = [
+  'Customer Success',
+  'Tesorería', 
+  'Compliance',
+  'Growth',
+  'Producto',
+  'Operaciones',
+  'People',
+  'Administración',
+  'Otros'
+]
+
+const ROLES_EMPRESA = [
+  'Agente',
+  'Analista',
+  'Manager',
+  'Director'
+]
+
 const AuthForm = () => {
   const [isLogin, setIsLogin] = useState(true)
   const [showPassword, setShowPassword] = useState(false)
@@ -142,19 +161,15 @@ const AuthForm = () => {
           {!isLogin && (
             <>
               <div className="space-y-2">
-                <Label htmlFor="area">Área</Label>
+                <Label htmlFor="area">Área de Retorna</Label>
                 <Select onValueChange={(value) => setFormData({...formData, area: value})} required>
                   <SelectTrigger>
                     <SelectValue placeholder="Selecciona tu área" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="ATC">ATC</SelectItem>
-                    <SelectItem value="Research">Research</SelectItem>
-                    <SelectItem value="Onboarding">Onboarding</SelectItem>
-                    <SelectItem value="Data">Data</SelectItem>
-                    <SelectItem value="Management">Management</SelectItem>
-                    <SelectItem value="Otro">Otro</SelectItem>
-                    <SelectItem value="General">General</SelectItem>
+                    {RETORNA_AREAS.map(area => (
+                      <SelectItem key={area} value={area}>{area}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -166,10 +181,9 @@ const AuthForm = () => {
                     <SelectValue placeholder="Selecciona tu rol" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Agente">Agente</SelectItem>
-                    <SelectItem value="Analista">Analista</SelectItem>
-                    <SelectItem value="Manager">Manager</SelectItem>
-                    <SelectItem value="Director">Director</SelectItem>
+                    {ROLES_EMPRESA.map(rol => (
+                      <SelectItem key={rol} value={rol}>{rol}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
