@@ -1,7 +1,11 @@
+
 import { useState, useEffect } from 'react'
 import { User, Session } from '@supabase/supabase-js'
 import { supabase } from '@/integrations/supabase/client'
 import { Profile } from '@/types/database'
+import { fetchProfile, checkAdminStatus } from './auth/profileService'
+import { signUp as authSignUp, signIn as authSignIn, signOut as authSignOut } from './auth/authService'
+import { SignUpData } from './auth/types'
 
 export const useAuth = () => {
   const [user, setUser] = useState<User | null>(null)
@@ -14,31 +18,11 @@ export const useAuth = () => {
 
     let mounted = true
 
-    const fetchProfile = async (userId: string) => {
-      try {
-        const { data: profileData, error: profileError } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', userId)
-          .single()
-        
-        if (mounted) {
-          if (profileError) {
-            console.error('❌ Profile fetch error:', profileError)
-            setProfile(null)
-          } else if (profileData) {
-            console.log('✅ Profile loaded:', profileData)
-            setProfile(profileData)
-          }
-          // Always set loading to false after profile fetch attempt
-          setLoading(false)
-        }
-      } catch (error) {
-        console.error('❌ Error fetching profile:', error)
-        if (mounted) {
-          setProfile(null)
-          setLoading(false)
-        }
+    const handleProfileFetch = async (userId: string) => {
+      const profileData = await fetchProfile(userId)
+      if (mounted) {
+        setProfile(profileData)
+        setLoading(false)
       }
     }
 
@@ -63,7 +47,7 @@ export const useAuth = () => {
           
           if (session?.user) {
             // Fetch profile for authenticated user
-            await fetchProfile(session.user.id)
+            await handleProfileFetch(session.user.id)
           } else {
             // No user, stop loading
             setLoading(false)
@@ -88,7 +72,7 @@ export const useAuth = () => {
           
           if (session?.user && event !== 'INITIAL_SESSION') {
             // Fetch profile for newly authenticated user
-            await fetchProfile(session.user.id)
+            await handleProfileFetch(session.user.id)
           } else if (!session) {
             console.log('🚪 User signed out')
             setProfile(null)
@@ -107,79 +91,22 @@ export const useAuth = () => {
     }
   }, [])
 
-  const signUp = async (email: string, password: string, userData: {
-    full_name: string
-    area: string
-    rol_empresa: string
-  }) => {
-    console.log('📝 Signing up user:', email)
-    
-    if (!email.endsWith('@retorna.app') && email !== 'eduardoarnedog@gmail.com') {
-      throw new Error('Solo se permiten emails con dominio @retorna.app o eduardoarnedog@gmail.com')
-    }
-
-    const redirectUrl = `${window.location.origin}/chat`
-    let role_system = 'user'
-    if (email === 'eduardo@retorna.app') {
-      role_system = 'admin'
-    } else if (email === 'eduardoarnedog@gmail.com') {
-      role_system = 'super_admin'
-    }
-    
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: redirectUrl,
-        data: {
-          ...userData,
-          role_system
-        }
-      }
-    })
-
-    if (error) {
-      console.error('❌ Signup error:', error)
-      throw error
-    }
-    
-    console.log('✅ Signup successful')
+  const signUp = async (email: string, password: string, userData: SignUpData) => {
+    await authSignUp(email, password, userData)
   }
 
   const signIn = async (email: string, password: string) => {
-    console.log('🔑 Signing in user:', email)
-    
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password
-    })
-
-    if (error) {
-      console.error('❌ Signin error:', error)
-      throw error
-    }
-    
-    console.log('✅ Signin successful')
+    await authSignIn(email, password)
   }
 
   const signOut = async () => {
-    console.log('🚪 Signing out user')
-    
-    const { error } = await supabase.auth.signOut()
-    if (error) {
-      console.error('❌ Signout error:', error)
-      throw error
-    }
-    
+    await authSignOut()
     setUser(null)
     setSession(null)
     setProfile(null)
-    
-    console.log('✅ Signout successful')
   }
 
-  const isAdmin = profile?.role_system === 'admin' || profile?.role_system === 'super_admin' || user?.email === 'eduardo@retorna.app'
-  const isSuperAdmin = profile?.is_super_admin === true || profile?.role_system === 'super_admin' || user?.email === 'eduardoarnedog@gmail.com'
+  const { isAdmin, isSuperAdmin } = checkAdminStatus(profile, user?.email)
 
   console.log('🔍 Auth state:', { 
     user: user?.email, 
