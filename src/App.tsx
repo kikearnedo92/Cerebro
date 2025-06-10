@@ -45,6 +45,10 @@ const App = () => {
           <Routes>
             <Route path="/" element={<LandingPage />} />
             <Route 
+              path="/dashboard" 
+              element={<Navigate to="/chat" replace />} 
+            />
+            <Route 
               path="/chat" 
               element={
                 <ProtectedRoute>

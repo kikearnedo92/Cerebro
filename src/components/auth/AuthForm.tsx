@@ -148,14 +148,13 @@ const AuthForm = () => {
                     <SelectValue placeholder="Selecciona tu área" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="People">People</SelectItem>
-                    <SelectItem value="Growth">Growth</SelectItem>
-                    <SelectItem value="Producto">Producto</SelectItem>
-                    <SelectItem value="Customer Success">Customer Success</SelectItem>
-                    <SelectItem value="Tesorería">Tesorería</SelectItem>
-                    <SelectItem value="Operaciones">Operaciones</SelectItem>
-                    <SelectItem value="Administración">Administración</SelectItem>
-                    <SelectItem value="Compliance">Compliance</SelectItem>
+                    <SelectItem value="ATC">ATC</SelectItem>
+                    <SelectItem value="Research">Research</SelectItem>
+                    <SelectItem value="Onboarding">Onboarding</SelectItem>
+                    <SelectItem value="Data">Data</SelectItem>
+                    <SelectItem value="Management">Management</SelectItem>
+                    <SelectItem value="Otro">Otro</SelectItem>
+                    <SelectItem value="General">General</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
