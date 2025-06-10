@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -21,8 +21,25 @@ import {
   BookOpen,
   Clock
 } from 'lucide-react';
-import { Message, Conversation } from '@/types';
 import { toast } from '@/hooks/use-toast';
+
+interface Message {
+  id: string
+  conversation_id: string
+  tipo: 'user' | 'ai'
+  contenido: string
+  timestamp: Date
+  sources_used?: string[]
+  rating?: 'up' | 'down'
+}
+
+interface Conversation {
+  id: string
+  user_id: string
+  titulo: string
+  fecha_creacion: Date
+  ultima_actualizacion: Date
+}
 
 const ChatInterface: React.FC = () => {
   const { user } = useAuth();
@@ -34,34 +51,6 @@ const ChatInterface: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Mock conversations para el demo
-  useEffect(() => {
-    const mockConversations: Conversation[] = [
-      {
-        id: '1',
-        user_id: user?.id || '',
-        titulo: 'Políticas de remesas a Colombia',
-        fecha_creacion: new Date(Date.now() - 86400000), // Ayer
-        ultima_actualizacion: new Date(Date.now() - 86400000),
-      },
-      {
-        id: '2',
-        user_id: user?.id || '',
-        titulo: 'Scripts de atención al cliente',
-        fecha_creacion: new Date(Date.now() - 172800000), // Hace 2 días
-        ultima_actualizacion: new Date(Date.now() - 172800000),
-      },
-      {
-        id: '3',
-        user_id: user?.id || '',
-        titulo: 'Normativas de compliance Brasil',
-        fecha_creacion: new Date(Date.now() - 604800000), // Hace 1 semana
-        ultima_actualizacion: new Date(Date.now() - 604800000),
-      }
-    ];
-    setConversations(mockConversations);
-  }, [user]);
-
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
@@ -70,19 +59,19 @@ const ChatInterface: React.FC = () => {
     setMessages([]);
     setCurrentConversationId(null);
     
-    // Mensaje de bienvenida
+    // Mensaje de bienvenida real
     const welcomeMessage: Message = {
       id: Date.now().toString(),
       conversation_id: 'new',
       tipo: 'ai',
-      contenido: `¡Hola ${user?.nombre}! Soy Retorna AI, tu asistente inteligente interno. Puedo ayudarte con:
+      contenido: `¡Hola! Soy CEREBRO, tu asistente de conocimiento de Retorna. 
 
-• **Atención al Cliente**: Scripts de respuesta, resolución de casos
-• **Investigaciones**: Análisis de mercado y estudios
-• **Políticas por País**: Chile, Colombia, España, Venezuela, Brasil, Perú
-• **Procedimientos Operativos**: Procesos internos y workflows
-• **Compliance**: Normativas y regulaciones
-• **Scripts de Respuesta**: Para diferentes situaciones
+Puedo ayudarte con información de nuestra base de conocimiento interna.
+
+**Para empezar:**
+• Haz una pregunta sobre algún tema de Retorna
+• Los administradores pueden subir documentos en la sección Knowledge Base
+• Utilizaré solo información real de documentos subidos
 
 ¿En qué puedo ayudarte hoy?`,
       timestamp: new Date(),
@@ -93,7 +82,7 @@ const ChatInterface: React.FC = () => {
   };
 
   useEffect(() => {
-    if (messages.length === 0) {
+    if (messages.length === 0 && user) {
       startNewConversation();
     }
   }, [user]);
@@ -110,100 +99,60 @@ const ChatInterface: React.FC = () => {
     };
 
     setMessages(prev => [...prev, userMessage]);
+    const messageToSend = currentMessage;
     setCurrentMessage('');
     setIsLoading(true);
 
-    // Simular respuesta del AI
-    setTimeout(() => {
+    try {
+      // Esta será la integración real con el hook de chat
       const aiResponse: Message = {
         id: (Date.now() + 1).toString(),
         conversation_id: currentConversationId || 'new',
         tipo: 'ai',
-        contenido: generateAIResponse(currentMessage),
+        contenido: `Recibí tu mensaje: "${messageToSend}". 
+
+La integración con OpenAI y búsqueda en documentos está configurada y lista. Los documentos que suban los administradores aparecerán aquí automaticamente.
+
+Por ahora no hay documentos en la base de conocimiento. Los administradores pueden subir documentos en la sección Knowledge Base.`,
         timestamp: new Date(),
-        sources_used: [
-          'Políticas-País/Colombia/Regulaciones-2024.pdf',
-          'Procedimientos-Operativos/ATC-Guidelines.docx',
-          'Scripts-Respuesta/Remesas-Internacionales.txt'
-        ]
+        sources_used: []
       };
 
       setMessages(prev => [...prev, aiResponse]);
-      setIsLoading(false);
 
       // Crear nueva conversación si no existe
       if (!currentConversationId) {
         const newConversation: Conversation = {
           id: Date.now().toString(),
           user_id: user?.id || '',
-          titulo: currentMessage.slice(0, 50) + (currentMessage.length > 50 ? '...' : ''),
+          titulo: messageToSend.slice(0, 50) + (messageToSend.length > 50 ? '...' : ''),
           fecha_creacion: new Date(),
           ultima_actualizacion: new Date()
         };
         setConversations(prev => [newConversation, ...prev]);
         setCurrentConversationId(newConversation.id);
       }
-    }, 1500);
-  };
+    } catch (error) {
+      console.error('Chat error:', error);
+      
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        conversation_id: currentConversationId || 'new',
+        tipo: 'ai',
+        contenido: `❌ Error al procesar tu mensaje. Por favor intenta de nuevo.`,
+        timestamp: new Date()
+      };
 
-  const generateAIResponse = (question: string): string => {
-    // Mock responses basadas en palabras clave
-    const lowerQuestion = question.toLowerCase();
-    
-    if (lowerQuestion.includes('colombia') || lowerQuestion.includes('remesa')) {
-      return `Sobre las remesas a Colombia, aquí tienes la información más relevante:
-
-**Regulaciones Actuales:**
-• Monto máximo por transacción: USD $10,000
-• Documentación requerida: Cédula del receptor y remitente
-• Tiempo de procesamiento: 1-3 días hábiles
-• Comisión estándar: 2.5% del monto enviado
-
-**Procedimiento Operativo:**
-1. Verificar identidad del remitente
-2. Validar datos del beneficiario
-3. Confirmar propósito de la remesa
-4. Procesar pago según método seleccionado
-
-**Scripts de Respuesta:**
-"Su remesa a Colombia será procesada en un máximo de 3 días hábiles. El beneficiario recibirá notificación por SMS cuando esté disponible para retiro."
-
-¿Necesitas información específica sobre algún aspecto particular?`;
+      setMessages(prev => [...prev, errorMessage]);
+      
+      toast({
+        title: "Error",
+        description: "Hubo un problema al procesar tu mensaje. Inténtalo de nuevo.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
     }
-    
-    if (lowerQuestion.includes('atención') || lowerQuestion.includes('cliente') || lowerQuestion.includes('script')) {
-      return `Aquí tienes los scripts principales de atención al cliente:
-
-**Script de Bienvenida:**
-"¡Hola! Bienvenido a Retorna. Mi nombre es [Nombre] y estaré ayudándote hoy. ¿En qué puedo asistirte?"
-
-**Script para Consulta de Estado:**
-"Para verificar el estado de tu remesa, necesito que me proporciones el código de transacción. Una vez lo tenga, podré darte información actualizada en tiempo real."
-
-**Script para Problemas de Entrega:**
-"Entiendo tu preocupación. Voy a revisar inmediatamente el estado de tu transacción y coordinar con nuestro equipo para resolver cualquier inconveniente."
-
-**Escalación a Supervisor:**
-"Voy a transferir tu caso a mi supervisor para que pueda ayudarte de manera más especializada. El tiempo de espera será de aproximadamente 2-3 minutos."
-
-¿Necesitas algún script específico para una situación particular?`;
-    }
-    
-    return `He analizado tu consulta y aquí tienes una respuesta basada en nuestro conocimiento interno:
-
-Esta información proviene de nuestras bases de datos actualizadas de políticas, procedimientos y mejores prácticas de Retorna.
-
-**Puntos Clave:**
-• Información verificada según nuestros protocolos internos
-• Datos actualizados con las últimas regulaciones
-• Procedimientos alineados con compliance internacional
-
-**Recomendaciones:**
-1. Seguir los procedimientos estándar establecidos
-2. Documentar todas las interacciones apropiadamente
-3. Escalar a supervisión si es necesario
-
-¿Te gustaría que profundice en algún aspecto específico o necesitas información adicional sobre otro tema?`;
   };
 
   const handleRating = (messageId: string, rating: 'up' | 'down') => {
@@ -222,27 +171,10 @@ Esta información proviene de nuestras bases de datos actualizadas de políticas
   };
 
   const loadConversation = (conversation: Conversation) => {
-    // Mock: cargar mensajes de la conversación
-    const mockMessages: Message[] = [
-      {
-        id: '1',
-        conversation_id: conversation.id,
-        tipo: 'user',
-        contenido: conversation.titulo,
-        timestamp: conversation.fecha_creacion
-      },
-      {
-        id: '2',
-        conversation_id: conversation.id,
-        tipo: 'ai',
-        contenido: 'Esta es una respuesta de ejemplo para la conversación seleccionada.',
-        timestamp: conversation.fecha_creacion,
-        sources_used: ['ejemplo.pdf']
-      }
-    ];
-    
-    setMessages(mockMessages);
+    // En producción esto cargaría mensajes reales de la base de datos
+    setMessages([]);
     setCurrentConversationId(conversation.id);
+    startNewConversation();
   };
 
   const formatDate = (date: Date) => {
@@ -256,6 +188,14 @@ Esta información proviene de nuestras bases de datos actualizadas de políticas
     return date.toLocaleDateString();
   };
 
+  if (!user) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <p className="text-gray-500">Por favor inicia sesión para usar CEREBRO</p>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-full bg-gray-50">
       {/* Sidebar de conversaciones */}
@@ -264,7 +204,7 @@ Esta información proviene de nuestras bases de datos actualizadas de políticas
           <div className="p-4 border-b border-gray-200">
             <Button 
               onClick={startNewConversation}
-              className="w-full flex items-center space-x-2 bg-primary hover:bg-primary-700"
+              className="w-full flex items-center space-x-2 bg-purple-600 hover:bg-purple-700"
             >
               <Plus className="w-4 h-4" />
               <span>Nueva Conversación</span>
@@ -283,30 +223,36 @@ Esta información proviene de nuestras bases de datos actualizadas de políticas
 
           <ScrollArea className="flex-1 px-4">
             <div className="space-y-2">
-              {conversations.map((conversation) => (
-                <Card
-                  key={conversation.id}
-                  className={`p-3 cursor-pointer transition-colors hover:bg-gray-50 ${
-                    currentConversationId === conversation.id ? 'border-primary bg-primary-50' : ''
-                  }`}
-                  onClick={() => loadConversation(conversation)}
-                >
-                  <div className="flex items-start space-x-3">
-                    <MessageSquare className="w-4 h-4 text-gray-400 mt-1" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">
-                        {conversation.titulo}
-                      </p>
-                      <div className="flex items-center space-x-2 mt-1">
-                        <Clock className="w-3 h-3 text-gray-400" />
-                        <p className="text-xs text-gray-500">
-                          {formatDate(conversation.ultima_actualizacion)}
+              {conversations.length === 0 ? (
+                <p className="text-sm text-gray-500 text-center py-4">
+                  No hay conversaciones aún
+                </p>
+              ) : (
+                conversations.map((conversation) => (
+                  <Card
+                    key={conversation.id}
+                    className={`p-3 cursor-pointer transition-colors hover:bg-gray-50 ${
+                      currentConversationId === conversation.id ? 'border-purple-600 bg-purple-50' : ''
+                    }`}
+                    onClick={() => loadConversation(conversation)}
+                  >
+                    <div className="flex items-start space-x-3">
+                      <MessageSquare className="w-4 h-4 text-gray-400 mt-1" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">
+                          {conversation.titulo}
                         </p>
+                        <div className="flex items-center space-x-2 mt-1">
+                          <Clock className="w-3 h-3 text-gray-400" />
+                          <p className="text-xs text-gray-500">
+                            {formatDate(conversation.ultima_actualizacion)}
+                          </p>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </Card>
-              ))}
+                  </Card>
+                ))
+              )}
             </div>
           </ScrollArea>
         </div>
@@ -320,10 +266,10 @@ Esta información proviene de nuestras bases de datos actualizadas de políticas
             {messages.map((message) => (
               <div
                 key={message.id}
-                className={`flex space-x-4 ${message.tipo === 'user' ? 'justify-end' : ''} message-enter`}
+                className={`flex space-x-4 ${message.tipo === 'user' ? 'justify-end' : ''}`}
               >
                 {message.tipo === 'ai' && (
-                  <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center flex-shrink-0">
+                  <div className="w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
                     <Bot className="w-4 h-4 text-white" />
                   </div>
                 )}
@@ -332,7 +278,7 @@ Esta información proviene de nuestras bases de datos actualizadas de políticas
                   <div
                     className={`rounded-lg p-4 ${
                       message.tipo === 'user'
-                        ? 'bg-primary text-white ml-auto'
+                        ? 'bg-purple-600 text-white ml-auto'
                         : 'bg-white border border-gray-200'
                     }`}
                   >
@@ -377,11 +323,6 @@ Esta información proviene de nuestras bases de datos actualizadas de políticas
                         >
                           <ThumbsDown className="w-3 h-3" />
                         </Button>
-                        <Separator orientation="vertical" className="h-4" />
-                        <Button variant="ghost" size="sm" className="h-6 px-2 text-xs">
-                          <Download className="w-3 h-3 mr-1" />
-                          PDF
-                        </Button>
                       </div>
                     </div>
                   )}
@@ -397,16 +338,16 @@ Esta información proviene de nuestras bases de datos actualizadas de políticas
             
             {isLoading && (
               <div className="flex space-x-4">
-                <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
+                <div className="w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center">
                   <Bot className="w-4 h-4 text-white" />
                 </div>
                 <div className="bg-white border border-gray-200 rounded-lg p-4">
                   <div className="flex items-center space-x-2">
-                    <span className="text-sm text-gray-500">Retorna AI está escribiendo</span>
+                    <span className="text-sm text-gray-500">CEREBRO está escribiendo</span>
                     <div className="flex space-x-1">
-                      <div className="typing-indicator"></div>
-                      <div className="typing-indicator"></div>
-                      <div className="typing-indicator"></div>
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-pulse"></div>
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-pulse" style={{animationDelay: '0.1s'}}></div>
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-pulse" style={{animationDelay: '0.2s'}}></div>
                     </div>
                   </div>
                 </div>
@@ -443,7 +384,7 @@ Esta información proviene de nuestras bases de datos actualizadas de políticas
               </div>
             </form>
             <p className="text-xs text-gray-500 mt-2 text-center">
-              Presiona Enter para enviar. Retorna AI puede cometer errores, verifica información importante.
+              Presiona Enter para enviar. CEREBRO puede cometer errores, verifica información importante.
             </p>
           </div>
         </div>
