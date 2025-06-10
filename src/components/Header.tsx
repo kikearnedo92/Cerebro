@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -19,15 +19,19 @@ interface HeaderProps {
 }
 
 const Header: React.FC<HeaderProps> = ({ currentView, onViewChange }) => {
-  const { user, logout } = useAuth();
+  const { user, profile, isAdmin, signOut } = useAuth();
 
-  const getInitials = (nombre: string, apellido: string) => {
-    return `${nombre.charAt(0)}${apellido.charAt(0)}`.toUpperCase();
+  const getInitials = (fullName: string) => {
+    if (!fullName) return 'U';
+    const names = fullName.split(' ');
+    return names.length >= 2 
+      ? `${names[0].charAt(0)}${names[names.length - 1].charAt(0)}`.toUpperCase()
+      : fullName.charAt(0).toUpperCase();
   };
 
   const navigationItems = [
     { id: 'chat', label: 'Chat', icon: Bot },
-    ...(user?.rol === 'admin' ? [
+    ...(isAdmin ? [
       { id: 'knowledge', label: 'Knowledge Base', icon: Database },
       { id: 'analytics', label: 'Analytics', icon: BarChart3 }
     ] : []),
@@ -65,11 +69,11 @@ const Header: React.FC<HeaderProps> = ({ currentView, onViewChange }) => {
         <div className="flex items-center space-x-4">
           <div className="text-right">
             <p className="text-sm font-medium text-gray-900">
-              {user?.nombre} {user?.apellido}
+              {profile?.full_name || 'Usuario'}
             </p>
             <div className="flex items-center space-x-2">
-              <Badge variant={user?.rol === 'admin' ? 'default' : 'secondary'} className="text-xs">
-                {user?.rol === 'admin' ? 'Administrador' : 'Usuario'}
+              <Badge variant={isAdmin ? 'default' : 'secondary'} className="text-xs">
+                {isAdmin ? 'Administrador' : 'Usuario'}
               </Badge>
             </div>
           </div>
@@ -79,7 +83,7 @@ const Header: React.FC<HeaderProps> = ({ currentView, onViewChange }) => {
               <Button variant="ghost" className="relative h-10 w-10 rounded-full">
                 <Avatar className="h-10 w-10">
                   <AvatarFallback className="bg-primary text-white">
-                    {user ? getInitials(user.nombre, user.apellido) : 'U'}
+                    {profile ? getInitials(profile.full_name) : 'U'}
                   </AvatarFallback>
                 </Avatar>
               </Button>
@@ -94,7 +98,7 @@ const Header: React.FC<HeaderProps> = ({ currentView, onViewChange }) => {
                 <span>Configuración</span>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={logout} className="text-red-600">
+              <DropdownMenuItem onClick={signOut} className="text-red-600">
                 <LogOut className="mr-2 h-4 w-4" />
                 <span>Cerrar sesión</span>
               </DropdownMenuItem>
