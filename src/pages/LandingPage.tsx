@@ -8,54 +8,45 @@ import { Brain } from 'lucide-react'
 const LandingPage = () => {
   const { user, loading, isAdmin, isSuperAdmin } = useAuth()
 
-  console.log('🏠 LandingPage render - State:', { 
+  console.log('🏠 Landing: Current state -', { 
     user: user?.email, 
     loading, 
     isAdmin, 
-    isSuperAdmin,
-    timestamp: new Date().toISOString()
+    isSuperAdmin 
   })
 
-  // Mostrar loading mientras se inicializa la autenticación
+  // Loading state
   if (loading) {
-    console.log('⏳ LandingPage showing loading state')
+    console.log('⏳ Landing: Showing loading state')
     return (
       <div className="h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-purple-100">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
           <p className="text-purple-600 font-medium">Cargando Cerebro...</p>
-          <p className="text-purple-400 text-sm mt-2">Inicializando autenticación...</p>
+          <p className="text-purple-400 text-sm mt-2">Verificando autenticación...</p>
         </div>
       </div>
     )
   }
 
-  // Si hay usuario autenticado, redirigir según el rol
+  // Authenticated user - redirect based on role
   if (user) {
-    console.log('➡️ User authenticated, redirecting based on role...')
-    
-    // Pequeño delay para evitar renders múltiples
-    setTimeout(() => {
-      if (isSuperAdmin) {
-        console.log('👑 Super admin - redirecting to tenants')
-      } else if (isAdmin) {
-        console.log('⚡ Admin - redirecting to knowledge')
-      } else {
-        console.log('👤 Regular user - redirecting to chat')
-      }
-    }, 100)
+    console.log('✅ Landing: User authenticated, redirecting based on role')
     
     if (isSuperAdmin) {
+      console.log('👑 Landing: Super admin - redirecting to tenants')
       return <Navigate to="/admin/tenants" replace />
     } else if (isAdmin) {
+      console.log('⚡ Landing: Admin - redirecting to knowledge')
       return <Navigate to="/knowledge" replace />
     } else {
+      console.log('👤 Landing: Regular user - redirecting to chat')
       return <Navigate to="/chat" replace />
     }
   }
 
-  // Si no hay usuario, mostrar formulario de autenticación
-  console.log('📄 No user found, showing auth form')
+  // No user - show auth form
+  console.log('📄 Landing: No user found, showing auth form')
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-purple-100">
       <header className="p-6">

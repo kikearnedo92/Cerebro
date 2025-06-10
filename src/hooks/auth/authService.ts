@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client'
 import { SignUpData } from './types'
 
 export const signUp = async (email: string, password: string, userData: SignUpData) => {
-  console.log('📝 Signing up user:', email)
+  console.log('📝 AuthService: Signing up user:', email)
   
   if (!email.endsWith('@retorna.app') && email !== 'eduardoarnedog@gmail.com') {
     throw new Error('Solo se permiten emails con dominio @retorna.app o eduardoarnedog@gmail.com')
@@ -17,7 +17,7 @@ export const signUp = async (email: string, password: string, userData: SignUpDa
     role_system = 'super_admin'
   }
   
-  const { error } = await supabase.auth.signUp({
+  const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
@@ -30,15 +30,16 @@ export const signUp = async (email: string, password: string, userData: SignUpDa
   })
 
   if (error) {
-    console.error('❌ Signup error:', error)
+    console.error('❌ AuthService: Signup error:', error)
     throw error
   }
   
-  console.log('✅ Signup successful')
+  console.log('✅ AuthService: Signup successful')
+  return data
 }
 
 export const signIn = async (email: string, password: string) => {
-  console.log('🔑 Attempting signin for:', email)
+  console.log('🔑 AuthService: Attempting signin for:', email)
   
   const { data, error } = await supabase.auth.signInWithPassword({
     email,
@@ -46,22 +47,22 @@ export const signIn = async (email: string, password: string) => {
   })
 
   if (error) {
-    console.error('❌ Signin error:', error)
+    console.error('❌ AuthService: Signin error:', error)
     throw error
   }
   
-  console.log('✅ Signin successful for:', data.user?.email)
+  console.log('✅ AuthService: Signin successful for:', data.user?.email)
   return data
 }
 
 export const signOut = async () => {
-  console.log('🚪 Attempting signout')
+  console.log('🚪 AuthService: Attempting signout')
   
   const { error } = await supabase.auth.signOut()
   if (error) {
-    console.error('❌ Signout error:', error)
+    console.error('❌ AuthService: Signout error:', error)
     throw error
   }
   
-  console.log('✅ Signout successful')
+  console.log('✅ AuthService: Signout successful')
 }
