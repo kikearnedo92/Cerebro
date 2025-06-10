@@ -20,11 +20,6 @@ const TenantsPage = () => {
   const [loading, setLoading] = useState(false)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
 
-  // Redirect if not super admin
-  if (!authLoading && !isSuperAdmin) {
-    return <Navigate to="/chat" replace />
-  }
-
   useEffect(() => {
     if (isSuperAdmin) {
       fetchTenants()
@@ -87,12 +82,18 @@ const TenantsPage = () => {
     return limit === -1 ? 'Ilimitado' : limit.toLocaleString()
   }
 
+  // Early returns AFTER all hooks have been declared
   if (authLoading) {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
       </div>
     )
+  }
+
+  // Redirect if not super admin - AFTER hooks
+  if (!authLoading && !isSuperAdmin) {
+    return <Navigate to="/chat" replace />
   }
 
   return (
