@@ -8,9 +8,7 @@ import { Brain } from 'lucide-react'
 const LandingPage = () => {
   const { user, loading } = useAuth()
 
-  if (user && !loading) {
-    return <Navigate to="/chat" replace />
-  }
+  console.log('🏠 LandingPage - user:', user?.email, 'loading:', loading)
 
   if (loading) {
     return (
@@ -23,6 +21,12 @@ const LandingPage = () => {
     )
   }
 
+  if (user) {
+    console.log('➡️ User authenticated, redirecting to chat')
+    return <Navigate to="/chat" replace />
+  }
+
+  console.log('📄 Showing landing page')
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-purple-100">
       <header className="p-6">

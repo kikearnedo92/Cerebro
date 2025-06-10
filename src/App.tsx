@@ -41,6 +41,8 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 }
 
 const App = () => {
+  console.log('🚀 App component rendered')
+  
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>

@@ -13,17 +13,25 @@ export const useAuth = () => {
   useEffect(() => {
     console.log('🔐 Setting up auth listener...')
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log('🔐 Auth state change:', event, session?.user?.email)
+    // Obtener sesión inicial primero
+    const getInitialSession = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession()
+        
+        if (error) {
+          console.error('❌ Error getting initial session:', error)
+          setLoading(false)
+          return
+        }
+        
+        console.log('🔐 Initial session:', session?.user?.email || 'No session')
         setSession(session)
         setUser(session?.user ?? null)
         
         if (session?.user) {
-          console.log('👤 User authenticated, fetching profile...')
+          console.log('👤 Fetching profile for:', session.user.email)
+          
           try {
-            console.log('👤 Fetching profile for:', session.user.email)
-            
             const { data: profileData, error: profileError } = await supabase
               .from('profiles')
               .select('*')
@@ -32,10 +40,6 @@ export const useAuth = () => {
             
             if (profileError) {
               console.error('❌ Profile fetch error:', profileError)
-              // Si no hay perfil, intentar crear uno básico
-              if (profileError.code === 'PGRST116') {
-                console.log('📝 Profile not found, will be created by trigger on next login')
-              }
               setProfile(null)
             } else if (profileData) {
               console.log('✅ Profile loaded:', profileData)
@@ -45,33 +49,58 @@ export const useAuth = () => {
             console.error('❌ Error fetching profile:', error)
             setProfile(null)
           }
-        } else {
+        }
+        
+        setLoading(false)
+      } catch (error) {
+        console.error('❌ Error in getInitialSession:', error)
+        setLoading(false)
+      }
+    }
+
+    // Configurar listener de cambios de auth
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        console.log('🔐 Auth state change:', event, session?.user?.email || 'No session')
+        
+        setSession(session)
+        setUser(session?.user ?? null)
+        
+        if (session?.user && event !== 'INITIAL_SESSION') {
+          console.log('👤 Auth change - fetching profile for:', session.user.email)
+          
+          try {
+            const { data: profileData, error: profileError } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', session.user.id)
+              .single()
+            
+            if (profileError) {
+              console.error('❌ Profile fetch error:', profileError)
+              setProfile(null)
+            } else if (profileData) {
+              console.log('✅ Profile loaded:', profileData)
+              setProfile(profileData)
+            }
+          } catch (error) {
+            console.error('❌ Error fetching profile:', error)
+            setProfile(null)
+          }
+        } else if (!session) {
           console.log('🚪 User signed out')
           setProfile(null)
         }
         
-        // Siempre marcar como no loading después de procesar el auth state change
-        setLoading(false)
+        // Solo marcar como no loading si no es la sesión inicial
+        if (event !== 'INITIAL_SESSION') {
+          setLoading(false)
+        }
       }
     )
 
     // Obtener sesión inicial
-    supabase.auth.getSession().then(({ data: { session }, error }) => {
-      if (error) {
-        console.error('❌ Error getting initial session:', error)
-        setLoading(false)
-        return
-      }
-      
-      console.log('🔐 Initial session:', session?.user?.email)
-      setSession(session)
-      setUser(session?.user ?? null)
-      
-      if (!session) {
-        console.log('📭 No initial session found')
-        setLoading(false)
-      }
-    })
+    getInitialSession()
 
     return () => subscription.unsubscribe()
   }, [])
