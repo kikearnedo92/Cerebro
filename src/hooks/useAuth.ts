@@ -13,97 +13,97 @@ export const useAuth = () => {
   useEffect(() => {
     console.log('🔐 Setting up auth listener...')
 
-    // Obtener sesión inicial primero
-    const getInitialSession = async () => {
+    let mounted = true
+
+    const fetchProfile = async (userId: string) => {
       try {
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', userId)
+          .single()
+        
+        if (mounted) {
+          if (profileError) {
+            console.error('❌ Profile fetch error:', profileError)
+            setProfile(null)
+          } else if (profileData) {
+            console.log('✅ Profile loaded:', profileData)
+            setProfile(profileData)
+          }
+        }
+      } catch (error) {
+        console.error('❌ Error fetching profile:', error)
+        if (mounted) {
+          setProfile(null)
+        }
+      }
+    }
+
+    const initializeAuth = async () => {
+      try {
+        // Get initial session
         const { data: { session }, error } = await supabase.auth.getSession()
         
         if (error) {
           console.error('❌ Error getting initial session:', error)
-          setLoading(false)
+          if (mounted) {
+            setLoading(false)
+          }
           return
         }
         
         console.log('🔐 Initial session:', session?.user?.email || 'No session')
-        setSession(session)
-        setUser(session?.user ?? null)
         
-        if (session?.user) {
-          console.log('👤 Fetching profile for:', session.user.email)
+        if (mounted) {
+          setSession(session)
+          setUser(session?.user ?? null)
           
-          try {
-            const { data: profileData, error: profileError } = await supabase
-              .from('profiles')
-              .select('*')
-              .eq('id', session.user.id)
-              .single()
-            
-            if (profileError) {
-              console.error('❌ Profile fetch error:', profileError)
-              setProfile(null)
-            } else if (profileData) {
-              console.log('✅ Profile loaded:', profileData)
-              setProfile(profileData)
-            }
-          } catch (error) {
-            console.error('❌ Error fetching profile:', error)
-            setProfile(null)
+          if (session?.user) {
+            await fetchProfile(session.user.id)
           }
+          
+          setLoading(false)
         }
-        
-        setLoading(false)
       } catch (error) {
-        console.error('❌ Error in getInitialSession:', error)
-        setLoading(false)
+        console.error('❌ Error in initializeAuth:', error)
+        if (mounted) {
+          setLoading(false)
+        }
       }
     }
 
-    // Configurar listener de cambios de auth
+    // Set up auth state change listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('🔐 Auth state change:', event, session?.user?.email || 'No session')
         
-        setSession(session)
-        setUser(session?.user ?? null)
-        
-        if (session?.user && event !== 'INITIAL_SESSION') {
-          console.log('👤 Auth change - fetching profile for:', session.user.email)
+        if (mounted) {
+          setSession(session)
+          setUser(session?.user ?? null)
           
-          try {
-            const { data: profileData, error: profileError } = await supabase
-              .from('profiles')
-              .select('*')
-              .eq('id', session.user.id)
-              .single()
-            
-            if (profileError) {
-              console.error('❌ Profile fetch error:', profileError)
-              setProfile(null)
-            } else if (profileData) {
-              console.log('✅ Profile loaded:', profileData)
-              setProfile(profileData)
-            }
-          } catch (error) {
-            console.error('❌ Error fetching profile:', error)
+          if (session?.user && event !== 'INITIAL_SESSION') {
+            await fetchProfile(session.user.id)
+          } else if (!session) {
+            console.log('🚪 User signed out')
             setProfile(null)
           }
-        } else if (!session) {
-          console.log('🚪 User signed out')
-          setProfile(null)
-        }
-        
-        // Solo marcar como no loading si no es la sesión inicial
-        if (event !== 'INITIAL_SESSION') {
-          setLoading(false)
+          
+          if (event !== 'INITIAL_SESSION') {
+            setLoading(false)
+          }
         }
       }
     )
 
-    // Obtener sesión inicial
-    getInitialSession()
+    // Initialize auth state
+    initializeAuth()
 
-    return () => subscription.unsubscribe()
-  }, [])
+    return () => {
+      mounted = false
+      subscription.unsubscribe()
+    }
+  }, []) // Empty dependency array to run only once
 
   const signUp = async (email: string, password: string, userData: {
     full_name: string
@@ -112,13 +112,11 @@ export const useAuth = () => {
   }) => {
     console.log('📝 Signing up user:', email)
     
-    // SOLO permitir emails @retorna.app o eduardoarnedog@gmail.com
     if (!email.endsWith('@retorna.app') && email !== 'eduardoarnedog@gmail.com') {
       throw new Error('Solo se permiten emails con dominio @retorna.app o eduardoarnedog@gmail.com')
     }
 
     const redirectUrl = `${window.location.origin}/chat`
-    // eduardo@retorna.app es admin automático, eduardoarnedog@gmail.com es super_admin
     let role_system = 'user'
     if (email === 'eduardo@retorna.app') {
       role_system = 'admin'
