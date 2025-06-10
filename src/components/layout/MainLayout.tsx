@@ -1,4 +1,3 @@
-
 import React from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { Button } from '@/components/ui/button'
@@ -17,11 +16,15 @@ const MainLayout = ({ children }: MainLayoutProps) => {
   const location = useLocation()
 
   const handleLogout = async () => {
+    console.log('🚪 Attempting logout from MainLayout')
     try {
       await signOut()
-      navigate('/')
+      console.log('✅ Logout successful, redirecting to landing')
+      navigate('/landing', { replace: true })
     } catch (error) {
-      console.error('Logout error:', error)
+      console.error('❌ Logout error:', error)
+      // Force navigation even if signOut fails
+      navigate('/landing', { replace: true })
     }
   }
 

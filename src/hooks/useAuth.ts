@@ -20,16 +20,7 @@ export const useAuth = () => {
 
     const initializeAuth = async () => {
       try {
-        // Get initial session with timeout
-        const sessionPromise = supabase.auth.getSession()
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Session timeout')), 5000)
-        )
-        
-        const { data: { session }, error } = await Promise.race([
-          sessionPromise,
-          timeoutPromise
-        ]) as any
+        const { data: { session }, error } = await supabase.auth.getSession()
         
         if (error) {
           console.error('❌ Session error:', error)
@@ -69,7 +60,6 @@ export const useAuth = () => {
       }
     }
 
-    // Set up auth state listener with simplified logic
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('🔐 Auth event:', event)
@@ -90,7 +80,8 @@ export const useAuth = () => {
                 setProfile(null)
               }
             }
-          } else if (!session) {
+          } else if (!session || event === 'SIGNED_OUT') {
+            console.log('🚪 User signed out, clearing profile')
             setProfile(null)
           }
           
@@ -101,7 +92,6 @@ export const useAuth = () => {
       }
     )
 
-    // Initialize with timeout fallback
     const initTimeout = setTimeout(() => {
       if (mounted && loading) {
         console.log('⚠️ Auth timeout, stopping loading')
@@ -127,10 +117,22 @@ export const useAuth = () => {
   }
 
   const signOut = async () => {
-    await authSignOut()
-    setUser(null)
-    setSession(null)
-    setProfile(null)
+    console.log('🚪 Starting signOut process')
+    try {
+      await authSignOut()
+      // Clear state immediately
+      setUser(null)
+      setSession(null)
+      setProfile(null)
+      console.log('✅ SignOut completed successfully')
+    } catch (error) {
+      console.error('❌ SignOut error:', error)
+      // Even if there's an error, clear the local state
+      setUser(null)
+      setSession(null)
+      setProfile(null)
+      throw error
+    }
   }
 
   const { isAdmin, isSuperAdmin } = checkAdminStatus(profile, user?.email)
