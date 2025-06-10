@@ -44,30 +44,56 @@ const AuthForm = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    console.log('📝 Form submitted', { isLogin, email: formData.email })
+    
+    if (!formData.email || !formData.password) {
+      toast({
+        title: "Error",
+        description: "Email y contraseña son requeridos",
+        variant: "destructive"
+      })
+      return
+    }
+
     setLoading(true)
 
     try {
       if (isLogin) {
+        console.log('🔑 Attempting signin...')
         await signIn(formData.email, formData.password)
+        console.log('✅ Signin successful')
         toast({
           title: "¡Bienvenido a Cerebro!",
           description: "Has iniciado sesión correctamente."
         })
       } else {
+        console.log('📝 Attempting signup...')
+        
+        if (!formData.full_name || !formData.area || !formData.rol_empresa) {
+          toast({
+            title: "Error",
+            description: "Todos los campos son requeridos para el registro",
+            variant: "destructive"
+          })
+          return
+        }
+        
         await signUp(formData.email, formData.password, {
           full_name: formData.full_name,
           area: formData.area,
           rol_empresa: formData.rol_empresa
         })
+        console.log('✅ Signup successful')
         toast({
           title: "Registro exitoso",
           description: "Tu cuenta ha sido creada. Revisa tu email para confirmar."
         })
       }
     } catch (error: any) {
+      console.error('❌ Auth error:', error)
       toast({
         title: "Error",
-        description: error.message,
+        description: error.message || 'Error en la autenticación',
         variant: "destructive"
       })
     } finally {
@@ -113,7 +139,7 @@ const AuthForm = () => {
                   value={formData.full_name}
                   onChange={(e) => setFormData({...formData, full_name: e.target.value})}
                   className="pl-10"
-                  required
+                  required={!isLogin}
                 />
               </div>
             </div>
@@ -162,7 +188,7 @@ const AuthForm = () => {
             <>
               <div className="space-y-2">
                 <Label htmlFor="area">Área de Retorna</Label>
-                <Select onValueChange={(value) => setFormData({...formData, area: value})} required>
+                <Select onValueChange={(value) => setFormData({...formData, area: value})} required={!isLogin}>
                   <SelectTrigger>
                     <SelectValue placeholder="Selecciona tu área" />
                   </SelectTrigger>
@@ -176,7 +202,7 @@ const AuthForm = () => {
 
               <div className="space-y-2">
                 <Label htmlFor="rol_empresa">Rol en la empresa</Label>
-                <Select onValueChange={(value) => setFormData({...formData, rol_empresa: value})} required>
+                <Select onValueChange={(value) => setFormData({...formData, rol_empresa: value})} required={!isLogin}>
                   <SelectTrigger>
                     <SelectValue placeholder="Selecciona tu rol" />
                   </SelectTrigger>
@@ -207,6 +233,7 @@ const AuthForm = () => {
             type="button"
             onClick={() => setIsLogin(!isLogin)}
             className="text-sm text-purple-600 hover:text-purple-700 hover:underline"
+            disabled={loading}
           >
             {isLogin 
               ? "¿No tienes cuenta? Regístrate aquí" 

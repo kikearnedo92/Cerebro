@@ -12,149 +12,125 @@ export const useAuth = () => {
   const [session, setSession] = useState<Session | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
-  const [initialized, setInitialized] = useState(false)
 
   useEffect(() => {
-    console.log('🔐 Initializing auth...')
+    console.log('🔐 Initializing auth system...')
 
-    let mounted = true
-    let authSubscription: any = null
+    // Función para actualizar el estado de autenticación
+    const updateAuthState = async (session: Session | null) => {
+      console.log('🔄 Updating auth state, session exists:', !!session, 'user:', session?.user?.email)
+      
+      setSession(session)
+      setUser(session?.user ?? null)
+      
+      if (session?.user) {
+        console.log('👤 User found, fetching profile...')
+        try {
+          const profileData = await fetchProfile(session.user.id)
+          setProfile(profileData)
+          console.log('✅ Profile loaded:', profileData?.full_name)
+        } catch (error) {
+          console.error('❌ Profile fetch error:', error)
+          setProfile(null)
+        }
+      } else {
+        console.log('🚫 No user, clearing profile')
+        setProfile(null)
+      }
+      
+      setLoading(false)
+    }
 
-    const initializeAuth = async () => {
+    // Configurar listener de cambios de autenticación
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('🔐 Auth state change:', event, 'Session user:', session?.user?.email || 'No user')
+      await updateAuthState(session)
+    })
+
+    // Obtener sesión inicial
+    const initializeSession = async () => {
       try {
-        // Set up auth state listener FIRST
-        authSubscription = supabase.auth.onAuthStateChange(
-          async (event, session) => {
-            console.log('🔐 Auth event:', event, 'Session user:', session?.user?.email || 'No session')
-            
-            if (!mounted) return
-
-            setSession(session)
-            setUser(session?.user ?? null)
-            
-            if (session?.user && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED')) {
-              console.log('👤 Fetching profile for user:', session.user.email)
-              try {
-                const profileData = await fetchProfile(session.user.id)
-                if (mounted) {
-                  setProfile(profileData)
-                  console.log('✅ Profile loaded:', profileData?.full_name)
-                }
-              } catch (error) {
-                console.error('❌ Profile fetch error:', error)
-                if (mounted) {
-                  setProfile(null)
-                }
-              }
-            } else if (!session || event === 'SIGNED_OUT') {
-              console.log('🚪 User signed out, clearing profile')
-              if (mounted) {
-                setProfile(null)
-              }
-            }
-            
-            // Set loading to false after processing any auth event
-            if (mounted && initialized) {
-              setLoading(false)
-            }
-          }
-        )
-
-        // Then get current session
         const { data: { session: currentSession }, error } = await supabase.auth.getSession()
         
         if (error) {
-          console.error('❌ Session error:', error)
-          if (mounted) {
-            setLoading(false)
-            setInitialized(true)
-          }
+          console.error('❌ Error getting session:', error)
+          setLoading(false)
           return
         }
         
-        console.log('🔐 Initial session loaded:', currentSession?.user?.email || 'No session')
-        
-        if (mounted) {
-          setSession(currentSession)
-          setUser(currentSession?.user ?? null)
-          setInitialized(true)
-          
-          if (currentSession?.user) {
-            try {
-              const profileData = await fetchProfile(currentSession.user.id)
-              if (mounted) {
-                setProfile(profileData)
-                console.log('✅ Initial profile loaded:', profileData?.full_name)
-              }
-            } catch (profileError) {
-              console.error('❌ Initial profile error:', profileError)
-              if (mounted) {
-                setProfile(null)
-              }
-            }
-          }
-          
-          setLoading(false)
-        }
+        console.log('🔐 Initial session check:', currentSession?.user?.email || 'No session')
+        await updateAuthState(currentSession)
       } catch (error) {
-        console.error('❌ Auth initialization error:', error)
-        if (mounted) {
-          setLoading(false)
-          setInitialized(true)
-        }
-      }
-    }
-
-    // Add a safety timeout
-    const safetyTimeout = setTimeout(() => {
-      if (mounted && loading) {
-        console.log('⚠️ Auth safety timeout, stopping loading')
+        console.error('❌ Session initialization error:', error)
         setLoading(false)
-        setInitialized(true)
-      }
-    }, 10000) // Increased to 10 seconds
-
-    initializeAuth()
-
-    return () => {
-      console.log('🧹 Cleaning up auth hook')
-      mounted = false
-      clearTimeout(safetyTimeout)
-      if (authSubscription?.data?.subscription) {
-        authSubscription.data.subscription.unsubscribe()
       }
     }
-  }, []) // Empty dependency array - only run once
+
+    initializeSession()
+
+    // Cleanup
+    return () => {
+      console.log('🧹 Cleaning up auth subscription')
+      subscription.unsubscribe()
+    }
+  }, [])
 
   const signUp = async (email: string, password: string, userData: SignUpData) => {
+    console.log('📝 Starting signup process for:', email)
     await authSignUp(email, password, userData)
   }
 
   const signIn = async (email: string, password: string) => {
-    console.log('🔑 Starting signIn process for:', email)
-    await authSignIn(email, password)
+    console.log('🔑 Starting signin process for:', email)
+    setLoading(true)
+    try {
+      const result = await authSignIn(email, password)
+      console.log('✅ Signin completed, result:', result.user?.email)
+      // No necesitamos actualizar el estado aquí, onAuthStateChange lo hará
+      return result
+    } finally {
+      // Solo quitamos loading si no hay usuario (error case)
+      setTimeout(() => {
+        if (!user) {
+          setLoading(false)
+        }
+      }, 1000)
+    }
   }
 
   const signOut = async () => {
-    console.log('🚪 Starting signOut process')
+    console.log('🚪 Starting signout process')
+    setLoading(true)
     try {
       await authSignOut()
-      // Clear state immediately
+      // Limpiar estado inmediatamente
       setUser(null)
       setSession(null)
       setProfile(null)
-      console.log('✅ SignOut completed successfully')
+      console.log('✅ Signout completed')
     } catch (error) {
-      console.error('❌ SignOut error:', error)
-      // Even if there's an error, clear the local state
+      console.error('❌ Signout error:', error)
+      // Limpiar estado incluso si hay error
       setUser(null)
       setSession(null)
       setProfile(null)
       throw error
+    } finally {
+      setLoading(false)
     }
   }
 
   const { isAdmin, isSuperAdmin } = checkAdminStatus(profile, user?.email)
+
+  console.log('🔍 Current auth state:', {
+    hasUser: !!user,
+    userEmail: user?.email,
+    hasSession: !!session,
+    hasProfile: !!profile,
+    loading,
+    isAdmin,
+    isSuperAdmin
+  })
 
   return {
     user,

@@ -8,8 +8,15 @@ import { Brain } from 'lucide-react'
 const LandingPage = () => {
   const { user, loading, isAdmin, isSuperAdmin } = useAuth()
 
-  console.log('🏠 LandingPage render - user:', user?.email, 'loading:', loading, 'isAdmin:', isAdmin, 'isSuperAdmin:', isSuperAdmin)
+  console.log('🏠 LandingPage render - State:', { 
+    user: user?.email, 
+    loading, 
+    isAdmin, 
+    isSuperAdmin,
+    timestamp: new Date().toISOString()
+  })
 
+  // Mostrar loading mientras se inicializa la autenticación
   if (loading) {
     console.log('⏳ LandingPage showing loading state')
     return (
@@ -22,23 +29,24 @@ const LandingPage = () => {
     )
   }
 
+  // Si hay usuario autenticado, redirigir según el rol
   if (user) {
-    console.log('➡️ User authenticated, determining redirect...')
+    console.log('➡️ User authenticated, redirecting based on role...')
     
-    // Redirect based on role
     if (isSuperAdmin) {
-      console.log('👑 Super admin detected, redirecting to tenants')
+      console.log('👑 Super admin - redirecting to tenants')
       return <Navigate to="/admin/tenants" replace />
     } else if (isAdmin) {
-      console.log('⚡ Admin detected, redirecting to knowledge')
+      console.log('⚡ Admin - redirecting to knowledge')
       return <Navigate to="/knowledge" replace />
     } else {
-      console.log('👤 Regular user, redirecting to chat')
+      console.log('👤 Regular user - redirecting to chat')
       return <Navigate to="/chat" replace />
     }
   }
 
-  console.log('📄 Showing landing page form')
+  // Si no hay usuario, mostrar formulario de autenticación
+  console.log('📄 No user found, showing auth form')
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-purple-100">
       <header className="p-6">
