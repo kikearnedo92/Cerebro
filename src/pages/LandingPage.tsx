@@ -24,6 +24,7 @@ const LandingPage = () => {
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
           <p className="text-purple-600 font-medium">Cargando Cerebro...</p>
+          <p className="text-purple-400 text-sm mt-2">Inicializando autenticación...</p>
         </div>
       </div>
     )
@@ -33,14 +34,22 @@ const LandingPage = () => {
   if (user) {
     console.log('➡️ User authenticated, redirecting based on role...')
     
+    // Pequeño delay para evitar renders múltiples
+    setTimeout(() => {
+      if (isSuperAdmin) {
+        console.log('👑 Super admin - redirecting to tenants')
+      } else if (isAdmin) {
+        console.log('⚡ Admin - redirecting to knowledge')
+      } else {
+        console.log('👤 Regular user - redirecting to chat')
+      }
+    }, 100)
+    
     if (isSuperAdmin) {
-      console.log('👑 Super admin - redirecting to tenants')
       return <Navigate to="/admin/tenants" replace />
     } else if (isAdmin) {
-      console.log('⚡ Admin - redirecting to knowledge')
       return <Navigate to="/knowledge" replace />
     } else {
-      console.log('👤 Regular user - redirecting to chat')
       return <Navigate to="/chat" replace />
     }
   }

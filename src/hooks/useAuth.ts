@@ -15,30 +15,50 @@ export const useAuth = () => {
 
   useEffect(() => {
     console.log('🔐 Initializing auth system...')
+    
+    let mounted = true
+    
+    // Timeout de seguridad para evitar loading infinito
+    const loadingTimeout = setTimeout(() => {
+      if (mounted) {
+        console.log('⚠️ Loading timeout reached, setting loading to false')
+        setLoading(false)
+      }
+    }, 5000)
 
-    // Función para actualizar el estado de autenticación
-    const updateAuthState = async (session: Session | null) => {
-      console.log('🔄 Updating auth state, session exists:', !!session, 'user:', session?.user?.email)
+    const updateAuthState = async (currentSession: Session | null) => {
+      if (!mounted) return
       
-      setSession(session)
-      setUser(session?.user ?? null)
+      console.log('🔄 Updating auth state, session:', !!currentSession, 'user:', currentSession?.user?.email)
       
-      if (session?.user) {
+      setSession(currentSession)
+      setUser(currentSession?.user ?? null)
+      
+      if (currentSession?.user) {
         console.log('👤 User found, fetching profile...')
         try {
-          const profileData = await fetchProfile(session.user.id)
-          setProfile(profileData)
-          console.log('✅ Profile loaded:', profileData?.full_name)
+          const profileData = await fetchProfile(currentSession.user.id)
+          if (mounted) {
+            setProfile(profileData)
+            console.log('✅ Profile loaded:', profileData?.full_name)
+          }
         } catch (error) {
           console.error('❌ Profile fetch error:', error)
-          setProfile(null)
+          if (mounted) {
+            setProfile(null)
+          }
         }
       } else {
         console.log('🚫 No user, clearing profile')
-        setProfile(null)
+        if (mounted) {
+          setProfile(null)
+        }
       }
       
-      setLoading(false)
+      if (mounted) {
+        setLoading(false)
+        clearTimeout(loadingTimeout)
+      }
     }
 
     // Configurar listener de cambios de autenticación
@@ -50,11 +70,15 @@ export const useAuth = () => {
     // Obtener sesión inicial
     const initializeSession = async () => {
       try {
+        console.log('🔍 Getting initial session...')
         const { data: { session: currentSession }, error } = await supabase.auth.getSession()
         
         if (error) {
           console.error('❌ Error getting session:', error)
-          setLoading(false)
+          if (mounted) {
+            setLoading(false)
+            clearTimeout(loadingTimeout)
+          }
           return
         }
         
@@ -62,7 +86,10 @@ export const useAuth = () => {
         await updateAuthState(currentSession)
       } catch (error) {
         console.error('❌ Session initialization error:', error)
-        setLoading(false)
+        if (mounted) {
+          setLoading(false)
+          clearTimeout(loadingTimeout)
+        }
       }
     }
 
@@ -71,6 +98,8 @@ export const useAuth = () => {
     // Cleanup
     return () => {
       console.log('🧹 Cleaning up auth subscription')
+      mounted = false
+      clearTimeout(loadingTimeout)
       subscription.unsubscribe()
     }
   }, [])
@@ -86,15 +115,11 @@ export const useAuth = () => {
     try {
       const result = await authSignIn(email, password)
       console.log('✅ Signin completed, result:', result.user?.email)
-      // No necesitamos actualizar el estado aquí, onAuthStateChange lo hará
       return result
-    } finally {
-      // Solo quitamos loading si no hay usuario (error case)
-      setTimeout(() => {
-        if (!user) {
-          setLoading(false)
-        }
-      }, 1000)
+    } catch (error) {
+      console.error('❌ Signin error:', error)
+      setLoading(false)
+      throw error
     }
   }
 
@@ -103,14 +128,12 @@ export const useAuth = () => {
     setLoading(true)
     try {
       await authSignOut()
-      // Limpiar estado inmediatamente
       setUser(null)
       setSession(null)
       setProfile(null)
       console.log('✅ Signout completed')
     } catch (error) {
       console.error('❌ Signout error:', error)
-      // Limpiar estado incluso si hay error
       setUser(null)
       setSession(null)
       setProfile(null)
