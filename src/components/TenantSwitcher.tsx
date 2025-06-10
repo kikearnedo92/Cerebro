@@ -19,6 +19,7 @@ const TenantSwitcher = () => {
 
   const fetchTenants = async () => {
     try {
+      console.log('🏢 Fetching tenants for super admin...')
       const { data, error } = await supabase
         .from('tenants')
         .select('*')
@@ -28,6 +29,7 @@ const TenantSwitcher = () => {
         console.error('Error fetching tenants:', error)
         return
       }
+      console.log('✅ Tenants loaded:', data?.length || 0)
       setTenants(data || [])
     } catch (error) {
       console.error('Error fetching tenants:', error)
@@ -36,7 +38,10 @@ const TenantSwitcher = () => {
 
   const getCurrentTenant = async () => {
     try {
-      if (!profile?.tenant_id) return
+      if (!profile?.tenant_id) {
+        console.log('⚠️ No tenant_id in profile')
+        return
+      }
 
       const { data, error } = await supabase
         .from('tenants')
@@ -50,6 +55,7 @@ const TenantSwitcher = () => {
       }
       
       if (data?.subdomain) {
+        console.log('🏢 Current tenant:', data.subdomain)
         setCurrentTenant(data.subdomain)
       }
     } catch (error) {
@@ -62,6 +68,7 @@ const TenantSwitcher = () => {
 
     setLoading(true)
     try {
+      console.log('🔄 Switching to tenant:', subdomain)
       const { data, error } = await supabase.rpc('switch_tenant_context', {
         p_tenant_subdomain: subdomain
       })
@@ -123,10 +130,11 @@ const TenantSwitcher = () => {
   // ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL RETURNS
   useEffect(() => {
     if (isSuperAdmin) {
+      console.log('🔍 Super admin detected, initializing tenant switcher')
       fetchTenants()
       getCurrentTenant()
     }
-  }, [isSuperAdmin])
+  }, [isSuperAdmin, profile?.tenant_id])
 
   // Early return AFTER all hooks
   if (!isSuperAdmin) {

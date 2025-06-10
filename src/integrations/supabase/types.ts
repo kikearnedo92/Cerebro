@@ -320,6 +320,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      is_super_admin_user: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
       switch_tenant_context: {
         Args: { p_tenant_subdomain: string }
         Returns: Json

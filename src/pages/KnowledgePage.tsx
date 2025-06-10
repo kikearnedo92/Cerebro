@@ -18,11 +18,14 @@ import QuickFileUpload from '@/components/admin/QuickFileUpload'
 
 const KnowledgePage = () => {
   const { items, isLoading, error, deleteItem, toggleActive } = useKnowledgeBase()
-  const { isAdmin } = useAuth()
+  const { isAdmin, isSuperAdmin } = useAuth()
   const [showUpload, setShowUpload] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
 
-  console.log('KnowledgePage rendered - items:', items?.length, 'loading:', isLoading, 'error:', error)
+  // Permitir acceso tanto a admins como super admins
+  const hasAccess = isAdmin || isSuperAdmin
+
+  console.log('KnowledgePage rendered - items:', items?.length, 'loading:', isLoading, 'error:', error, 'hasAccess:', hasAccess)
 
   if (isLoading) {
     return (
@@ -95,7 +98,9 @@ const KnowledgePage = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Base de Conocimiento - Retorna</h1>
+          <h1 className="text-2xl font-bold text-gray-900">
+            Base de Conocimiento - {isSuperAdmin ? 'Super Admin' : 'Retorna'}
+          </h1>
           <p className="text-gray-600">
             {filteredItems.length > 0 
               ? `${filteredItems.length} documento${filteredItems.length === 1 ? '' : 's'} disponible${filteredItems.length === 1 ? '' : 's'}`
@@ -104,7 +109,7 @@ const KnowledgePage = () => {
           </p>
         </div>
         
-        {isAdmin && (
+        {hasAccess && (
           <div className="flex items-center space-x-3">
             <Button 
               variant="outline"
@@ -122,11 +127,12 @@ const KnowledgePage = () => {
         <CheckCircle className="w-4 h-4 text-blue-500" />
         <span className="text-sm text-blue-700">
           Sistema real activado - Documentos procesados con IA - Storage en Supabase
+          {isSuperAdmin && " - Acceso Super Admin"}
         </span>
       </div>
 
       {/* Quick Upload Component */}
-      {isAdmin && showUpload && (
+      {hasAccess && showUpload && (
         <QuickFileUpload />
       )}
 
@@ -157,12 +163,12 @@ const KnowledgePage = () => {
               <p className="text-gray-600 mb-6">
                 {searchTerm 
                   ? 'Intenta con otros términos de búsqueda.'
-                  : isAdmin 
+                  : hasAccess 
                     ? 'Comienza subiendo documentos PDF, Word o TXT. El sistema procesará automáticamente el contenido.'
                     : 'Los administradores pueden agregar documentos a la base de conocimiento.'
                 }
               </p>
-              {isAdmin && !searchTerm && (
+              {hasAccess && !searchTerm && (
                 <div className="flex justify-center">
                   <Button 
                     variant="outline"
@@ -197,7 +203,7 @@ const KnowledgePage = () => {
                       {item.active ? "Activo" : "Inactivo"}
                     </Badge>
                     
-                    {isAdmin && (
+                    {hasAccess && (
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="sm">

@@ -1,3 +1,4 @@
+
 import React from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { Button } from '@/components/ui/button'
@@ -33,13 +34,15 @@ const MainLayout = ({ children }: MainLayoutProps) => {
       name: 'Chat',
       href: '/chat',
       icon: MessageSquare,
-      current: location.pathname === '/chat'
+      current: location.pathname === '/chat',
+      visible: true
     },
     {
       name: 'Knowledge Base',
       href: '/knowledge',
       icon: Database,
-      current: location.pathname === '/knowledge'
+      current: location.pathname === '/knowledge',
+      visible: isAdmin || isSuperAdmin
     }
   ]
 
@@ -48,13 +51,15 @@ const MainLayout = ({ children }: MainLayoutProps) => {
       name: 'Users',
       href: '/users',
       icon: Users,
-      current: location.pathname === '/users'
+      current: location.pathname === '/users',
+      visible: isAdmin || isSuperAdmin
     },
     {
       name: 'Analytics',
       href: '/analytics',
       icon: BarChart3,
-      current: location.pathname === '/analytics'
+      current: location.pathname === '/analytics',
+      visible: isAdmin || isSuperAdmin
     }
   ]
 
@@ -63,7 +68,8 @@ const MainLayout = ({ children }: MainLayoutProps) => {
       name: 'Tenants',
       href: '/admin/tenants',
       icon: Settings2,
-      current: location.pathname === '/admin/tenants'
+      current: location.pathname === '/admin/tenants',
+      visible: isSuperAdmin
     }
   ]
 
@@ -118,7 +124,7 @@ const MainLayout = ({ children }: MainLayoutProps) => {
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
               Principal
             </p>
-            {navigation.map((item) => (
+            {navigation.filter(item => item.visible).map((item) => (
               <Button
                 key={item.name}
                 variant={item.current ? 'default' : 'ghost'}
@@ -131,12 +137,12 @@ const MainLayout = ({ children }: MainLayoutProps) => {
             ))}
           </div>
 
-          {isAdmin && (
+          {(isAdmin || isSuperAdmin) && (
             <div className="pt-6">
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
                 Administración
               </p>
-              {adminNavigation.map((item) => (
+              {adminNavigation.filter(item => item.visible).map((item) => (
                 <Button
                   key={item.name}
                   variant={item.current ? 'default' : 'ghost'}
@@ -155,7 +161,7 @@ const MainLayout = ({ children }: MainLayoutProps) => {
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
                 Super Admin
               </p>
-              {superAdminNavigation.map((item) => (
+              {superAdminNavigation.filter(item => item.visible).map((item) => (
                 <Button
                   key={item.name}
                   variant={item.current ? 'default' : 'ghost'}
@@ -200,6 +206,11 @@ const MainLayout = ({ children }: MainLayoutProps) => {
               <Badge variant="outline" className="text-xs">
                 v1.0
               </Badge>
+              {isSuperAdmin && (
+                <Badge variant="default" className="bg-red-600 text-xs">
+                  Super Admin
+                </Badge>
+              )}
             </div>
           </div>
         </div>
