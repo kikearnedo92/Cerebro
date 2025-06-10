@@ -2,29 +2,32 @@
 import React, { useState, useEffect } from 'react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
-import { Building2, Zap, Users } from 'lucide-react'
+import { Building2, Zap, Users, Settings } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { supabase } from '@/integrations/supabase/client'
 import { useAuth } from '@/hooks/useAuth'
 import { toast } from '@/hooks/use-toast'
+import { useNavigate } from 'react-router-dom'
 import { Tenant } from '@/types/database'
 
 const TenantSwitcher = () => {
-  const { profile } = useAuth()
+  const { profile, isSuperAdmin } = useAuth()
+  const navigate = useNavigate()
   const [tenants, setTenants] = useState<Tenant[]>([])
   const [currentTenant, setCurrentTenant] = useState<string>('')
   const [loading, setLoading] = useState(false)
 
+  // Early return if not super admin
+  if (!isSuperAdmin) {
+    return null
+  }
+
   useEffect(() => {
-    if (profile?.is_super_admin) {
+    if (isSuperAdmin) {
       fetchTenants()
       getCurrentTenant()
     }
-  }, [profile?.is_super_admin])
-
-  // Only render if super admin - moved after all hooks
-  if (!profile?.is_super_admin) {
-    return null
-  }
+  }, [isSuperAdmin])
 
   const fetchTenants = async () => {
     try {
@@ -33,7 +36,10 @@ const TenantSwitcher = () => {
         .select('*')
         .order('name')
 
-      if (error) throw error
+      if (error) {
+        console.error('Error fetching tenants:', error)
+        return
+      }
       setTenants(data || [])
     } catch (error) {
       console.error('Error fetching tenants:', error)
@@ -42,15 +48,21 @@ const TenantSwitcher = () => {
 
   const getCurrentTenant = async () => {
     try {
+      if (!profile?.tenant_id) return
+
       const { data, error } = await supabase
-        .from('profiles')
-        .select('tenant_id, tenants!inner(subdomain)')
-        .eq('id', profile?.id)
+        .from('tenants')
+        .select('subdomain')
+        .eq('id', profile.tenant_id)
         .single()
 
-      if (error) throw error
-      if (data?.tenants) {
-        setCurrentTenant((data.tenants as any).subdomain)
+      if (error) {
+        console.error('Error getting current tenant:', error)
+        return
+      }
+      
+      if (data?.subdomain) {
+        setCurrentTenant(data.subdomain)
       }
     } catch (error) {
       console.error('Error getting current tenant:', error)
@@ -121,53 +133,65 @@ const TenantSwitcher = () => {
   }
 
   return (
-    <div className="p-4 border-b border-gray-200">
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
-          Super Admin
-        </span>
-        <Badge variant="default" className="bg-red-600 text-xs">
-          DEV MODE
-        </Badge>
-      </div>
-      
-      <Select value={currentTenant} onValueChange={switchTenant} disabled={loading}>
-        <SelectTrigger className="w-full">
-          <SelectValue placeholder="Seleccionar tenant">
-            {currentTenant && (
-              <div className="flex items-center gap-2">
-                {getTenantIcon(currentTenant)}
-                <span className="font-medium">
-                  {tenants.find(t => t.subdomain === currentTenant)?.name}
-                </span>
-              </div>
-            )}
-          </SelectValue>
-        </SelectTrigger>
-        <SelectContent>
-          {tenants.map((tenant) => (
-            <SelectItem key={tenant.id} value={tenant.subdomain}>
-              <div className="flex items-center justify-between w-full">
-                <div className="flex items-center gap-2">
-                  {getTenantIcon(tenant.subdomain)}
-                  <div className="flex flex-col">
-                    <span className="font-medium">{tenant.name}</span>
-                    <span className="text-xs text-gray-500">@{tenant.subdomain}</span>
-                  </div>
-                </div>
-                {getTenantBadge(tenant)}
-              </div>
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      
-      {loading && (
-        <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
-          <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-purple-600"></div>
-          Cambiando tenant...
+    <div className="border-b border-gray-200">
+      <div className="p-4">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+            Super Admin
+          </span>
+          <Badge variant="default" className="bg-red-600 text-xs">
+            DEV MODE
+          </Badge>
         </div>
-      )}
+        
+        <Select value={currentTenant} onValueChange={switchTenant} disabled={loading}>
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Seleccionar tenant">
+              {currentTenant && (
+                <div className="flex items-center gap-2">
+                  {getTenantIcon(currentTenant)}
+                  <span className="font-medium">
+                    {tenants.find(t => t.subdomain === currentTenant)?.name}
+                  </span>
+                </div>
+              )}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {tenants.map((tenant) => (
+              <SelectItem key={tenant.id} value={tenant.subdomain}>
+                <div className="flex items-center justify-between w-full">
+                  <div className="flex items-center gap-2">
+                    {getTenantIcon(tenant.subdomain)}
+                    <div className="flex flex-col">
+                      <span className="font-medium">{tenant.name}</span>
+                      <span className="text-xs text-gray-500">@{tenant.subdomain}</span>
+                    </div>
+                  </div>
+                  {getTenantBadge(tenant)}
+                </div>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        
+        {loading && (
+          <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
+            <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-purple-600"></div>
+            Cambiando tenant...
+          </div>
+        )}
+        
+        <Button
+          variant="ghost"
+          size="sm"
+          className="w-full mt-2 justify-start text-xs"
+          onClick={() => navigate('/admin/tenants')}
+        >
+          <Settings className="w-3 h-3 mr-2" />
+          Gestionar Tenants
+        </Button>
+      </div>
     </div>
   )
 }

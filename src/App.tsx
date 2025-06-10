@@ -10,6 +10,7 @@ import ChatPage from "./pages/ChatPage"
 import KnowledgePage from "./pages/KnowledgePage"
 import UsersPage from "./pages/UsersPage"
 import AnalyticsPage from "./pages/AnalyticsPage"
+import TenantsPage from "./pages/admin/TenantsPage"
 import MainLayout from "./components/layout/MainLayout"
 import './index.css'
 
@@ -37,6 +38,27 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   }
   
   console.log('✅ User authenticated, showing protected content')
+  return <MainLayout>{children}</MainLayout>
+}
+
+const SuperAdminRoute = ({ children }: { children: React.ReactNode }) => {
+  const { isSuperAdmin, loading } = useAuth()
+  
+  if (loading) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-purple-100">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
+          <p className="text-purple-600 font-medium">Verificando permisos...</p>
+        </div>
+      </div>
+    )
+  }
+  
+  if (!isSuperAdmin) {
+    return <Navigate to="/chat" replace />
+  }
+  
   return <MainLayout>{children}</MainLayout>
 }
 
@@ -85,6 +107,14 @@ const App = () => {
                 <ProtectedRoute>
                   <AnalyticsPage />
                 </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/admin/tenants" 
+              element={
+                <SuperAdminRoute>
+                  <TenantsPage />
+                </SuperAdminRoute>
               } 
             />
             <Route path="*" element={<Navigate to="/landing" replace />} />

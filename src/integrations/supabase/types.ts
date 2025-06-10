@@ -320,7 +320,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      switch_tenant_context: {
+        Args: { p_tenant_subdomain: string }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never

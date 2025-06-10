@@ -1,8 +1,9 @@
+
 import React from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Brain, MessageSquare, Database, BarChart3, Users, LogOut, User } from 'lucide-react'
+import { Brain, MessageSquare, Database, BarChart3, Users, LogOut, User, Settings2 } from 'lucide-react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import TenantSwitcher from '@/components/TenantSwitcher'
 
@@ -51,6 +52,15 @@ const MainLayout = ({ children }: MainLayoutProps) => {
       href: '/analytics',
       icon: BarChart3,
       current: location.pathname === '/analytics'
+    }
+  ]
+
+  const superAdminNavigation = [
+    {
+      name: 'Tenants',
+      href: '/admin/tenants',
+      icon: Settings2,
+      current: location.pathname === '/admin/tenants'
     }
   ]
 
@@ -136,6 +146,25 @@ const MainLayout = ({ children }: MainLayoutProps) => {
               ))}
             </div>
           )}
+
+          {isSuperAdmin && (
+            <div className="pt-6">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
+                Super Admin
+              </p>
+              {superAdminNavigation.map((item) => (
+                <Button
+                  key={item.name}
+                  variant={item.current ? 'default' : 'ghost'}
+                  className={`w-full justify-start mb-1 ${item.current ? 'bg-purple-600 text-white' : ''}`}
+                  onClick={() => navigate(item.href)}
+                >
+                  <item.icon className="w-4 h-4 mr-3" />
+                  {item.name}
+                </Button>
+              ))}
+            </div>
+          )}
         </nav>
 
         <div className="p-4 border-t border-gray-200 space-y-2">
@@ -162,6 +191,7 @@ const MainLayout = ({ children }: MainLayoutProps) => {
               {location.pathname === '/knowledge' && 'Base de Conocimiento'}
               {location.pathname === '/users' && 'Gestión de Usuarios'}
               {location.pathname === '/analytics' && 'Analytics'}
+              {location.pathname === '/admin/tenants' && 'Gestión de Tenants'}
             </h2>
             <div className="flex items-center space-x-4">
               <Badge variant="outline" className="text-xs">
