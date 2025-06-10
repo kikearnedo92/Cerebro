@@ -14,15 +14,17 @@ const TenantSwitcher = () => {
   const [currentTenant, setCurrentTenant] = useState<string>('')
   const [loading, setLoading] = useState(false)
 
-  // Solo mostrar para super admins
+  useEffect(() => {
+    if (profile?.is_super_admin) {
+      fetchTenants()
+      getCurrentTenant()
+    }
+  }, [profile?.is_super_admin])
+
+  // Only render if super admin - moved after all hooks
   if (!profile?.is_super_admin) {
     return null
   }
-
-  useEffect(() => {
-    fetchTenants()
-    getCurrentTenant()
-  }, [])
 
   const fetchTenants = async () => {
     try {
