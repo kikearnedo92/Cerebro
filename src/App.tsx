@@ -18,6 +18,8 @@ const queryClient = new QueryClient()
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth()
   
+  console.log('🔒 ProtectedRoute - user:', user?.email, 'loading:', loading)
+  
   if (loading) {
     return (
       <div className="h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-purple-100">
@@ -30,9 +32,11 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   }
   
   if (!user) {
-    return <Navigate to="/" replace />
+    console.log('🚫 No user, redirecting to landing')
+    return <Navigate to="/landing" replace />
   }
   
+  console.log('✅ User authenticated, showing protected content')
   return <MainLayout>{children}</MainLayout>
 }
 
@@ -43,7 +47,8 @@ const App = () => {
         <Toaster />
         <BrowserRouter>
           <Routes>
-            <Route path="/" element={<LandingPage />} />
+            <Route path="/" element={<Navigate to="/landing" replace />} />
+            <Route path="/landing" element={<LandingPage />} />
             <Route 
               path="/dashboard" 
               element={<Navigate to="/chat" replace />} 
@@ -80,7 +85,7 @@ const App = () => {
                 </ProtectedRoute>
               } 
             />
-            <Route path="*" element={<Navigate to="/" replace />} />
+            <Route path="*" element={<Navigate to="/landing" replace />} />
           </Routes>
         </BrowserRouter>
       </TooltipProvider>

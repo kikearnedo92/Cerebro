@@ -21,39 +21,37 @@ export const useAuth = () => {
         
         if (session?.user) {
           console.log('👤 User authenticated, fetching profile...')
-          setTimeout(async () => {
-            try {
-              console.log('👤 Fetching profile for:', session.user.email)
-              
-              const { data: profileData, error: profileError } = await supabase
-                .from('profiles')
-                .select('*')
-                .eq('id', session.user.id)
-                .single()
-              
-              if (profileError) {
-                console.error('❌ Profile fetch error:', profileError)
-                // Si no hay perfil, intentar crear uno básico
-                if (profileError.code === 'PGRST116') {
-                  console.log('📝 Profile not found, will be created by trigger on next login')
-                }
-                setProfile(null)
-              } else if (profileData) {
-                console.log('✅ Profile loaded:', profileData)
-                setProfile(profileData)
+          try {
+            console.log('👤 Fetching profile for:', session.user.email)
+            
+            const { data: profileData, error: profileError } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', session.user.id)
+              .single()
+            
+            if (profileError) {
+              console.error('❌ Profile fetch error:', profileError)
+              // Si no hay perfil, intentar crear uno básico
+              if (profileError.code === 'PGRST116') {
+                console.log('📝 Profile not found, will be created by trigger on next login')
               }
-            } catch (error) {
-              console.error('❌ Error fetching profile:', error)
               setProfile(null)
-            } finally {
-              setLoading(false)
+            } else if (profileData) {
+              console.log('✅ Profile loaded:', profileData)
+              setProfile(profileData)
             }
-          }, 100)
+          } catch (error) {
+            console.error('❌ Error fetching profile:', error)
+            setProfile(null)
+          }
         } else {
           console.log('🚪 User signed out')
           setProfile(null)
-          setLoading(false)
         }
+        
+        // Siempre marcar como no loading después de procesar el auth state change
+        setLoading(false)
       }
     )
 

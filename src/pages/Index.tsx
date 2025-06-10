@@ -25,9 +25,9 @@ const Index = () => {
     return <Navigate to="/chat" replace />;
   }
 
-  // Si no hay usuario, redirigir a landing page
-  console.log('➡️ Redirecting to landing page');
-  return <Navigate to="/" replace />;
+  // Si no hay usuario, mostrar landing page directamente
+  console.log('➡️ Showing landing page');
+  return <Navigate to="/landing" replace />;
 };
 
 export default Index;
