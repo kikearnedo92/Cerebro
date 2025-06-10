@@ -11,7 +11,6 @@ export const useKnowledgeBaseUpload = (
   const [isUploading, setIsUploading] = useState(false)
   const { user, isAdmin } = useAuth()
 
-  // REAL file upload with text extraction
   const uploadFile = async (file: File, metadata: {
     title: string
     project: string
@@ -48,35 +47,32 @@ export const useKnowledgeBaseUpload = (
         throw new Error(`Error subiendo archivo: ${uploadError.message}`)
       }
 
-      // REAL text extraction from uploaded file
-      const textContent = await extractTextFromFile(file)
+      console.log('✅ File uploaded to storage, processing with AI...')
 
-      // Save to REAL knowledge base
-      const { data: newItem, error: insertError } = await supabase
-        .from('knowledge_base')
-        .insert({
+      // Process file with REAL edge function
+      const { data: processData, error: processError } = await supabase.functions.invoke('process-document', {
+        body: {
+          fileUrl: uploadData.path,
+          fileName: file.name,
           title: metadata.title || file.name.replace(/\.[^/.]+$/, ""),
-          content: textContent,
           project: metadata.project,
           tags: metadata.tags,
-          file_url: uploadData.path,
-          created_by: user.id,
-          active: true
-        })
-        .select()
-        .single()
+          userId: user.id
+        }
+      })
 
-      if (insertError) {
-        console.error('Database insert failed:', insertError)
-        throw new Error(`Error guardando en base de datos: ${insertError.message}`)
+      if (processError) {
+        console.error('Document processing failed:', processError)
+        throw new Error(`Error procesando documento: ${processError.message}`)
       }
 
+      const newItem = processData.item
       setItems(prev => [newItem, ...prev])
 
       console.log('✅ REAL file uploaded and processed successfully')
       toast({
         title: "Archivo subido exitosamente",
-        description: `${file.name} ha sido procesado y agregado a la base de conocimiento`
+        description: `${file.name} ha sido procesado y agregado a la base de conocimiento (${processData.extractedLength} caracteres extraídos)`
       })
 
       return newItem
@@ -92,35 +88,6 @@ export const useKnowledgeBaseUpload = (
       throw error
     } finally {
       setIsUploading(false)
-    }
-  }
-
-  // REAL text extraction from files
-  const extractTextFromFile = async (file: File): Promise<string> => {
-    try {
-      console.log('📄 Extracting REAL text from:', file.name, file.type)
-
-      if (file.type === 'text/plain') {
-        const text = await file.text()
-        return text
-      } else if (file.type === 'text/csv') {
-        const text = await file.text()
-        return `Datos CSV:\n${text}`
-      } else if (file.type === 'application/json') {
-        const text = await file.text()
-        return `Datos JSON:\n${text}`
-      } else if (file.type === 'application/pdf') {
-        // For now, return file info - in production you'd use pdf-parse
-        return `Documento PDF: ${file.name}\nTamaño: ${(file.size / 1024).toFixed(1)}KB\n\n[Contenido PDF será procesado por el sistema]`
-      } else if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
-        // For now, return file info - in production you'd use mammoth
-        return `Documento DOCX: ${file.name}\nTamaño: ${(file.size / 1024).toFixed(1)}KB\n\n[Contenido DOCX será procesado por el sistema]`
-      } else {
-        return `Documento: ${file.name}\nTipo: ${file.type}\nTamaño: ${(file.size / 1024).toFixed(1)}KB\n\nContenido será procesado por el administrador.`
-      }
-    } catch (error) {
-      console.warn('Text extraction failed:', error)
-      return `Archivo: ${file.name} - requiere procesamiento manual`
     }
   }
 

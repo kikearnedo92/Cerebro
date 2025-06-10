@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { toast } from '@/hooks/use-toast'
+import { useAuth } from '@/hooks/useAuth'
 
 interface InviteUserFormProps {
   onClose: () => void
@@ -19,38 +20,33 @@ const InviteUserForm: React.FC<InviteUserFormProps> = ({ onClose, onSuccess }) =
   const [fullName, setFullName] = useState('')
   const [area, setArea] = useState('')
   const [rolEmpresa, setRolEmpresa] = useState('')
+  const { user } = useAuth()
 
   const inviteMutation = useMutation({
     mutationFn: async (formData: any) => {
-      // Validate email domain
-      if (!formData.email.endsWith('@retorna.app')) {
-        throw new Error('Solo se permiten emails con dominio @retorna.app')
-      }
-
-      // Generate temporary password
-      const tempPassword = Math.random().toString(36).slice(-12) + 'A1!'
-
-      // Create user account
-      const { error: signUpError } = await supabase.auth.signUp({
-        email: formData.email,
-        password: tempPassword,
-        options: {
-          data: {
-            full_name: formData.fullName,
-            area: formData.area,
-            rol_empresa: formData.rolEmpresa
-          }
+      console.log('📧 Sending REAL invitation email...')
+      
+      // Call the REAL send-invitation edge function
+      const { data, error } = await supabase.functions.invoke('send-invitation', {
+        body: {
+          email: formData.email,
+          fullName: formData.fullName,
+          area: formData.area,
+          rolEmpresa: formData.rolEmpresa,
+          invitedBy: user?.id
         }
       })
 
-      if (signUpError) throw signUpError
+      if (error) {
+        throw new Error(error.message)
+      }
 
-      return { email: formData.email, tempPassword }
+      return data
     },
     onSuccess: (data) => {
       toast({
-        title: "Usuario invitado",
-        description: `Se ha enviado una invitación a ${data.email}. Password temporal: ${data.tempPassword}`,
+        title: "Usuario invitado exitosamente",
+        description: `Se ha enviado una invitación REAL a ${data.email}. Password temporal: ${data.tempPassword}`,
         duration: 10000
       })
       onSuccess()
@@ -131,6 +127,7 @@ const InviteUserForm: React.FC<InviteUserFormProps> = ({ onClose, onSuccess }) =
                 <SelectItem value="Data">Data</SelectItem>
                 <SelectItem value="Management">Management</SelectItem>
                 <SelectItem value="Otro">Otro</SelectItem>
+                <SelectItem value="General">General</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -155,7 +152,7 @@ const InviteUserForm: React.FC<InviteUserFormProps> = ({ onClose, onSuccess }) =
               Cancelar
             </Button>
             <Button type="submit" disabled={inviteMutation.isPending}>
-              {inviteMutation.isPending ? 'Enviando...' : 'Enviar Invitación'}
+              {inviteMutation.isPending ? 'Enviando email real...' : 'Enviar Invitación'}
             </Button>
           </div>
         </form>
