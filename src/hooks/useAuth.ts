@@ -12,93 +12,77 @@ export const useAuth = () => {
   const [session, setSession] = useState<Session | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
-  const [initialized, setInitialized] = useState(false)
 
   useEffect(() => {
-    console.log('🔐 Auth: Starting initialization...')
+    console.log('🔐 Auth: Initializing...')
     
-    let mounted = true
-    
-    // Función para actualizar el estado de auth
-    const updateAuthState = async (currentSession: Session | null) => {
-      if (!mounted) return
-      
-      console.log('🔄 Auth: Updating state -', currentSession ? `User: ${currentSession.user.email}` : 'No session')
-      
-      setSession(currentSession)
-      setUser(currentSession?.user ?? null)
-      
-      if (currentSession?.user) {
-        try {
-          console.log('👤 Auth: Fetching profile for user:', currentSession.user.id)
-          const profileData = await fetchProfile(currentSession.user.id)
-          if (mounted) {
+    // Get initial session
+    const initializeAuth = async () => {
+      try {
+        const { data: { session: initialSession } } = await supabase.auth.getSession()
+        console.log('🔐 Auth: Initial session -', initialSession ? `User: ${initialSession.user.email}` : 'No session')
+        
+        setSession(initialSession)
+        setUser(initialSession?.user ?? null)
+        
+        if (initialSession?.user) {
+          try {
+            const profileData = await fetchProfile(initialSession.user.id)
             setProfile(profileData)
-            console.log('✅ Auth: Profile loaded:', profileData?.full_name || 'No name')
+            console.log('✅ Auth: Profile loaded for', initialSession.user.email)
+          } catch (error) {
+            console.error('❌ Auth: Profile fetch error:', error)
+            setProfile(null)
           }
-        } catch (error) {
-          console.error('❌ Auth: Profile fetch error:', error)
-          if (mounted) setProfile(null)
+        } else {
+          setProfile(null)
         }
-      } else {
-        if (mounted) setProfile(null)
-      }
-      
-      if (mounted) {
+      } catch (error) {
+        console.error('❌ Auth: Initialization error:', error)
+      } finally {
         setLoading(false)
-        setInitialized(true)
+        console.log('✅ Auth: Initialization complete')
       }
     }
 
-    // Listener de cambios de auth
+    // Auth state change listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('🔐 Auth: State change -', event, session ? `User: ${session.user.email}` : 'No session')
-      if (mounted) {
-        await updateAuthState(session)
+      
+      setSession(session)
+      setUser(session?.user ?? null)
+      
+      if (session?.user && event === 'SIGNED_IN') {
+        console.log('👤 Auth: User signed in, fetching profile...')
+        try {
+          const profileData = await fetchProfile(session.user.id)
+          setProfile(profileData)
+          console.log('✅ Auth: Profile loaded after signin')
+        } catch (error) {
+          console.error('❌ Auth: Profile fetch error after signin:', error)
+          setProfile(null)
+        }
+      } else if (event === 'SIGNED_OUT') {
+        console.log('🚪 Auth: User signed out, clearing profile')
+        setProfile(null)
+      }
+      
+      if (!loading) {
+        setLoading(false)
       }
     })
 
-    // Obtener sesión inicial
-    const initializeAuth = async () => {
-      try {
-        console.log('🔍 Auth: Getting initial session...')
-        const { data: { session: initialSession }, error } = await supabase.auth.getSession()
-        
-        if (error) {
-          console.error('❌ Auth: Session error:', error)
-          if (mounted) {
-            setLoading(false)
-            setInitialized(true)
-          }
-          return
-        }
-        
-        console.log('🔐 Auth: Initial session -', initialSession ? `User: ${initialSession.user.email}` : 'No session')
-        await updateAuthState(initialSession)
-      } catch (error) {
-        console.error('❌ Auth: Init error:', error)
-        if (mounted) {
-          setLoading(false)
-          setInitialized(true)
-        }
-      }
-    }
-
-    // Timeout de seguridad
-    const safetyTimeout = setTimeout(() => {
-      if (mounted && !initialized) {
-        console.log('⚠️ Auth: Safety timeout - forcing loading false')
-        setLoading(false)
-        setInitialized(true)
-      }
+    // Initialize and set timeout as fallback
+    initializeAuth()
+    
+    const timeoutId = setTimeout(() => {
+      console.log('⏰ Auth: Timeout reached, forcing loading false')
+      setLoading(false)
     }, 3000)
 
-    initializeAuth()
-
     return () => {
-      mounted = false
-      clearTimeout(safetyTimeout)
       subscription.unsubscribe()
+      clearTimeout(timeoutId)
     }
   }, [])
 
@@ -123,7 +107,6 @@ export const useAuth = () => {
 
   const signOut = async () => {
     console.log('🚪 Auth: Starting signout')
-    setLoading(true)
     try {
       await authSignOut()
       setUser(null)
@@ -133,8 +116,6 @@ export const useAuth = () => {
     } catch (error) {
       console.error('❌ Auth: Signout error:', error)
       throw error
-    } finally {
-      setLoading(false)
     }
   }
 
@@ -146,7 +127,6 @@ export const useAuth = () => {
     hasSession: !!session,
     hasProfile: !!profile,
     loading,
-    initialized,
     isAdmin,
     isSuperAdmin
   })
