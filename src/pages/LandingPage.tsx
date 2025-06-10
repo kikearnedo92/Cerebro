@@ -6,11 +6,12 @@ import AuthForm from '@/components/auth/AuthForm'
 import { Brain } from 'lucide-react'
 
 const LandingPage = () => {
-  const { user, loading } = useAuth()
+  const { user, loading, isAdmin, isSuperAdmin } = useAuth()
 
-  console.log('🏠 LandingPage - user:', user?.email, 'loading:', loading)
+  console.log('🏠 LandingPage render - user:', user?.email, 'loading:', loading, 'isAdmin:', isAdmin, 'isSuperAdmin:', isSuperAdmin)
 
   if (loading) {
+    console.log('⏳ LandingPage showing loading state')
     return (
       <div className="h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-purple-100">
         <div className="text-center">
@@ -22,11 +23,22 @@ const LandingPage = () => {
   }
 
   if (user) {
-    console.log('➡️ User authenticated, redirecting to chat')
-    return <Navigate to="/chat" replace />
+    console.log('➡️ User authenticated, determining redirect...')
+    
+    // Redirect based on role
+    if (isSuperAdmin) {
+      console.log('👑 Super admin detected, redirecting to tenants')
+      return <Navigate to="/admin/tenants" replace />
+    } else if (isAdmin) {
+      console.log('⚡ Admin detected, redirecting to knowledge')
+      return <Navigate to="/knowledge" replace />
+    } else {
+      console.log('👤 Regular user, redirecting to chat')
+      return <Navigate to="/chat" replace />
+    }
   }
 
-  console.log('📄 Showing landing page')
+  console.log('📄 Showing landing page form')
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-purple-100">
       <header className="p-6">

@@ -38,9 +38,9 @@ export const signUp = async (email: string, password: string, userData: SignUpDa
 }
 
 export const signIn = async (email: string, password: string) => {
-  console.log('🔑 Signing in user:', email)
+  console.log('🔑 Attempting signin for:', email)
   
-  const { error } = await supabase.auth.signInWithPassword({
+  const { data, error } = await supabase.auth.signInWithPassword({
     email,
     password
   })
@@ -50,11 +50,12 @@ export const signIn = async (email: string, password: string) => {
     throw error
   }
   
-  console.log('✅ Signin successful')
+  console.log('✅ Signin successful for:', data.user?.email)
+  return data
 }
 
 export const signOut = async () => {
-  console.log('🚪 Signing out user')
+  console.log('🚪 Attempting signout')
   
   const { error } = await supabase.auth.signOut()
   if (error) {

@@ -12,38 +12,82 @@ export const useAuth = () => {
   const [session, setSession] = useState<Session | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
+  const [initialized, setInitialized] = useState(false)
 
   useEffect(() => {
     console.log('🔐 Initializing auth...')
 
     let mounted = true
+    let authSubscription: any = null
 
     const initializeAuth = async () => {
       try {
-        const { data: { session }, error } = await supabase.auth.getSession()
+        // Set up auth state listener FIRST
+        authSubscription = supabase.auth.onAuthStateChange(
+          async (event, session) => {
+            console.log('🔐 Auth event:', event, 'Session user:', session?.user?.email || 'No session')
+            
+            if (!mounted) return
+
+            setSession(session)
+            setUser(session?.user ?? null)
+            
+            if (session?.user && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED')) {
+              console.log('👤 Fetching profile for user:', session.user.email)
+              try {
+                const profileData = await fetchProfile(session.user.id)
+                if (mounted) {
+                  setProfile(profileData)
+                  console.log('✅ Profile loaded:', profileData?.full_name)
+                }
+              } catch (error) {
+                console.error('❌ Profile fetch error:', error)
+                if (mounted) {
+                  setProfile(null)
+                }
+              }
+            } else if (!session || event === 'SIGNED_OUT') {
+              console.log('🚪 User signed out, clearing profile')
+              if (mounted) {
+                setProfile(null)
+              }
+            }
+            
+            // Set loading to false after processing any auth event
+            if (mounted && initialized) {
+              setLoading(false)
+            }
+          }
+        )
+
+        // Then get current session
+        const { data: { session: currentSession }, error } = await supabase.auth.getSession()
         
         if (error) {
           console.error('❌ Session error:', error)
           if (mounted) {
             setLoading(false)
+            setInitialized(true)
           }
           return
         }
         
-        console.log('🔐 Session loaded:', session?.user?.email || 'No session')
+        console.log('🔐 Initial session loaded:', currentSession?.user?.email || 'No session')
         
         if (mounted) {
-          setSession(session)
-          setUser(session?.user ?? null)
+          setSession(currentSession)
+          setUser(currentSession?.user ?? null)
+          setInitialized(true)
           
-          if (session?.user) {
+          if (currentSession?.user) {
             try {
-              const profileData = await fetchProfile(session.user.id)
+              const profileData = await fetchProfile(currentSession.user.id)
               if (mounted) {
                 setProfile(profileData)
+                console.log('✅ Initial profile loaded:', profileData?.full_name)
               }
             } catch (profileError) {
-              console.error('❌ Profile error:', profileError)
+              console.error('❌ Initial profile error:', profileError)
               if (mounted) {
                 setProfile(null)
               }
@@ -56,63 +100,38 @@ export const useAuth = () => {
         console.error('❌ Auth initialization error:', error)
         if (mounted) {
           setLoading(false)
+          setInitialized(true)
         }
       }
     }
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log('🔐 Auth event:', event)
-        
-        if (mounted) {
-          setSession(session)
-          setUser(session?.user ?? null)
-          
-          if (session?.user && event === 'SIGNED_IN') {
-            try {
-              const profileData = await fetchProfile(session.user.id)
-              if (mounted) {
-                setProfile(profileData)
-              }
-            } catch (error) {
-              console.error('❌ Profile fetch error:', error)
-              if (mounted) {
-                setProfile(null)
-              }
-            }
-          } else if (!session || event === 'SIGNED_OUT') {
-            console.log('🚪 User signed out, clearing profile')
-            setProfile(null)
-          }
-          
-          if (event !== 'INITIAL_SESSION') {
-            setLoading(false)
-          }
-        }
-      }
-    )
-
-    const initTimeout = setTimeout(() => {
+    // Add a safety timeout
+    const safetyTimeout = setTimeout(() => {
       if (mounted && loading) {
-        console.log('⚠️ Auth timeout, stopping loading')
+        console.log('⚠️ Auth safety timeout, stopping loading')
         setLoading(false)
+        setInitialized(true)
       }
-    }, 8000)
+    }, 10000) // Increased to 10 seconds
 
     initializeAuth()
 
     return () => {
+      console.log('🧹 Cleaning up auth hook')
       mounted = false
-      clearTimeout(initTimeout)
-      subscription.unsubscribe()
+      clearTimeout(safetyTimeout)
+      if (authSubscription?.data?.subscription) {
+        authSubscription.data.subscription.unsubscribe()
+      }
     }
-  }, [])
+  }, []) // Empty dependency array - only run once
 
   const signUp = async (email: string, password: string, userData: SignUpData) => {
     await authSignUp(email, password, userData)
   }
 
   const signIn = async (email: string, password: string) => {
+    console.log('🔑 Starting signIn process for:', email)
     await authSignIn(email, password)
   }
 
