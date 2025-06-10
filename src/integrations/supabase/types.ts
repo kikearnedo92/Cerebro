@@ -146,32 +146,109 @@ export type Database = {
         Row: {
           area: string
           created_at: string
+          department: string | null
           email: string
           full_name: string
           id: string
+          is_super_admin: boolean | null
           last_login: string | null
           rol_empresa: string
           role_system: string
+          tenant_id: string | null
         }
         Insert: {
           area: string
           created_at?: string
+          department?: string | null
           email: string
           full_name: string
           id: string
+          is_super_admin?: boolean | null
           last_login?: string | null
           rol_empresa: string
           role_system?: string
+          tenant_id?: string | null
         }
         Update: {
           area?: string
           created_at?: string
+          department?: string | null
           email?: string
           full_name?: string
           id?: string
+          is_super_admin?: boolean | null
           last_login?: string | null
           rol_empresa?: string
           role_system?: string
+          tenant_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profiles_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tenants: {
+        Row: {
+          admin_email: string | null
+          areas: string[] | null
+          branding: Json | null
+          created_at: string | null
+          domain: string | null
+          id: string
+          is_internal: boolean | null
+          max_monthly_queries: number | null
+          max_storage_gb: number | null
+          max_users: number | null
+          name: string
+          plan: string | null
+          settings: Json | null
+          subdomain: string
+          subscription_status: string | null
+          trial_ends_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          admin_email?: string | null
+          areas?: string[] | null
+          branding?: Json | null
+          created_at?: string | null
+          domain?: string | null
+          id?: string
+          is_internal?: boolean | null
+          max_monthly_queries?: number | null
+          max_storage_gb?: number | null
+          max_users?: number | null
+          name: string
+          plan?: string | null
+          settings?: Json | null
+          subdomain: string
+          subscription_status?: string | null
+          trial_ends_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          admin_email?: string | null
+          areas?: string[] | null
+          branding?: Json | null
+          created_at?: string | null
+          domain?: string | null
+          id?: string
+          is_internal?: boolean | null
+          max_monthly_queries?: number | null
+          max_storage_gb?: number | null
+          max_users?: number | null
+          name?: string
+          plan?: string | null
+          settings?: Json | null
+          subdomain?: string
+          subscription_status?: string | null
+          trial_ends_at?: string | null
+          updated_at?: string | null
         }
         Relationships: []
       }
