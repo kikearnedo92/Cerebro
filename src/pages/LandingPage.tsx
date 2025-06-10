@@ -15,7 +15,7 @@ const LandingPage = () => {
     isSuperAdmin 
   })
 
-  // Show loading only briefly
+  // Show loading briefly
   if (loading) {
     console.log('⏳ Landing: Showing loading state')
     return (

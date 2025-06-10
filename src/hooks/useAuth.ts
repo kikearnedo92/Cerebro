@@ -16,10 +16,14 @@ export const useAuth = () => {
   useEffect(() => {
     console.log('🔐 Auth: Initializing...')
     
-    // Auth state change listener
+    let mounted = true
+
+    // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('🔐 Auth: State change -', event, session ? `User: ${session.user.email}` : 'No session')
       
+      if (!mounted) return
+
       setSession(session)
       setUser(session?.user ?? null)
       
@@ -27,61 +31,74 @@ export const useAuth = () => {
         console.log('👤 Auth: User signed in, fetching profile...')
         try {
           const profileData = await fetchProfile(session.user.id)
-          setProfile(profileData)
-          console.log('✅ Auth: Profile loaded after signin')
+          if (mounted) {
+            setProfile(profileData)
+            console.log('✅ Auth: Profile loaded after signin')
+          }
         } catch (error) {
           console.error('❌ Auth: Profile fetch error after signin:', error)
-          setProfile(null)
+          if (mounted) setProfile(null)
         }
       } else if (event === 'SIGNED_OUT') {
         console.log('🚪 Auth: User signed out, clearing profile')
-        setProfile(null)
+        if (mounted) setProfile(null)
       }
       
-      // Always set loading to false after auth state change
-      setLoading(false)
-      console.log('✅ Auth: Loading set to false after state change')
+      // ALWAYS set loading to false after any auth state change
+      if (mounted) {
+        setLoading(false)
+        console.log('✅ Auth: Loading set to false after state change')
+      }
     })
 
-    // Get initial session
-    const initializeAuth = async () => {
+    // Get initial session AFTER setting up listener
+    const getInitialSession = async () => {
       try {
         const { data: { session: initialSession } } = await supabase.auth.getSession()
         console.log('🔐 Auth: Initial session -', initialSession ? `User: ${initialSession.user.email}` : 'No session')
         
+        if (!mounted) return
+
         setSession(initialSession)
         setUser(initialSession?.user ?? null)
         
         if (initialSession?.user) {
           try {
             const profileData = await fetchProfile(initialSession.user.id)
-            setProfile(profileData)
-            console.log('✅ Auth: Profile loaded for', initialSession.user.email)
+            if (mounted) {
+              setProfile(profileData)
+              console.log('✅ Auth: Profile loaded for', initialSession.user.email)
+            }
           } catch (error) {
             console.error('❌ Auth: Profile fetch error:', error)
-            setProfile(null)
+            if (mounted) setProfile(null)
           }
         } else {
-          setProfile(null)
+          if (mounted) setProfile(null)
         }
       } catch (error) {
         console.error('❌ Auth: Initialization error:', error)
       } finally {
-        setLoading(false)
-        console.log('✅ Auth: Initialization complete, loading set to false')
+        if (mounted) {
+          setLoading(false)
+          console.log('✅ Auth: Initialization complete, loading set to false')
+        }
       }
     }
 
-    // Initialize
-    initializeAuth()
+    // Start initialization
+    getInitialSession()
     
-    // Timeout as fallback
+    // Safety timeout
     const timeoutId = setTimeout(() => {
-      console.log('⏰ Auth: Timeout reached, forcing loading false')
-      setLoading(false)
-    }, 2000)
+      if (mounted) {
+        console.log('⏰ Auth: Timeout reached, forcing loading false')
+        setLoading(false)
+      }
+    }, 1500)
 
     return () => {
+      mounted = false
       subscription.unsubscribe()
       clearTimeout(timeoutId)
     }
