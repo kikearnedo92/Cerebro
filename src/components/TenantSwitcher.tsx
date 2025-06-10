@@ -17,17 +17,18 @@ const TenantSwitcher = () => {
   const [currentTenant, setCurrentTenant] = useState<string>('')
   const [loading, setLoading] = useState(false)
 
-  // Early return if not super admin
-  if (!isSuperAdmin) {
-    return null
-  }
-
+  // ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL RETURNS
   useEffect(() => {
     if (isSuperAdmin) {
       fetchTenants()
       getCurrentTenant()
     }
   }, [isSuperAdmin])
+
+  // Early return AFTER all hooks
+  if (!isSuperAdmin) {
+    return null
+  }
 
   const fetchTenants = async () => {
     try {
