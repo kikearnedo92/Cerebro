@@ -1,4 +1,3 @@
-
 export interface Profile {
   id: string
   email: string
@@ -8,6 +7,29 @@ export interface Profile {
   role_system: string
   last_login: string | null
   created_at: string
+  tenant_id?: string
+  department?: string
+  is_super_admin?: boolean
+}
+
+export interface Tenant {
+  id: string
+  name: string
+  subdomain: string
+  domain?: string
+  plan: string
+  settings: any
+  branding: any
+  subscription_status: string
+  trial_ends_at?: string
+  is_internal: boolean
+  max_users: number
+  max_storage_gb: number
+  max_monthly_queries: number
+  areas: string[]
+  admin_email?: string
+  created_at: string
+  updated_at: string
 }
 
 export interface KnowledgeBase {

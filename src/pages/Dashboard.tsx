@@ -1,13 +1,13 @@
-
 import React, { useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Brain, MessageSquare, Database, BarChart3, Users, LogOut, User, Menu, X } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import TenantSwitcher from '@/components/TenantSwitcher'
 
 const Dashboard = () => {
-  const { user, profile, isAdmin, signOut } = useAuth()
+  const { user, profile, isAdmin, isSuperAdmin, signOut } = useAuth()
   const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState('chat')
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -28,7 +28,7 @@ const Dashboard = () => {
     { id: 'users', name: 'Usuarios', icon: Users, adminOnly: true }
   ]
 
-  const filteredNavigation = navigation.filter(item => !item.adminOnly || isAdmin)
+  const filteredNavigation = navigation.filter(item => !item.adminOnly || isAdmin || isSuperAdmin)
 
   const renderContent = () => {
     switch (activeTab) {
@@ -132,6 +132,9 @@ const Dashboard = () => {
             </div>
           </div>
 
+          {/* Tenant Switcher para Super Admins */}
+          <TenantSwitcher />
+
           {/* User Info */}
           <div className="p-4 border-b border-gray-200">
             <div className="flex items-center space-x-3">
@@ -146,11 +149,18 @@ const Dashboard = () => {
                 </p>
                 <p className="text-xs text-gray-500 truncate">{profile?.area}</p>
               </div>
-              {isAdmin && (
-                <Badge variant="default" className="bg-purple-600">
-                  Admin
-                </Badge>
-              )}
+              <div className="flex flex-col gap-1">
+                {isSuperAdmin && (
+                  <Badge variant="default" className="bg-red-600 text-xs">
+                    Super
+                  </Badge>
+                )}
+                {isAdmin && !isSuperAdmin && (
+                  <Badge variant="default" className="bg-purple-600 text-xs">
+                    Admin
+                  </Badge>
+                )}
+              </div>
             </div>
           </div>
 

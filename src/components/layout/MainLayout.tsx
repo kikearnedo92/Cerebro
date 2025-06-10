@@ -1,17 +1,17 @@
-
 import React from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Brain, MessageSquare, Database, BarChart3, Users, LogOut, User } from 'lucide-react'
 import { useNavigate, useLocation } from 'react-router-dom'
+import TenantSwitcher from '@/components/TenantSwitcher'
 
 interface MainLayoutProps {
   children: React.ReactNode
 }
 
 const MainLayout = ({ children }: MainLayoutProps) => {
-  const { user, profile, isAdmin, signOut } = useAuth()
+  const { user, profile, isAdmin, isSuperAdmin, signOut } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -69,6 +69,9 @@ const MainLayout = ({ children }: MainLayoutProps) => {
           </div>
         </div>
 
+        {/* Tenant Switcher para Super Admins */}
+        <TenantSwitcher />
+
         <div className="p-4 border-b border-gray-200">
           <div className="flex items-center space-x-3">
             <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
@@ -82,11 +85,18 @@ const MainLayout = ({ children }: MainLayoutProps) => {
               </p>
               <p className="text-xs text-gray-500 truncate">{profile?.area}</p>
             </div>
-            {isAdmin && (
-              <Badge variant="default" className="bg-purple-600">
-                Admin
-              </Badge>
-            )}
+            <div className="flex flex-col gap-1">
+              {isSuperAdmin && (
+                <Badge variant="default" className="bg-red-600 text-xs">
+                  Super
+                </Badge>
+              )}
+              {isAdmin && !isSuperAdmin && (
+                <Badge variant="default" className="bg-purple-600 text-xs">
+                  Admin
+                </Badge>
+              )}
+            </div>
           </div>
         </div>
 

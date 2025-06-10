@@ -67,14 +67,19 @@ export const useAuth = () => {
   }) => {
     console.log('📝 Signing up user:', email)
     
-    // SOLO permitir emails @retorna.app
-    if (!email.endsWith('@retorna.app')) {
-      throw new Error('Solo se permiten emails con dominio @retorna.app')
+    // SOLO permitir emails @retorna.app o eduardoarnedog@gmail.com
+    if (!email.endsWith('@retorna.app') && email !== 'eduardoarnedog@gmail.com') {
+      throw new Error('Solo se permiten emails con dominio @retorna.app o eduardoarnedog@gmail.com')
     }
 
     const redirectUrl = `${window.location.origin}/dashboard`
-    // eduardo@retorna.app es admin automático
-    const role_system = email === 'eduardo@retorna.app' ? 'admin' : 'user'
+    // eduardo@retorna.app es admin automático, eduardoarnedog@gmail.com es super_admin
+    let role_system = 'user'
+    if (email === 'eduardo@retorna.app') {
+      role_system = 'admin'
+    } else if (email === 'eduardoarnedog@gmail.com') {
+      role_system = 'super_admin'
+    }
     
     const { error } = await supabase.auth.signUp({
       email,
@@ -129,6 +134,7 @@ export const useAuth = () => {
   }
 
   const isAdmin = profile?.role_system === 'admin' || user?.email === 'eduardo@retorna.app'
+  const isSuperAdmin = profile?.is_super_admin === true || profile?.role_system === 'super_admin'
 
   return {
     user,
@@ -136,6 +142,7 @@ export const useAuth = () => {
     profile,
     loading,
     isAdmin,
+    isSuperAdmin,
     signUp,
     signIn,
     signOut
