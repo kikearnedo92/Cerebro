@@ -17,19 +17,6 @@ const TenantSwitcher = () => {
   const [currentTenant, setCurrentTenant] = useState<string>('')
   const [loading, setLoading] = useState(false)
 
-  // ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL RETURNS
-  useEffect(() => {
-    if (isSuperAdmin) {
-      fetchTenants()
-      getCurrentTenant()
-    }
-  }, [isSuperAdmin])
-
-  // Early return AFTER all hooks
-  if (!isSuperAdmin) {
-    return null
-  }
-
   const fetchTenants = async () => {
     try {
       const { data, error } = await supabase
@@ -131,6 +118,19 @@ const TenantSwitcher = () => {
       return <Badge variant="outline" className="border-blue-500 text-blue-600">Demo</Badge>
     }
     return <Badge variant="secondary">{tenant.plan}</Badge>
+  }
+
+  // ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL RETURNS
+  useEffect(() => {
+    if (isSuperAdmin) {
+      fetchTenants()
+      getCurrentTenant()
+    }
+  }, [isSuperAdmin])
+
+  // Early return AFTER all hooks
+  if (!isSuperAdmin) {
+    return null
   }
 
   return (
