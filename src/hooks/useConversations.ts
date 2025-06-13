@@ -75,6 +75,31 @@ export const useConversations = () => {
     return data.id
   }
 
+  const updateConversationTitle = async (conversationId: string, title: string): Promise<void> => {
+    if (!user) {
+      throw new Error('User not authenticated')
+    }
+
+    console.log('📝 Updating conversation title:', conversationId, title)
+    
+    const { error } = await supabase
+      .from('conversations')
+      .update({ 
+        title,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', conversationId)
+      .eq('user_id', user.id)
+
+    if (error) {
+      console.error('❌ Error updating conversation title:', error)
+      throw error
+    }
+
+    console.log('✅ Conversation title updated')
+    await fetchConversations() // Refresh the list
+  }
+
   const refreshConversations = async () => {
     await fetchConversations()
   }
@@ -93,6 +118,7 @@ export const useConversations = () => {
     conversations,
     loading,
     createConversation,
+    updateConversationTitle,
     refreshConversations
   }
 }
