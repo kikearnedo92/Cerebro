@@ -24,7 +24,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { TenantSwitcher } from '@/components/TenantSwitcher'
+import TenantSwitcher from '@/components/TenantSwitcher'
 import { supabase } from '@/integrations/supabase/client'
 import { toast } from '@/hooks/use-toast'
 

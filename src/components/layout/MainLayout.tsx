@@ -1,7 +1,7 @@
 
 import React from 'react'
 import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar'
-import { AppSidebar } from './AppSidebar'
+import AppSidebar from './AppSidebar'
 import { Badge } from '@/components/ui/badge'
 import { useAuth } from '@/hooks/useAuth'
 import { useLocation } from 'react-router-dom'
