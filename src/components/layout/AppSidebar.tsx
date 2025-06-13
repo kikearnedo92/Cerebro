@@ -67,6 +67,16 @@ export function AppSidebar() {
     navigate(url)
   }
 
+  const handleNewConversation = () => {
+    console.log('🆕 Starting new conversation from sidebar')
+    startNewConversation()
+    
+    // Navigate to chat if not already there
+    if (location.pathname !== '/chat') {
+      navigate('/chat')
+    }
+  }
+
   const filteredConversations = conversations.filter(conv =>
     conv.title.toLowerCase().includes(searchTerm.toLowerCase())
   )
@@ -103,7 +113,7 @@ export function AppSidebar() {
         {/* Nueva Conversación */}
         <div className="p-4 border-b border-sidebar-border">
           <Button 
-            onClick={startNewConversation}
+            onClick={handleNewConversation}
             className="w-full flex items-center space-x-2 bg-primary hover:bg-primary/90"
             size={state === "collapsed" ? "icon" : "default"}
           >
@@ -138,7 +148,12 @@ export function AppSidebar() {
                   variant={currentConversation?.id === conversation.id ? "secondary" : "ghost"}
                   size="icon"
                   className="w-full h-10"
-                  onClick={() => selectConversation(conversation)}
+                  onClick={() => {
+                    selectConversation(conversation)
+                    if (location.pathname !== '/chat') {
+                      navigate('/chat')
+                    }
+                  }}
                 >
                   <MessageSquare className="w-4 h-4" />
                 </Button>
@@ -156,7 +171,12 @@ export function AppSidebar() {
                     className={`p-3 cursor-pointer transition-colors hover:bg-accent ${
                       currentConversation?.id === conversation.id ? 'border-primary bg-accent' : ''
                     }`}
-                    onClick={() => selectConversation(conversation)}
+                    onClick={() => {
+                      selectConversation(conversation)
+                      if (location.pathname !== '/chat') {
+                        navigate('/chat')
+                      }
+                    }}
                   >
                     <div className="flex items-start space-x-3">
                       <MessageSquare className="w-4 h-4 text-muted-foreground mt-1 flex-shrink-0" />

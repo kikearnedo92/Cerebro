@@ -5,8 +5,16 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { toast } from '@/hooks/use-toast'
-import { FileText, CheckCircle, AlertCircle, RefreshCw } from 'lucide-react'
+import { FileText, CheckCircle, AlertCircle, RefreshCw, ExternalLink, HelpCircle } from 'lucide-react'
 import { supabase } from '@/integrations/supabase/client'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 
 interface NotionIntegrationProps {
   onStatusChange?: (status: 'connected' | 'disconnected' | 'pending') => void
@@ -191,13 +199,52 @@ const NotionIntegration = ({ onStatusChange }: NotionIntegrationProps) => {
                 onChange={(e) => setNotionToken(e.target.value)}
                 className="mt-1"
               />
-              <p className="text-xs text-gray-500 mt-1">
-                Obtén tu token en: Notion → Settings → Integrations → Create new integration
-              </p>
+              <div className="flex items-center gap-2 mt-1">
+                <p className="text-xs text-gray-500">
+                  Obtén tu token en: Notion → Settings → Integrations → Create new integration
+                </p>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => window.open('https://www.notion.so/my-integrations', '_blank')}
+                  className="h-6 px-2"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                </Button>
+              </div>
             </div>
             
             <div>
-              <label className="text-sm font-medium">ID de Base de Datos</label>
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium">ID de Base de Datos</label>
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                      <HelpCircle className="w-4 h-4" />
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>¿Cómo obtener el ID de la base de datos?</DialogTitle>
+                      <DialogDescription className="space-y-3">
+                        <p>Para obtener el ID de tu base de datos de Notion:</p>
+                        <ol className="list-decimal list-inside space-y-2 text-sm">
+                          <li>Ve a tu base de datos en Notion</li>
+                          <li>Haz clic en los tres puntos (...) en la esquina superior derecha</li>
+                          <li>Selecciona "Copy link"</li>
+                          <li>El ID está en la URL después de la última barra diagonal (/)</li>
+                        </ol>
+                        <p className="text-sm text-gray-600">
+                          Ejemplo: https://www.notion.so/mi-base-de-datos-<strong>32-caracteres-aqui</strong>
+                        </p>
+                        <p className="text-sm font-medium">
+                          El ID son esos 32 caracteres al final de la URL.
+                        </p>
+                      </DialogDescription>
+                    </DialogHeader>
+                  </DialogContent>
+                </Dialog>
+              </div>
               <Input
                 placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
                 value={notionDatabaseId}
