@@ -11,6 +11,7 @@ export interface Message {
   timestamp: Date
   sources?: string[]
   isError?: boolean
+  foundRelevantContent?: boolean
 }
 
 export const useChat = () => {
@@ -32,9 +33,9 @@ export const useChat = () => {
     setLoading(true)
 
     try {
-      console.log('💬 Sending message to REAL AI:', content)
+      console.log('💬 Sending message to REAL AI with vector search:', content)
 
-      // Call the REAL chat-ai edge function
+      // Call the enhanced chat-ai edge function
       const { data, error } = await supabase.functions.invoke('chat-ai', {
         body: {
           message: content,
@@ -51,11 +52,21 @@ export const useChat = () => {
         role: 'assistant',
         content: data.response,
         timestamp: new Date(),
-        sources: data.sources?.length > 0 ? data.sources : undefined
+        sources: data.sources?.length > 0 ? data.sources : undefined,
+        foundRelevantContent: data.foundRelevantContent
       }
 
       setMessages(prev => [...prev, assistantMessage])
-      console.log('✅ REAL AI response received')
+      console.log('✅ REAL AI response with vector search received')
+
+      // Show info if no relevant content was found
+      if (!data.foundRelevantContent) {
+        toast({
+          title: "Información",
+          description: "No se encontró contenido específico en la base de conocimiento. La respuesta se basa en el conocimiento general de CEREBRO.",
+          variant: "default"
+        })
+      }
 
     } catch (error) {
       console.error('Chat error:', error)

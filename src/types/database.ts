@@ -1,3 +1,4 @@
+
 export interface Profile {
   id: string
   email: string
@@ -42,6 +43,16 @@ export interface KnowledgeBase {
   active: boolean
   created_at: string
   created_by: string
+}
+
+export interface DocumentChunk {
+  id: string
+  document_id: string
+  chunk_text: string
+  chunk_index: number
+  embedding?: number[]
+  metadata: any
+  created_at: string
 }
 
 export interface Message {

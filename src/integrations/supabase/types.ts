@@ -33,6 +33,44 @@ export type Database = {
         }
         Relationships: []
       }
+      document_chunks: {
+        Row: {
+          chunk_index: number
+          chunk_text: string
+          created_at: string | null
+          document_id: string | null
+          embedding: string | null
+          id: string
+          metadata: Json | null
+        }
+        Insert: {
+          chunk_index: number
+          chunk_text: string
+          created_at?: string | null
+          document_id?: string | null
+          embedding?: string | null
+          id?: string
+          metadata?: Json | null
+        }
+        Update: {
+          chunk_index?: number
+          chunk_text?: string
+          created_at?: string | null
+          document_id?: string | null
+          embedding?: string | null
+          id?: string
+          metadata?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_chunks_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "knowledge_base"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_logs: {
         Row: {
           created_by: string | null
@@ -320,13 +358,128 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      binary_quantize: {
+        Args: { "": string } | { "": unknown }
+        Returns: unknown
+      }
+      halfvec_avg: {
+        Args: { "": number[] }
+        Returns: unknown
+      }
+      halfvec_out: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      halfvec_send: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      halfvec_typmod_in: {
+        Args: { "": unknown[] }
+        Returns: number
+      }
+      hnsw_bit_support: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      hnsw_halfvec_support: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      hnsw_sparsevec_support: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      hnswhandler: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
       is_super_admin_user: {
         Args: Record<PropertyKey, never>
         Returns: boolean
       }
+      ivfflat_bit_support: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      ivfflat_halfvec_support: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      ivfflathandler: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      l2_norm: {
+        Args: { "": unknown } | { "": unknown }
+        Returns: number
+      }
+      l2_normalize: {
+        Args: { "": string } | { "": unknown } | { "": unknown }
+        Returns: unknown
+      }
+      search_documents: {
+        Args:
+          | {
+              query_embedding: string
+              similarity_threshold?: number
+              match_count?: number
+            }
+          | {
+              query_embedding: string
+              similarity_threshold?: number
+              match_count?: number
+              tenant_filter?: string
+            }
+        Returns: {
+          id: string
+          document_id: string
+          title: string
+          chunk_text: string
+          chunk_index: number
+          metadata: Json
+          similarity: number
+        }[]
+      }
+      sparsevec_out: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      sparsevec_send: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      sparsevec_typmod_in: {
+        Args: { "": unknown[] }
+        Returns: number
+      }
       switch_tenant_context: {
         Args: { p_tenant_subdomain: string }
         Returns: Json
+      }
+      vector_avg: {
+        Args: { "": number[] }
+        Returns: string
+      }
+      vector_dims: {
+        Args: { "": string } | { "": unknown }
+        Returns: number
+      }
+      vector_norm: {
+        Args: { "": string }
+        Returns: number
+      }
+      vector_out: {
+        Args: { "": string }
+        Returns: unknown
+      }
+      vector_send: {
+        Args: { "": string }
+        Returns: string
+      }
+      vector_typmod_in: {
+        Args: { "": unknown[] }
+        Returns: number
       }
     }
     Enums: {
