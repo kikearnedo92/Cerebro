@@ -1,38 +1,66 @@
 
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Users, UserPlus, Shield, Clock } from 'lucide-react'
+import { supabase } from '@/integrations/supabase/client'
+import { useAuth } from '@/hooks/useAuth'
+import { toast } from '@/hooks/use-toast'
+
+interface UserProfile {
+  id: string
+  email: string
+  full_name: string
+  area: string
+  rol_empresa: string
+  role_system: string
+  created_at: string
+  updated_at: string
+}
 
 const UserManagement = () => {
-  // Mock user data - replace with actual data from Supabase
-  const users = [
-    {
-      id: '1',
-      email: 'eduardo@retorna.app',
-      full_name: 'Eduardo Retorna',
-      area: 'Administración',
-      rol_empresa: 'Director',
-      role_system: 'admin',
-      last_login: new Date(Date.now() - 3600000),
-      created_at: new Date(Date.now() - 86400000 * 30)
-    },
-    {
-      id: '2',
-      email: 'ana.garcia@retorna.app',
-      full_name: 'Ana García',
-      area: 'Customer Success',
-      rol_empresa: 'Manager',
-      role_system: 'user',
-      last_login: new Date(Date.now() - 7200000),
-      created_at: new Date(Date.now() - 86400000 * 15)
-    }
-  ]
+  const { isAdmin, isSuperAdmin } = useAuth()
+  const [users, setUsers] = useState<UserProfile[]>([])
+  const [loading, setLoading] = useState(false)
 
-  const formatDate = (date: Date) => {
-    return date.toLocaleDateString('es-ES', {
+  useEffect(() => {
+    if (isAdmin || isSuperAdmin) {
+      fetchUsers()
+    }
+  }, [isAdmin, isSuperAdmin])
+
+  const fetchUsers = async () => {
+    setLoading(true)
+    try {
+      console.log('🔍 Fetching users...')
+      
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .order('created_at', { ascending: false })
+
+      if (error) {
+        throw error
+      }
+
+      setUsers(data || [])
+      console.log('✅ Users loaded:', data?.length || 0)
+    } catch (error) {
+      console.error('Error fetching users:', error)
+      toast({
+        title: "Error",
+        description: "No se pudieron cargar los usuarios",
+        variant: "destructive"
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('es-ES', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
@@ -50,9 +78,39 @@ const UserManagement = () => {
       'Tesorería': 'bg-yellow-100 text-yellow-800',
       'Operaciones': 'bg-cyan-100 text-cyan-800',
       'Compliance': 'bg-red-100 text-red-800',
-      'People': 'bg-pink-100 text-pink-800'
+      'People': 'bg-pink-100 text-pink-800',
+      'General': 'bg-gray-100 text-gray-800'
     }
     return colors[area] || 'bg-gray-100 text-gray-800'
+  }
+
+  const getActiveUsersToday = () => {
+    // Como no tenemos last_login, usar created_at como proxy
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    
+    return users.filter(user => {
+      const userDate = new Date(user.created_at)
+      return userDate >= today
+    }).length
+  }
+
+  const getNewUsersThisWeek = () => {
+    const weekAgo = new Date()
+    weekAgo.setDate(weekAgo.getDate() - 7)
+    
+    return users.filter(user => {
+      const userDate = new Date(user.created_at)
+      return userDate >= weekAgo
+    }).length
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+      </div>
+    )
   }
 
   return (
@@ -91,7 +149,7 @@ const UserManagement = () => {
               <Shield className="w-6 h-6 text-purple-500" />
               <div>
                 <p className="text-lg font-bold">
-                  {users.filter(u => u.role_system === 'admin').length}
+                  {users.filter(u => u.role_system === 'admin' || u.role_system === 'super_admin').length}
                 </p>
                 <p className="text-sm text-gray-600">Administradores</p>
               </div>
@@ -104,10 +162,8 @@ const UserManagement = () => {
             <div className="flex items-center space-x-2">
               <Clock className="w-6 h-6 text-green-500" />
               <div>
-                <p className="text-lg font-bold">
-                  {users.filter(u => u.last_login && new Date().getTime() - u.last_login.getTime() < 86400000).length}
-                </p>
-                <p className="text-sm text-gray-600">Activos Hoy</p>
+                <p className="text-lg font-bold">{getActiveUsersToday()}</p>
+                <p className="text-sm text-gray-600">Registros Hoy</p>
               </div>
             </div>
           </CardContent>
@@ -118,9 +174,7 @@ const UserManagement = () => {
             <div className="flex items-center space-x-2">
               <UserPlus className="w-6 h-6 text-orange-500" />
               <div>
-                <p className="text-lg font-bold">
-                  {users.filter(u => new Date().getTime() - u.created_at.getTime() < 86400000 * 7).length}
-                </p>
+                <p className="text-lg font-bold">{getNewUsersThisWeek()}</p>
                 <p className="text-sm text-gray-600">Nuevos (7 días)</p>
               </div>
             </div>
@@ -134,79 +188,75 @@ const UserManagement = () => {
           <CardTitle>Usuarios Registrados</CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Usuario</TableHead>
-                <TableHead>Área</TableHead>
-                <TableHead>Rol Empresa</TableHead>
-                <TableHead>Permisos</TableHead>
-                <TableHead>Último Acceso</TableHead>
-                <TableHead>Registro</TableHead>
-                <TableHead>Acciones</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {users.map((user) => (
-                <TableRow key={user.id}>
-                  <TableCell>
-                    <div>
-                      <div className="font-medium">{user.full_name}</div>
-                      <div className="text-sm text-gray-500">{user.email}</div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge className={getAreaColor(user.area)}>
-                      {user.area}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline">
-                      {user.rol_empresa}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={user.role_system === 'admin' ? 'default' : 'secondary'}>
-                      {user.role_system === 'admin' ? (
-                        <>
-                          <Shield className="w-3 h-3 mr-1" />
-                          Admin
-                        </>
-                      ) : (
-                        'Usuario'
-                      )}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    {user.last_login ? (
-                      <span className="text-sm text-gray-600">
-                        {formatDate(user.last_login)}
-                      </span>
-                    ) : (
-                      <span className="text-sm text-gray-400">Nunca</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <span className="text-sm text-gray-600">
-                      {formatDate(user.created_at)}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1">
-                      <Button variant="ghost" size="sm">
-                        Editar
-                      </Button>
-                      {user.role_system !== 'admin' && (
-                        <Button variant="ghost" size="sm" className="text-red-600">
-                          Desactivar
-                        </Button>
-                      )}
-                    </div>
-                  </TableCell>
+          {users.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              No hay usuarios registrados
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Usuario</TableHead>
+                  <TableHead>Área</TableHead>
+                  <TableHead>Rol Empresa</TableHead>
+                  <TableHead>Permisos</TableHead>
+                  <TableHead>Registro</TableHead>
+                  <TableHead>Acciones</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {users.map((user) => (
+                  <TableRow key={user.id}>
+                    <TableCell>
+                      <div>
+                        <div className="font-medium">{user.full_name}</div>
+                        <div className="text-sm text-gray-500">{user.email}</div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge className={getAreaColor(user.area)}>
+                        {user.area}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline">
+                        {user.rol_empresa}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={user.role_system === 'admin' || user.role_system === 'super_admin' ? 'default' : 'secondary'}>
+                        {user.role_system === 'admin' || user.role_system === 'super_admin' ? (
+                          <>
+                            <Shield className="w-3 h-3 mr-1" />
+                            {user.role_system === 'super_admin' ? 'Super Admin' : 'Admin'}
+                          </>
+                        ) : (
+                          'Usuario'
+                        )}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-sm text-gray-600">
+                        {formatDate(user.created_at)}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        <Button variant="ghost" size="sm">
+                          Editar
+                        </Button>
+                        {user.role_system === 'user' && (
+                          <Button variant="ghost" size="sm" className="text-red-600">
+                            Desactivar
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
     </div>

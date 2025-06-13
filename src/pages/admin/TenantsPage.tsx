@@ -30,29 +30,15 @@ const TenantsPage = () => {
     try {
       console.log('🔍 Fetching tenants...')
       
-      // Usar una consulta más simple para evitar problemas de RLS
+      // Usar la nueva función RPC
       const { data, error } = await supabase.rpc('get_all_tenants_for_super_admin')
       
       if (error) {
-        console.error('RPC error, trying direct query:', error)
-        
-        // Fallback a consulta directa
-        const { data: directData, error: directError } = await supabase
-          .from('tenants')
-          .select('*')
-          .order('created_at', { ascending: false })
-
-        if (directError) {
-          console.error('Direct query error:', directError)
-          throw directError
-        }
-        
-        setTenants(directData || [])
-      } else {
-        setTenants(data || [])
+        throw error
       }
       
-      console.log('✅ Tenants loaded successfully')
+      setTenants(data || [])
+      console.log('✅ Tenants loaded successfully:', data?.length || 0)
     } catch (error) {
       console.error('Error fetching tenants:', error)
       toast({
