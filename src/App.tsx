@@ -6,6 +6,7 @@ import { Toaster } from "@/components/ui/toaster"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { useAuth } from "@/hooks/useAuth"
 import LandingPage from "./pages/LandingPage"
+import Index from "./pages/Index"
 import ChatPage from "./pages/ChatPage"
 import KnowledgePage from "./pages/KnowledgePage"
 import UsersPage from "./pages/UsersPage"
@@ -72,7 +73,7 @@ const App = () => {
         <Toaster />
         <BrowserRouter>
           <Routes>
-            <Route path="/" element={<Navigate to="/landing" replace />} />
+            <Route path="/" element={<Index />} />
             <Route path="/landing" element={<LandingPage />} />
             <Route 
               path="/dashboard" 

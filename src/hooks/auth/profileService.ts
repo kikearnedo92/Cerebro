@@ -28,7 +28,7 @@ export const fetchProfile = async (userId: string): Promise<Profile | null> => {
 export const checkAdminStatus = (profile: Profile | null, userEmail?: string) => {
   const isAdmin = profile?.role_system === 'admin' || 
                   profile?.role_system === 'super_admin' || 
-                  userEmail === 'eduardo@retorna.app'
+                  userEmail === 'admin@empresa.com'
   
   const isSuperAdmin = profile?.is_super_admin === true || 
                        profile?.role_system === 'super_admin' || 
