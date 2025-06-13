@@ -1,5 +1,5 @@
 
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from '@/components/ui/toaster'
 import { AuthProvider, useAuthProvider } from '@/hooks/useAuth'
@@ -50,7 +50,7 @@ function AppContent() {
           <Route path="/landing" element={<LandingPage />} />
           
           {/* Protected routes with layout */}
-          <Route path="/" element={<MainLayout />}>
+          <Route path="/" element={<MainLayout><Outlet /></MainLayout>}>
             <Route index element={<Index />} />
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="chat" element={<ChatPage />} />

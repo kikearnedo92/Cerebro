@@ -4,6 +4,7 @@ import { User, Session, AuthChangeEvent } from '@supabase/supabase-js'
 import { supabase } from '@/integrations/supabase/client'
 import { Profile } from '@/types/database'
 import { fetchProfile, checkAdminStatus } from './auth/profileService'
+import { signIn as authSignIn, signUp as authSignUp } from './auth/authService'
 import { toast } from '@/hooks/use-toast'
 
 interface AuthContextType {
@@ -14,6 +15,8 @@ interface AuthContextType {
   initialized: boolean
   isAdmin: boolean
   isSuperAdmin: boolean
+  signIn: (email: string, password: string) => Promise<void>
+  signUp: (email: string, password: string, userData: { full_name: string; area: string; rol_empresa: string }) => Promise<void>
   signOut: () => Promise<void>
 }
 
@@ -25,6 +28,8 @@ const AuthContext = createContext<AuthContextType>({
   initialized: false,
   isAdmin: false,
   isSuperAdmin: false,
+  signIn: async () => {},
+  signUp: async () => {},
   signOut: async () => {}
 })
 
@@ -40,6 +45,8 @@ export const useAuth = () => {
       initialized: true,
       isAdmin: false,
       isSuperAdmin: false,
+      signIn: async () => {},
+      signUp: async () => {},
       signOut: async () => {}
     }
   }
@@ -124,6 +131,22 @@ export const useAuthProvider = () => {
 
   const { isAdmin, isSuperAdmin } = checkAdminStatus(profile, user?.email)
 
+  const signIn = async (email: string, password: string) => {
+    try {
+      await authSignIn(email, password)
+    } catch (error: any) {
+      throw error
+    }
+  }
+
+  const signUp = async (email: string, password: string, userData: { full_name: string; area: string; rol_empresa: string }) => {
+    try {
+      await authSignUp(email, password, userData)
+    } catch (error: any) {
+      throw error
+    }
+  }
+
   const signOut = async () => {
     try {
       await supabase.auth.signOut()
@@ -170,6 +193,8 @@ export const useAuthProvider = () => {
     initialized,
     isAdmin,
     isSuperAdmin,
+    signIn,
+    signUp,
     signOut
   }
 }
