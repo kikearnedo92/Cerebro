@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/integrations/supabase/client'
@@ -29,13 +28,31 @@ const TenantsPage = () => {
   const fetchTenants = async () => {
     setLoading(true)
     try {
-      const { data, error } = await supabase
-        .from('tenants')
-        .select('*')
-        .order('created_at', { ascending: false })
+      console.log('🔍 Fetching tenants...')
+      
+      // Usar una consulta más simple para evitar problemas de RLS
+      const { data, error } = await supabase.rpc('get_all_tenants_for_super_admin')
+      
+      if (error) {
+        console.error('RPC error, trying direct query:', error)
+        
+        // Fallback a consulta directa
+        const { data: directData, error: directError } = await supabase
+          .from('tenants')
+          .select('*')
+          .order('created_at', { ascending: false })
 
-      if (error) throw error
-      setTenants(data || [])
+        if (directError) {
+          console.error('Direct query error:', directError)
+          throw directError
+        }
+        
+        setTenants(directData || [])
+      } else {
+        setTenants(data || [])
+      }
+      
+      console.log('✅ Tenants loaded successfully')
     } catch (error) {
       console.error('Error fetching tenants:', error)
       toast({
@@ -82,7 +99,6 @@ const TenantsPage = () => {
     return limit === -1 ? 'Ilimitado' : limit.toLocaleString()
   }
 
-  // Early returns AFTER all hooks have been declared
   if (authLoading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -91,7 +107,6 @@ const TenantsPage = () => {
     )
   }
 
-  // Redirect if not super admin - AFTER hooks
   if (!authLoading && !isSuperAdmin) {
     return <Navigate to="/chat" replace />
   }

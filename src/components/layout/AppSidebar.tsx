@@ -16,14 +16,6 @@ import {
   SidebarMenuItem,
   SidebarFooter,
 } from '@/components/ui/sidebar'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import TenantSwitcher from '@/components/TenantSwitcher'
 import { supabase } from '@/integrations/supabase/client'
 import { toast } from '@/hooks/use-toast'
@@ -48,7 +40,6 @@ const AppSidebar = () => {
 
       await refreshConversations()
       
-      // Si estamos en la conversación que se eliminó, navegar al chat
       if (location.pathname.includes(conversationId)) {
         navigate('/chat')
       }
@@ -92,6 +83,22 @@ const AppSidebar = () => {
     return location.pathname === path
   }
 
+  const mainMenuItems = [
+    { path: '/chat', label: 'Chat', icon: MessageSquare },
+    { path: '/analytics', label: 'Analytics', icon: BarChart3 }
+  ]
+
+  const adminMenuItems = [
+    { path: '/admin/knowledge', label: 'Knowledge Base', icon: FileText },
+    { path: '/users', label: 'Usuarios', icon: Users },
+    { path: '/integrations', label: 'Integraciones', icon: Puzzle },
+    { path: '/admin/analytics', label: 'Analytics Admin', icon: BarChart3 }
+  ]
+
+  const superAdminMenuItems = [
+    { path: '/admin/tenants', label: 'Tenants', icon: Settings }
+  ]
+
   return (
     <Sidebar variant="inset">
       <SidebarHeader>
@@ -104,6 +111,77 @@ const AppSidebar = () => {
       </SidebarHeader>
 
       <SidebarContent>
+        {/* Main Navigation */}
+        <div className="px-4 py-2">
+          <h3 className="text-sm font-medium text-gray-700 mb-3">Páginas</h3>
+          <SidebarMenu>
+            {mainMenuItems.map((item) => {
+              const Icon = item.icon
+              return (
+                <SidebarMenuItem key={item.path}>
+                  <SidebarMenuButton 
+                    onClick={() => navigate(item.path)}
+                    className={cn(isActive(item.path) && "bg-purple-50 text-purple-600")}
+                  >
+                    <Icon className="w-4 h-4" />
+                    <span>{item.label}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )
+            })}
+          </SidebarMenu>
+        </div>
+
+        {/* Admin Section */}
+        {(isAdmin || isSuperAdmin) && (
+          <div className="px-4 py-2">
+            <div className="flex items-center gap-2 mb-3">
+              <h3 className="text-sm font-medium text-gray-700">Administración</h3>
+              {isSuperAdmin && <Badge className="bg-red-600 text-xs">Super</Badge>}
+              {isAdmin && !isSuperAdmin && <Badge className="bg-purple-600 text-xs">Admin</Badge>}
+            </div>
+            <SidebarMenu>
+              {adminMenuItems.map((item) => {
+                const Icon = item.icon
+                return (
+                  <SidebarMenuItem key={item.path}>
+                    <SidebarMenuButton 
+                      onClick={() => navigate(item.path)}
+                      className={cn(isActive(item.path) && "bg-purple-50 text-purple-600")}
+                    >
+                      <Icon className="w-4 h-4" />
+                      <span>{item.label}</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )
+              })}
+            </SidebarMenu>
+          </div>
+        )}
+
+        {/* Super Admin Section */}
+        {isSuperAdmin && (
+          <div className="px-4 py-2">
+            <h3 className="text-sm font-medium text-gray-700 mb-3">Super Admin</h3>
+            <SidebarMenu>
+              {superAdminMenuItems.map((item) => {
+                const Icon = item.icon
+                return (
+                  <SidebarMenuItem key={item.path}>
+                    <SidebarMenuButton 
+                      onClick={() => navigate(item.path)}
+                      className={cn(isActive(item.path) && "bg-purple-50 text-purple-600")}
+                    >
+                      <Icon className="w-4 h-4" />
+                      <span>{item.label}</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )
+              })}
+            </SidebarMenu>
+          </div>
+        )}
+
         {/* Conversations Section */}
         <div className="px-4 py-2">
           <div className="flex items-center justify-between mb-3">
@@ -161,97 +239,10 @@ const AppSidebar = () => {
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <SidebarMenuButton>
-                  <Settings className="w-4 h-4" />
-                  <span>Navegación</span>
-                </SidebarMenuButton>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent side="top" align="start" className="w-56">
-                <DropdownMenuLabel>Páginas</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                
-                <DropdownMenuItem 
-                  onClick={() => navigate('/chat')}
-                  className={cn(isActive('/chat') && "bg-purple-50")}
-                >
-                  <MessageSquare className="w-4 h-4 mr-2" />
-                  Chat
-                </DropdownMenuItem>
-                
-                <DropdownMenuItem 
-                  onClick={() => navigate('/analytics')}
-                  className={cn(isActive('/analytics') && "bg-purple-50")}
-                >
-                  <BarChart3 className="w-4 h-4 mr-2" />
-                  Analytics
-                </DropdownMenuItem>
-                
-                {(isAdmin || isSuperAdmin) && (
-                  <>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuLabel>
-                      Administración
-                      {isSuperAdmin && <Badge className="ml-2 bg-red-600">Super</Badge>}
-                      {isAdmin && !isSuperAdmin && <Badge className="ml-2">Admin</Badge>}
-                    </DropdownMenuLabel>
-                    
-                    <DropdownMenuItem 
-                      onClick={() => navigate('/admin/knowledge')}
-                      className={cn(isActive('/admin/knowledge') && "bg-purple-50")}
-                    >
-                      <FileText className="w-4 h-4 mr-2" />
-                      Knowledge Base
-                    </DropdownMenuItem>
-                    
-                    <DropdownMenuItem 
-                      onClick={() => navigate('/users')}
-                      className={cn(isActive('/users') && "bg-purple-50")}
-                    >
-                      <Users className="w-4 h-4 mr-2" />
-                      Usuarios
-                    </DropdownMenuItem>
-                    
-                    <DropdownMenuItem 
-                      onClick={() => navigate('/integrations')}
-                      className={cn(isActive('/integrations') && "bg-purple-50")}
-                    >
-                      <Puzzle className="w-4 h-4 mr-2" />
-                      Integraciones
-                    </DropdownMenuItem>
-                    
-                    <DropdownMenuItem 
-                      onClick={() => navigate('/admin/analytics')}
-                      className={cn(isActive('/admin/analytics') && "bg-purple-50")}
-                    >
-                      <BarChart3 className="w-4 h-4 mr-2" />
-                      Analytics Admin
-                    </DropdownMenuItem>
-                  </>
-                )}
-
-                {isSuperAdmin && (
-                  <>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuLabel>Super Admin</DropdownMenuLabel>
-                    <DropdownMenuItem 
-                      onClick={() => navigate('/admin/tenants')}
-                      className={cn(isActive('/admin/tenants') && "bg-purple-50")}
-                    >
-                      <Settings className="w-4 h-4 mr-2" />
-                      Tenants
-                    </DropdownMenuItem>
-                  </>
-                )}
-                
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => navigate('/profile')}>
-                  <Settings className="w-4 h-4 mr-2" />
-                  Perfil
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <SidebarMenuButton onClick={() => navigate('/profile')}>
+              <Settings className="w-4 h-4" />
+              <span>Perfil</span>
+            </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
