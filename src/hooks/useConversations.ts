@@ -47,6 +47,61 @@ export const useConversations = () => {
     }
   }
 
+  const createConversation = async (title: string): Promise<string> => {
+    if (!user) {
+      throw new Error('User not authenticated')
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('conversations')
+        .insert({
+          title,
+          user_id: user.id
+        })
+        .select()
+        .single()
+
+      if (error) {
+        throw error
+      }
+
+      // Update local state
+      setConversations(prev => [data, ...prev])
+      
+      return data.id
+    } catch (error) {
+      console.error('❌ Error creating conversation:', error)
+      throw error
+    }
+  }
+
+  const updateConversationTitle = async (conversationId: string, title: string): Promise<void> => {
+    if (!user) {
+      throw new Error('User not authenticated')
+    }
+
+    try {
+      const { error } = await supabase
+        .from('conversations')
+        .update({ title })
+        .eq('id', conversationId)
+        .eq('user_id', user.id)
+
+      if (error) {
+        throw error
+      }
+
+      // Update local state
+      setConversations(prev => prev.map(conv => 
+        conv.id === conversationId ? { ...conv, title } : conv
+      ))
+    } catch (error) {
+      console.error('❌ Error updating conversation title:', error)
+      throw error
+    }
+  }
+
   useEffect(() => {
     if (user) {
       console.log('👤 User available, fetching conversations')
@@ -61,6 +116,8 @@ export const useConversations = () => {
   return {
     conversations,
     loading,
-    fetchConversations
+    fetchConversations,
+    createConversation,
+    updateConversationTitle
   }
 }
