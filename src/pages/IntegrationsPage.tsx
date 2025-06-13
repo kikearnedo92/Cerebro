@@ -1,205 +1,214 @@
 
-import React, { useState } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
+import React from 'react'
+import { useAuth } from '@/hooks/useAuth'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Zap, FileText, MessageSquare, FolderOpen, CheckCircle, Clock, AlertCircle } from 'lucide-react'
-import NotionIntegration from '@/components/integrations/NotionIntegration'
+import { Button } from '@/components/ui/button'
+import { Puzzle, Settings, Globe, Database, Zap, Building } from 'lucide-react'
+import { Navigate } from 'react-router-dom'
 
 const IntegrationsPage = () => {
-  const [notionStatus, setNotionStatus] = useState<'connected' | 'disconnected' | 'pending'>('disconnected')
-  
+  const { isAdmin, isSuperAdmin, loading: authLoading } = useAuth()
+
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+      </div>
+    )
+  }
+
+  if (!authLoading && !isAdmin && !isSuperAdmin) {
+    return <Navigate to="/chat" replace />
+  }
+
   const integrations = [
+    {
+      id: 'notion',
+      name: 'Notion',
+      description: 'Conecta tu workspace de Notion para importar documentos automáticamente',
+      icon: Database,
+      status: 'available',
+      category: 'Productividad'
+    },
     {
       id: 'slack',
       name: 'Slack',
-      icon: MessageSquare,
-      description: 'Integra Cerebro como bot en canales de Slack',
-      status: 'pending',
-      lastSync: null,
-      documentsCount: 0
+      description: 'Integra Cerebro con tu workspace de Slack',
+      icon: Zap,
+      status: 'coming_soon',
+      category: 'Comunicación'
     },
     {
-      id: 'gdrive',
+      id: 'teams',
+      name: 'Microsoft Teams',
+      description: 'Conecta con Microsoft Teams para colaboración',
+      icon: Building,
+      status: 'coming_soon',
+      category: 'Comunicación'
+    },
+    {
+      id: 'google_drive',
       name: 'Google Drive',
-      icon: FolderOpen,
-      description: 'Importa documentos desde Google Drive automáticamente',
-      status: 'disconnected',
-      lastSync: null,
-      documentsCount: 0
+      description: 'Sincroniza documentos desde Google Drive',
+      icon: Globe,
+      status: 'coming_soon',
+      category: 'Almacenamiento'
     }
   ]
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'connected':
-        return <CheckCircle className="w-4 h-4 text-green-600" />
-      case 'pending':
-        return <Clock className="w-4 h-4 text-yellow-600" />
-      case 'disconnected':
-        return <AlertCircle className="w-4 h-4 text-red-600" />
-      default:
-        return <AlertCircle className="w-4 h-4 text-gray-600" />
-    }
-  }
 
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'connected':
-        return <Badge className="bg-green-100 text-green-800">Conectado</Badge>
-      case 'pending':
-        return <Badge className="bg-yellow-100 text-yellow-800">Pendiente</Badge>
-      case 'disconnected':
-        return <Badge className="bg-red-100 text-red-800">Desconectado</Badge>
+        return <Badge className="bg-green-600">Conectado</Badge>
+      case 'available':
+        return <Badge variant="outline" className="border-blue-500 text-blue-600">Disponible</Badge>
+      case 'coming_soon':
+        return <Badge variant="secondary">Próximamente</Badge>
       default:
-        return <Badge variant="outline">Desconocido</Badge>
+        return <Badge variant="secondary">Desconocido</Badge>
     }
   }
 
-  const getActionButton = (status: string) => {
-    switch (status) {
-      case 'connected':
-        return (
-          <div className="flex space-x-2">
-            <Button variant="outline" size="sm">Configurar</Button>
-            <Button variant="outline" size="sm">Sincronizar</Button>
-          </div>
-        )
-      case 'pending':
-        return <Button variant="outline" size="sm">Completar Setup</Button>
-      case 'disconnected':
-        return <Button size="sm">Conectar</Button>
+  const getIntegrationIcon = (integration: any) => {
+    const Icon = integration.icon
+    switch (integration.id) {
+      case 'notion':
+        return <Icon className="w-8 h-8 text-black" />
+      case 'slack':
+        return <Icon className="w-8 h-8 text-purple-600" />
+      case 'teams':
+        return <Icon className="w-8 h-8 text-blue-600" />
+      case 'google_drive':
+        return <Icon className="w-8 h-8 text-blue-500" />
       default:
-        return <Button variant="outline" size="sm">Configurar</Button>
+        return <Icon className="w-8 h-8 text-gray-600" />
     }
   }
-
-  // Calcular estadísticas incluyendo Notion
-  const connectedCount = integrations.filter(i => i.status === 'connected').length + 
-                         (notionStatus === 'connected' ? 1 : 0)
-  
-  const totalDocuments = integrations.reduce((sum, i) => sum + i.documentsCount, 0)
 
   return (
-    <div className="h-full p-6 space-y-6 overflow-y-auto">
+    <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Zap className="w-6 h-6" />
-            Integraciones
-          </h1>
+          <h1 className="text-2xl font-bold text-gray-900">Integraciones</h1>
           <p className="text-gray-600">Conecta Cerebro con tus herramientas favoritas</p>
         </div>
-        <Button className="flex items-center gap-2">
-          <Zap className="w-4 h-4" />
-          Explorar Integraciones
-        </Button>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <CheckCircle className="w-6 h-6 text-green-500" />
-              <div>
-                <p className="text-lg font-bold">{connectedCount}</p>
-                <p className="text-sm text-gray-600">Integraciones Activas</p>
+          <CardContent className="p-6">
+            <div className="flex items-center">
+              <Puzzle className="h-8 w-8 text-purple-600" />
+              <div className="ml-4">
+                <p className="text-sm text-gray-600">Total Integraciones</p>
+                <p className="text-2xl font-bold">{integrations.length}</p>
               </div>
             </div>
           </CardContent>
         </Card>
         
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <FileText className="w-6 h-6 text-blue-500" />
-              <div>
-                <p className="text-lg font-bold">{totalDocuments}</p>
-                <p className="text-sm text-gray-600">Documentos Sincronizados</p>
+          <CardContent className="p-6">
+            <div className="flex items-center">
+              <Zap className="h-8 w-8 text-green-600" />
+              <div className="ml-4">
+                <p className="text-sm text-gray-600">Conectadas</p>
+                <p className="text-2xl font-bold">{integrations.filter(i => i.status === 'connected').length}</p>
               </div>
             </div>
           </CardContent>
         </Card>
         
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <Clock className="w-6 h-6 text-purple-500" />
-              <div>
-                <p className="text-lg font-bold">Ahora</p>
-                <p className="text-sm text-gray-600">Última Sincronización</p>
+          <CardContent className="p-6">
+            <div className="flex items-center">
+              <Settings className="h-8 w-8 text-blue-600" />
+              <div className="ml-4">
+                <p className="text-sm text-gray-600">Disponibles</p>
+                <p className="text-2xl font-bold">{integrations.filter(i => i.status === 'available').length}</p>
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Integrations List */}
-      <div className="space-y-4">
-        <h2 className="text-lg font-semibold">Integraciones Disponibles</h2>
-        
-        {/* Notion Integration - Componente especial */}
-        <NotionIntegration onStatusChange={setNotionStatus} />
-        
-        {/* Otras integraciones */}
-        {integrations.map((integration) => {
-          const IconComponent = integration.icon
-          return (
-            <Card key={integration.id}>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
-                      <IconComponent className="w-6 h-6 text-gray-600" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-lg">{integration.name}</CardTitle>
-                      <p className="text-sm text-gray-600">{integration.description}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center space-x-3">
-                    {getStatusIcon(integration.status)}
-                    {getStatusBadge(integration.status)}
+      {/* Integrations Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {integrations.map((integration) => (
+          <Card key={integration.id} className="hover:shadow-lg transition-shadow">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  {getIntegrationIcon(integration)}
+                  <div>
+                    <CardTitle className="text-lg">{integration.name}</CardTitle>
+                    <Badge variant="outline" className="text-xs mt-1">
+                      {integration.category}
+                    </Badge>
                   </div>
                 </div>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-6 text-sm text-gray-600">
-                    <div className="flex items-center space-x-2">
-                      <FileText className="w-4 h-4" />
-                      <span>{integration.documentsCount} documentos</span>
-                    </div>
-                    {integration.lastSync && (
-                      <div className="flex items-center space-x-2">
-                        <Clock className="w-4 h-4" />
-                        <span>Última sync: hace {integration.lastSync}</span>
-                      </div>
-                    )}
-                  </div>
-                  {getActionButton(integration.status)}
-                </div>
-              </CardContent>
-            </Card>
-          )
-        })}
+                {getStatusBadge(integration.status)}
+              </div>
+            </CardHeader>
+            
+            <CardContent className="space-y-4">
+              <CardDescription className="text-sm">
+                {integration.description}
+              </CardDescription>
+
+              <div className="flex gap-2 pt-2">
+                {integration.status === 'available' ? (
+                  <Button className="flex-1">
+                    Conectar
+                  </Button>
+                ) : integration.status === 'connected' ? (
+                  <>
+                    <Button variant="outline" size="sm" className="flex-1">
+                      <Settings className="w-3 h-3 mr-1" />
+                      Configurar
+                    </Button>
+                    <Button variant="outline" size="sm" className="text-red-600 hover:text-red-700">
+                      Desconectar
+                    </Button>
+                  </>
+                ) : (
+                  <Button variant="secondary" disabled className="flex-1">
+                    Próximamente
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
-      {/* Coming Soon Section */}
-      <Card className="border-dashed border-2 border-gray-200">
-        <CardContent className="p-8 text-center">
-          <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Zap className="w-8 h-8 text-gray-400" />
+      {/* Help Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle>¿Necesitas ayuda?</CardTitle>
+          <CardDescription>
+            Aprende cómo configurar y usar las integraciones de Cerebro
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="p-4 bg-gray-50 rounded-lg">
+              <h4 className="font-medium mb-2">Documentación</h4>
+              <p className="text-sm text-gray-600 mb-3">
+                Guías paso a paso para configurar cada integración
+              </p>
+              <Button variant="outline" size="sm">Ver Docs</Button>
+            </div>
+            <div className="p-4 bg-gray-50 rounded-lg">
+              <h4 className="font-medium mb-2">Soporte</h4>
+              <p className="text-sm text-gray-600 mb-3">
+                ¿Tienes problemas? Contacta a nuestro equipo de soporte
+              </p>
+              <Button variant="outline" size="sm">Contactar</Button>
+            </div>
           </div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">Más Integraciones Próximamente</h3>
-          <p className="text-gray-600 mb-4">
-            Estamos trabajando en integrar más herramientas como Microsoft Teams, Confluence, Jira y más.
-          </p>
-          <Button variant="outline" className="flex items-center gap-2 mx-auto">
-            <MessageSquare className="w-4 h-4" />
-            Solicitar Integración
-          </Button>
         </CardContent>
       </Card>
     </div>

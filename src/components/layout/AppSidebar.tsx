@@ -182,8 +182,8 @@ const AppSidebar = () => {
           </div>
         )}
 
-        {/* Conversations Section */}
-        <div className="px-4 py-2">
+        {/* Conversations Section - ALWAYS VISIBLE IN MAIN SIDEBAR */}
+        <div className="px-4 py-2 flex-1">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-medium text-gray-700">Conversaciones</h3>
             <Button

@@ -1,33 +1,31 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/integrations/supabase/client'
-import { useAuth } from '@/hooks/useAuth'
+import { useAuth } from './useAuth'
 
 export interface Conversation {
   id: string
   title: string
-  user_id: string
   created_at: string
   updated_at: string
+  user_id: string
 }
 
 export const useConversations = () => {
-  const { user } = useAuth()
   const [conversations, setConversations] = useState<Conversation[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+  const { user } = useAuth()
 
   const fetchConversations = async () => {
     if (!user) {
-      setConversations([])
-      setLoading(false)
+      console.log('No user found, skipping conversations fetch')
       return
     }
 
+    setLoading(true)
     try {
-      setLoading(true)
-      setError(null)
-
+      console.log('🔄 Fetching conversations for user:', user.id)
+      
       const { data, error } = await supabase
         .from('conversations')
         .select('*')
@@ -35,13 +33,15 @@ export const useConversations = () => {
         .order('updated_at', { ascending: false })
 
       if (error) {
+        console.error('❌ Error fetching conversations:', error)
         throw error
       }
 
+      console.log('✅ Conversations loaded:', data?.length || 0)
       setConversations(data || [])
-    } catch (err) {
-      console.error('Error fetching conversations:', err)
-      setError(err instanceof Error ? err.message : 'Error desconocido')
+    } catch (error) {
+      console.error('Error loading conversations:', error)
+      setConversations([])
     } finally {
       setLoading(false)
     }
@@ -49,77 +49,50 @@ export const useConversations = () => {
 
   const createConversation = async (title?: string): Promise<string> => {
     if (!user) {
-      throw new Error('Usuario no autenticado')
+      throw new Error('User not authenticated')
     }
 
+    console.log('📝 Creating new conversation...')
+    
+    const newTitle = title || `Conversación ${new Date().toLocaleString()}`
+    
     const { data, error } = await supabase
       .from('conversations')
       .insert({
-        title: title || 'Nueva conversación',
+        title: newTitle,
         user_id: user.id
       })
       .select()
       .single()
 
     if (error) {
+      console.error('❌ Error creating conversation:', error)
       throw error
     }
 
-    // Refresh conversations list
-    await fetchConversations()
-
+    console.log('✅ Conversation created:', data.id)
+    await fetchConversations() // Refresh the list
     return data.id
   }
 
-  const updateConversationTitle = async (conversationId: string, title: string) => {
-    const { error } = await supabase
-      .from('conversations')
-      .update({ title, updated_at: new Date().toISOString() })
-      .eq('id', conversationId)
-
-    if (error) {
-      throw error
-    }
-
-    // Update local state
-    setConversations(prev => 
-      prev.map(conv => 
-        conv.id === conversationId 
-          ? { ...conv, title, updated_at: new Date().toISOString() }
-          : conv
-      )
-    )
-  }
-
-  const deleteConversation = async (conversationId: string) => {
-    const { error } = await supabase
-      .from('conversations')
-      .delete()
-      .eq('id', conversationId)
-
-    if (error) {
-      throw error
-    }
-
-    // Update local state
-    setConversations(prev => prev.filter(conv => conv.id !== conversationId))
-  }
-
-  const refreshConversations = () => {
-    return fetchConversations()
+  const refreshConversations = async () => {
+    await fetchConversations()
   }
 
   useEffect(() => {
-    fetchConversations()
+    if (user) {
+      console.log('👤 User available, fetching conversations')
+      fetchConversations()
+    } else {
+      console.log('👤 No user, clearing conversations')
+      setConversations([])
+    }
   }, [user])
 
   return {
     conversations,
     loading,
-    error,
     createConversation,
-    updateConversationTitle,
-    deleteConversation,
     refreshConversations
   }
 }
