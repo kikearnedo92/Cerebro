@@ -7,7 +7,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Users, UserPlus, Shield, Clock } from 'lucide-react'
 import { supabase } from '@/integrations/supabase/client'
 import { useAuth } from '@/hooks/useAuth'
-import { toast } from '@/hooks/use-toast'
 import { Profile } from '@/types/database'
 
 const UserManagement = () => {
@@ -16,15 +15,16 @@ const UserManagement = () => {
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    fetchUsers()
-  }, [])
+    if (isAdmin) {
+      fetchUsers()
+    }
+  }, [isAdmin])
 
   const fetchUsers = async () => {
     setLoading(true)
     try {
       console.log('🔍 Fetching users...')
       
-      // Simple query to get users without complex RLS
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -32,7 +32,6 @@ const UserManagement = () => {
 
       if (error) {
         console.error('Error fetching users:', error)
-        // Don't break the app, show empty state
         setUsers([])
         return
       }
@@ -182,7 +181,6 @@ const UserManagement = () => {
                   <TableHead>Rol Empresa</TableHead>
                   <TableHead>Permisos</TableHead>
                   <TableHead>Registro</TableHead>
-                  <TableHead>Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -220,18 +218,6 @@ const UserManagement = () => {
                       <span className="text-sm text-gray-600">
                         {formatDate(user.created_at)}
                       </span>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="sm">
-                          Editar
-                        </Button>
-                        {user.role_system === 'user' && (
-                          <Button variant="ghost" size="sm" className="text-red-600">
-                            Desactivar
-                          </Button>
-                        )}
-                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

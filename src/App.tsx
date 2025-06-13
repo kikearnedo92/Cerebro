@@ -2,117 +2,78 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from '@/components/ui/toaster'
-import { SidebarProvider } from '@/components/ui/sidebar'
-import { useAuth } from '@/hooks/useAuth'
-import MainLayout from '@/components/layout/MainLayout'
+import { AuthProvider, useAuthProvider } from '@/hooks/useAuth'
 
 // Pages
+import Index from '@/pages/Index'
 import LandingPage from '@/pages/LandingPage'
 import Dashboard from '@/pages/Dashboard'
 import ChatPage from '@/pages/ChatPage'
 import KnowledgePage from '@/pages/KnowledgePage'
-import IntegrationsPage from '@/pages/IntegrationsPage'
+import AnalyticsPage from '@/pages/AnalyticsPage'
 import ProfilePage from '@/pages/ProfilePage'
+import UsersPage from '@/pages/UsersPage'
+import IntegrationsPage from '@/pages/IntegrationsPage'
 import NotFound from '@/pages/NotFound'
 
-// Admin Pages
-import AnalyticsPage from '@/pages/admin/AnalyticsPage'
-import UsersPage from '@/pages/admin/UsersPage'
-import KnowledgeBasePage from '@/pages/admin/KnowledgeBasePage'
+// Layout
+import MainLayout from '@/components/layout/MainLayout'
 
-const queryClient = new QueryClient()
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+})
 
-const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { user, loading } = useAuth()
-  
-  if (loading) {
+function AppContent() {
+  const auth = useAuthProvider()
+
+  if (auth.loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-purple-100">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Cargando...</p>
+        </div>
       </div>
     )
   }
-  
-  if (!user) {
-    return <Navigate to="/" replace />
-  }
-  
-  return <>{children}</>
-}
 
-const AdminRoute = ({ children }: { children: React.ReactNode }) => {
-  const { isAdmin, loading } = useAuth()
-  
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
-      </div>
-    )
-  }
-  
-  if (!isAdmin) {
-    return <Navigate to="/chat" replace />
-  }
-  
-  return <>{children}</>
+  return (
+    <AuthProvider value={auth}>
+      <Router>
+        <Routes>
+          {/* Public routes */}
+          <Route path="/landing" element={<LandingPage />} />
+          
+          {/* Protected routes with layout */}
+          <Route path="/" element={<MainLayout />}>
+            <Route index element={<Index />} />
+            <Route path="dashboard" element={<Dashboard />} />
+            <Route path="chat" element={<ChatPage />} />
+            <Route path="chat/:conversationId" element={<ChatPage />} />
+            <Route path="knowledge" element={<KnowledgePage />} />
+            <Route path="analytics" element={<AnalyticsPage />} />
+            <Route path="profile" element={<ProfilePage />} />
+            <Route path="users" element={<UsersPage />} />
+            <Route path="integrations" element={<IntegrationsPage />} />
+          </Route>
+          
+          {/* Catch all */}
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </Router>
+    </AuthProvider>
+  )
 }
 
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <Router>
-        <Routes>
-          <Route path="/" element={<LandingPage />} />
-          <Route 
-            path="/*" 
-            element={
-              <ProtectedRoute>
-                <SidebarProvider>
-                  <MainLayout>
-                    <Routes>
-                      <Route path="/dashboard" element={<Dashboard />} />
-                      <Route path="/chat" element={<ChatPage />} />
-                      <Route path="/chat/:conversationId" element={<ChatPage />} />
-                      <Route path="/knowledge" element={<KnowledgePage />} />
-                      <Route path="/integrations" element={<IntegrationsPage />} />
-                      <Route path="/profile" element={<ProfilePage />} />
-                      
-                      {/* Admin Routes */}
-                      <Route 
-                        path="/admin/analytics" 
-                        element={
-                          <AdminRoute>
-                            <AnalyticsPage />
-                          </AdminRoute>
-                        } 
-                      />
-                      <Route 
-                        path="/admin/users" 
-                        element={
-                          <AdminRoute>
-                            <UsersPage />
-                          </AdminRoute>
-                        } 
-                      />
-                      <Route 
-                        path="/admin/knowledge" 
-                        element={
-                          <AdminRoute>
-                            <KnowledgeBasePage />
-                          </AdminRoute>
-                        } 
-                      />
-                      
-                      <Route path="*" element={<NotFound />} />
-                    </Routes>
-                  </MainLayout>
-                </SidebarProvider>
-              </ProtectedRoute>
-            } 
-          />
-        </Routes>
-      </Router>
+      <AppContent />
       <Toaster />
     </QueryClientProvider>
   )
