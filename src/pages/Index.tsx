@@ -1,4 +1,3 @@
-
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
@@ -21,20 +20,12 @@ const Index = () => {
       return
     }
 
-    // Redirección basada en rol
-    if (isSuperAdmin) {
-      console.log('👑 Super admin detected, redirecting to tenants')
-      navigate('/admin/tenants', { replace: true })
-    } else if (isAdmin) {
-      console.log('⚡ Admin detected, redirecting to knowledge')
-      navigate('/knowledge', { replace: true })
-    } else {
-      console.log('👤 Regular user, redirecting to chat')
-      navigate('/chat', { replace: true })
-    }
+    // Keep user on chat by default
+    console.log('👤 User authenticated, redirecting to chat')
+    navigate('/chat', { replace: true })
   }, [user, loading, isSuperAdmin, isAdmin, navigate])
 
-  // Mostrar loading mientras se resuelve la redirección
+  // Show loading while resolving redirect
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-purple-100">
       <div className="text-center">

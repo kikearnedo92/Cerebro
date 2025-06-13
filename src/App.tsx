@@ -1,5 +1,5 @@
 
-import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from '@/components/ui/toaster'
 import { AuthProvider, useAuthProvider } from '@/hooks/useAuth'
@@ -50,17 +50,15 @@ function AppContent() {
           <Route path="/landing" element={<LandingPage />} />
           
           {/* Protected routes with layout */}
-          <Route path="/" element={<MainLayout><Outlet /></MainLayout>}>
-            <Route index element={<Index />} />
-            <Route path="dashboard" element={<Dashboard />} />
-            <Route path="chat" element={<ChatPage />} />
-            <Route path="chat/:conversationId" element={<ChatPage />} />
-            <Route path="knowledge" element={<KnowledgePage />} />
-            <Route path="analytics" element={<AnalyticsPage />} />
-            <Route path="profile" element={<ProfilePage />} />
-            <Route path="users" element={<UsersPage />} />
-            <Route path="integrations" element={<IntegrationsPage />} />
-          </Route>
+          <Route path="/" element={<MainLayout><Dashboard /></MainLayout>} />
+          <Route path="/dashboard" element={<MainLayout><Dashboard /></MainLayout>} />
+          <Route path="/chat" element={<MainLayout><ChatPage /></MainLayout>} />
+          <Route path="/chat/:conversationId" element={<MainLayout><ChatPage /></MainLayout>} />
+          <Route path="/knowledge" element={<MainLayout><KnowledgePage /></MainLayout>} />
+          <Route path="/analytics" element={<MainLayout><AnalyticsPage /></MainLayout>} />
+          <Route path="/profile" element={<MainLayout><ProfilePage /></MainLayout>} />
+          <Route path="/users" element={<MainLayout><UsersPage /></MainLayout>} />
+          <Route path="/integrations" element={<MainLayout><IntegrationsPage /></MainLayout>} />
           
           {/* Catch all */}
           <Route path="*" element={<NotFound />} />

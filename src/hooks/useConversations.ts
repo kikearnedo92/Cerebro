@@ -1,28 +1,27 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/integrations/supabase/client'
-import { useAuth } from './useAuth'
+import { useAuth } from '@/hooks/useAuth'
 
 export interface Conversation {
   id: string
   title: string
   created_at: string
-  updated_at: string
   user_id: string
 }
 
 export const useConversations = () => {
   const [conversations, setConversations] = useState<Conversation[]>([])
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const { user } = useAuth()
 
   const fetchConversations = async () => {
     if (!user) {
-      console.log('No user found, skipping conversations fetch')
+      setConversations([])
+      setLoading(false)
       return
     }
 
-    setLoading(true)
     try {
       console.log('🔄 Fetching conversations for user:', user.id)
       
@@ -30,78 +29,22 @@ export const useConversations = () => {
         .from('conversations')
         .select('*')
         .eq('user_id', user.id)
-        .order('updated_at', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(10)
 
       if (error) {
-        console.error('❌ Error fetching conversations:', error)
-        throw error
+        console.error('❌ Conversations fetch error:', error)
+        setConversations([])
+      } else {
+        console.log('✅ Conversations loaded:', data?.length || 0)
+        setConversations(data || [])
       }
-
-      console.log('✅ Conversations loaded:', data?.length || 0)
-      setConversations(data || [])
     } catch (error) {
-      console.error('Error loading conversations:', error)
+      console.error('❌ Conversations error:', error)
       setConversations([])
     } finally {
       setLoading(false)
     }
-  }
-
-  const createConversation = async (title?: string): Promise<string> => {
-    if (!user) {
-      throw new Error('User not authenticated')
-    }
-
-    console.log('📝 Creating new conversation...')
-    
-    const newTitle = title || `Conversación ${new Date().toLocaleString()}`
-    
-    const { data, error } = await supabase
-      .from('conversations')
-      .insert({
-        title: newTitle,
-        user_id: user.id
-      })
-      .select()
-      .single()
-
-    if (error) {
-      console.error('❌ Error creating conversation:', error)
-      throw error
-    }
-
-    console.log('✅ Conversation created:', data.id)
-    await fetchConversations() // Refresh the list
-    return data.id
-  }
-
-  const updateConversationTitle = async (conversationId: string, title: string): Promise<void> => {
-    if (!user) {
-      throw new Error('User not authenticated')
-    }
-
-    console.log('📝 Updating conversation title:', conversationId, title)
-    
-    const { error } = await supabase
-      .from('conversations')
-      .update({ 
-        title,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', conversationId)
-      .eq('user_id', user.id)
-
-    if (error) {
-      console.error('❌ Error updating conversation title:', error)
-      throw error
-    }
-
-    console.log('✅ Conversation title updated')
-    await fetchConversations() // Refresh the list
-  }
-
-  const refreshConversations = async () => {
-    await fetchConversations()
   }
 
   useEffect(() => {
@@ -111,14 +54,13 @@ export const useConversations = () => {
     } else {
       console.log('👤 No user, clearing conversations')
       setConversations([])
+      setLoading(false)
     }
   }, [user])
 
   return {
     conversations,
     loading,
-    createConversation,
-    updateConversationTitle,
-    refreshConversations
+    fetchConversations
   }
 }
