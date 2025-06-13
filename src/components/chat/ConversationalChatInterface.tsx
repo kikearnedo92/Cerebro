@@ -41,19 +41,19 @@ const ConversationalChatInterface = () => {
     setLoading(true)
 
     try {
-      let conversationId = currentConversation?.id
+      let activeConversationId = currentConversation?.id
 
       // Crear nueva conversación si no existe
-      if (!conversationId) {
+      if (!activeConversationId) {
         const newConversation = await createConversation(
           messageContent.slice(0, 50) + (messageContent.length > 50 ? '...' : '')
         )
         if (!newConversation) throw new Error('No se pudo crear la conversación')
-        conversationId = newConversation.id
+        activeConversationId = newConversation.id
       }
 
       // Agregar mensaje del usuario
-      await addMessage(conversationId, 'user', messageContent)
+      await addMessage(activeConversationId, 'user', messageContent)
 
       // Llamar a la función de chat AI
       console.log('💬 Sending message to CEREBRO:', messageContent)
@@ -75,7 +75,7 @@ const ConversationalChatInterface = () => {
 
       // Agregar respuesta del asistente
       await addMessage(
-        conversationId, 
+        activeConversationId, 
         'assistant', 
         data.response,
         data.sources
@@ -96,9 +96,9 @@ const ConversationalChatInterface = () => {
       console.error('Chat error:', error)
       
       // Agregar mensaje de error
-      if (conversationId) {
+      if (activeConversationId) {
         await addMessage(
-          conversationId,
+          activeConversationId,
           'assistant',
           `❌ Error: ${error instanceof Error ? error.message : 'Error desconocido'}\n\nPor favor intenta de nuevo o contacta al administrador.`
         )

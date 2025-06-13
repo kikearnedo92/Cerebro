@@ -30,13 +30,13 @@ export const useAuth = () => {
       setSession(session)
       setUser(session?.user ?? null)
       
-      if (session?.user && event === 'SIGNED_IN') {
+      if (session?.user && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED')) {
         console.log('👤 Auth: User signed in, fetching profile for:', session.user.email)
         try {
           const profileData = await fetchProfile(session.user.id)
           if (mounted) {
             setProfile(profileData)
-            console.log('✅ Auth: Profile loaded after signin:', profileData?.full_name)
+            console.log('✅ Auth: Profile loaded after signin:', profileData?.full_name, 'Role:', profileData?.role_system)
           }
         } catch (error) {
           console.error('❌ Auth: Profile fetch error after signin:', error)
@@ -79,7 +79,7 @@ export const useAuth = () => {
             const profileData = await fetchProfile(initialSession.user.id)
             if (mounted) {
               setProfile(profileData)
-              console.log('✅ Auth: Initial profile loaded for', initialSession.user.email, ':', profileData?.full_name)
+              console.log('✅ Auth: Initial profile loaded for', initialSession.user.email, ':', profileData?.full_name, 'Role:', profileData?.role_system)
             }
           } catch (error) {
             console.error('❌ Auth: Initial profile fetch error:', error)
@@ -108,7 +108,7 @@ export const useAuth = () => {
         console.log('⏰ Auth: Timeout reached, forcing loading false')
         setLoading(false)
       }
-    }, 3000) // Increased to 3 seconds
+    }, 5000) // Increased to 5 seconds
 
     return () => {
       console.log('🔐 Auth: Cleaning up useAuth hook')
@@ -159,6 +159,7 @@ export const useAuth = () => {
     hasSession: !!session,
     hasProfile: !!profile,
     profileName: profile?.full_name,
+    profileRole: profile?.role_system,
     loading,
     isAdmin,
     isSuperAdmin

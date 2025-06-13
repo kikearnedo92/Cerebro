@@ -3,36 +3,78 @@ import { supabase } from '@/integrations/supabase/client'
 import { Profile } from '@/types/database'
 
 export const fetchProfile = async (userId: string): Promise<Profile | null> => {
+  console.log('👤 ProfileService: Fetching profile for user:', userId)
+  
   try {
-    const { data: profileData, error: profileError } = await supabase
+    const { data, error } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', userId)
       .single()
-    
-    if (profileError) {
-      console.error('❌ Profile fetch error:', profileError)
-      return null
-    } else if (profileData) {
-      console.log('✅ Profile loaded:', profileData)
-      return profileData
+
+    if (error) {
+      // Si no existe el perfil, crear uno básico
+      if (error.code === 'PGRST116') {
+        console.log('👤 ProfileService: Profile not found, creating basic profile')
+        
+        // Obtener información básica del usuario
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) throw new Error('No user found')
+
+        const newProfile = {
+          id: userId,
+          full_name: user.email?.split('@')[0] || 'Usuario',
+          email: user.email || '',
+          area: 'Sin asignar',
+          rol_empresa: 'user',
+          role_system: user.email === 'eduardo@retorna.app' ? 'admin' : 'user',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }
+
+        const { data: createdProfile, error: createError } = await supabase
+          .from('profiles')
+          .insert(newProfile)
+          .select()
+          .single()
+
+        if (createError) {
+          console.error('❌ ProfileService: Error creating profile:', createError)
+          throw createError
+        }
+
+        console.log('✅ ProfileService: Basic profile created:', createdProfile)
+        return createdProfile as Profile
+      }
+      
+      console.error('❌ ProfileService: Error fetching profile:', error)
+      throw error
     }
-    
-    return null
+
+    console.log('✅ ProfileService: Profile loaded:', data?.full_name)
+    return data as Profile
   } catch (error) {
-    console.error('❌ Error fetching profile:', error)
+    console.error('❌ ProfileService: Profile fetch failed:', error)
     return null
   }
 }
 
 export const checkAdminStatus = (profile: Profile | null, userEmail?: string) => {
+  // Verificar super admin por email específico
+  const isSuperAdmin = userEmail === 'eduardoarnedog@gmail.com'
+  
+  // Verificar admin por role_system en el perfil o email específico
   const isAdmin = profile?.role_system === 'admin' || 
-                  profile?.role_system === 'super_admin' || 
-                  userEmail === 'admin@empresa.com'
-  
-  const isSuperAdmin = profile?.is_super_admin === true || 
-                       profile?.role_system === 'super_admin' || 
-                       userEmail === 'eduardoarnedog@gmail.com'
-  
+                  profile?.role_system === 'super_admin' ||
+                  userEmail === 'eduardo@retorna.app' ||
+                  isSuperAdmin
+
+  console.log('🔍 ProfileService: Admin check -', {
+    email: userEmail,
+    profileRole: profile?.role_system,
+    isAdmin,
+    isSuperAdmin
+  })
+
   return { isAdmin, isSuperAdmin }
 }
