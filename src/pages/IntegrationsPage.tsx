@@ -4,7 +4,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Puzzle, Settings, Globe, Database, Zap, Building } from 'lucide-react'
+import { Puzzle, Settings, Database } from 'lucide-react'
 import { Navigate } from 'react-router-dom'
 
 const IntegrationsPage = () => {
@@ -22,6 +22,7 @@ const IntegrationsPage = () => {
     return <Navigate to="/chat" replace />
   }
 
+  // Solo integraciones reales que están implementadas
   const integrations = [
     {
       id: 'notion',
@@ -30,30 +31,6 @@ const IntegrationsPage = () => {
       icon: Database,
       status: 'available',
       category: 'Productividad'
-    },
-    {
-      id: 'slack',
-      name: 'Slack',
-      description: 'Integra Cerebro con tu workspace de Slack',
-      icon: Zap,
-      status: 'coming_soon',
-      category: 'Comunicación'
-    },
-    {
-      id: 'teams',
-      name: 'Microsoft Teams',
-      description: 'Conecta con Microsoft Teams para colaboración',
-      icon: Building,
-      status: 'coming_soon',
-      category: 'Comunicación'
-    },
-    {
-      id: 'google_drive',
-      name: 'Google Drive',
-      description: 'Sincroniza documentos desde Google Drive',
-      icon: Globe,
-      status: 'coming_soon',
-      category: 'Almacenamiento'
     }
   ]
 
@@ -63,27 +40,14 @@ const IntegrationsPage = () => {
         return <Badge className="bg-green-600">Conectado</Badge>
       case 'available':
         return <Badge variant="outline" className="border-blue-500 text-blue-600">Disponible</Badge>
-      case 'coming_soon':
-        return <Badge variant="secondary">Próximamente</Badge>
       default:
-        return <Badge variant="secondary">Desconocido</Badge>
+        return <Badge variant="secondary">No disponible</Badge>
     }
   }
 
   const getIntegrationIcon = (integration: any) => {
     const Icon = integration.icon
-    switch (integration.id) {
-      case 'notion':
-        return <Icon className="w-8 h-8 text-black" />
-      case 'slack':
-        return <Icon className="w-8 h-8 text-purple-600" />
-      case 'teams':
-        return <Icon className="w-8 h-8 text-blue-600" />
-      case 'google_drive':
-        return <Icon className="w-8 h-8 text-blue-500" />
-      default:
-        return <Icon className="w-8 h-8 text-gray-600" />
-    }
+    return <Icon className="w-8 h-8 text-black" />
   }
 
   return (
@@ -112,7 +76,7 @@ const IntegrationsPage = () => {
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center">
-              <Zap className="h-8 w-8 text-green-600" />
+              <Database className="h-8 w-8 text-green-600" />
               <div className="ml-4">
                 <p className="text-sm text-gray-600">Conectadas</p>
                 <p className="text-2xl font-bold">{integrations.filter(i => i.status === 'connected').length}</p>
@@ -175,7 +139,7 @@ const IntegrationsPage = () => {
                   </>
                 ) : (
                   <Button variant="secondary" disabled className="flex-1">
-                    Próximamente
+                    No disponible
                   </Button>
                 )}
               </div>

@@ -100,7 +100,7 @@ const AppSidebar = () => {
   ]
 
   return (
-    <Sidebar variant="inset">
+    <Sidebar variant="inset" className="flex flex-col h-full">
       <SidebarHeader>
         {isSuperAdmin && <TenantSwitcher />}
         
@@ -110,7 +110,7 @@ const AppSidebar = () => {
         </div>
       </SidebarHeader>
 
-      <SidebarContent>
+      <SidebarContent className="flex flex-col flex-1">
         {/* Main Navigation */}
         <div className="px-4 py-2">
           <h3 className="text-sm font-medium text-gray-700 mb-3">Páginas</h3>
@@ -182,64 +182,73 @@ const AppSidebar = () => {
           </div>
         )}
 
-        {/* Conversations Section - ALWAYS VISIBLE IN MAIN SIDEBAR */}
-        <div className="px-4 py-2 flex-1">
+        {/* Conversaciones Section - EN EL SIDEBAR PRINCIPAL */}
+        <div className="px-4 py-2 flex-1 flex flex-col min-h-0">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-medium text-gray-700">Conversaciones</h3>
             <Button
               variant="ghost"
               size="sm"
               onClick={handleNewConversation}
-              className="h-6 w-6 p-0"
+              className="h-6 w-6 p-0 hover:bg-purple-100"
+              title="Nueva conversación"
             >
               <Plus className="h-4 w-4" />
             </Button>
           </div>
           
-          {loading ? (
-            <div className="space-y-2">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="h-8 bg-gray-100 rounded animate-pulse" />
-              ))}
-            </div>
-          ) : conversations.length === 0 ? (
-            <div className="text-sm text-gray-500 text-center py-4">
-              No hay conversaciones
-            </div>
-          ) : (
-            <div className="space-y-1 max-h-64 overflow-y-auto">
-              {conversations.map((conversation) => (
-                <div
-                  key={conversation.id}
-                  className={cn(
-                    "flex items-center justify-between p-2 rounded-lg cursor-pointer hover:bg-gray-100 group",
-                    location.pathname.includes(conversation.id) && "bg-purple-50 border border-purple-200"
-                  )}
-                  onClick={() => handleConversationClick(conversation.id)}
-                >
-                  <div className="flex items-center space-x-2 flex-1 min-w-0">
-                    <MessageSquare className="w-4 h-4 text-gray-500 flex-shrink-0" />
-                    <span className="text-sm truncate">{conversation.title}</span>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={(e) => handleDeleteConversation(conversation.id, e)}
-                    className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100"
+          <div className="flex-1 min-h-0 overflow-hidden">
+            {loading ? (
+              <div className="space-y-2">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="h-8 bg-gray-100 rounded animate-pulse" />
+                ))}
+              </div>
+            ) : conversations.length === 0 ? (
+              <div className="text-sm text-gray-500 text-center py-4">
+                No hay conversaciones
+              </div>
+            ) : (
+              <div className="space-y-1 h-full overflow-y-auto">
+                {conversations.map((conversation) => (
+                  <div
+                    key={conversation.id}
+                    className={cn(
+                      "flex items-center justify-between p-2 rounded-lg cursor-pointer hover:bg-gray-100 group transition-colors",
+                      location.pathname.includes(conversation.id) && "bg-purple-50 border border-purple-200"
+                    )}
+                    onClick={() => handleConversationClick(conversation.id)}
                   >
-                    <Trash2 className="h-3 w-3 text-red-500" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
+                    <div className="flex items-center space-x-2 flex-1 min-w-0">
+                      <MessageSquare className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                      <span className="text-sm truncate" title={conversation.title}>
+                        {conversation.title}
+                      </span>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => handleDeleteConversation(conversation.id, e)}
+                      className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 hover:bg-red-100 transition-opacity"
+                      title="Eliminar conversación"
+                    >
+                      <Trash2 className="h-3 w-3 text-red-500" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </SidebarContent>
 
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton onClick={() => navigate('/profile')}>
+            <SidebarMenuButton 
+              onClick={() => navigate('/profile')}
+              className={cn(isActive('/profile') && "bg-purple-50 text-purple-600")}
+            >
               <Settings className="w-4 h-4" />
               <span>Perfil</span>
             </SidebarMenuButton>
