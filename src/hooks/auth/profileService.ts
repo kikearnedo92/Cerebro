@@ -26,15 +26,13 @@ export const fetchProfile = async (userId: string): Promise<Profile | null> => {
           return null
         }
 
-        // Determinar rol según email
+        // Determinar rol según email - CAMBIO: eduardo@retorna.app es ahora super admin
         let role_system = 'user'
         let is_super_admin = false
         
-        if (user.email === 'eduardoarnedog@gmail.com') {
+        if (user.email === 'eduardo@retorna.app') {
           role_system = 'super_admin'
           is_super_admin = true
-        } else if (user.email === 'eduardo@retorna.app') {
-          role_system = 'admin'
         }
 
         const newProfile = {
@@ -75,8 +73,8 @@ export const fetchProfile = async (userId: string): Promise<Profile | null> => {
 }
 
 export const checkAdminStatus = (profile: Profile | null, userEmail?: string) => {
-  // Verificar super admin por email específico o por perfil
-  const isSuperAdmin = userEmail === 'eduardoarnedog@gmail.com' || 
+  // Verificar super admin por email específico o por perfil - CAMBIO: solo eduardo@retorna.app
+  const isSuperAdmin = userEmail === 'eduardo@retorna.app' || 
                        profile?.is_super_admin === true ||
                        profile?.role_system === 'super_admin'
   
