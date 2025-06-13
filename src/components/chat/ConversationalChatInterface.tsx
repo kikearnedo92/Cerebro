@@ -1,36 +1,43 @@
+
 import React, { useState, useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { Send, Bot, User, Plus, MessageSquare, FileText, Search } from 'lucide-react'
+import { Send, Bot, User, FileText, ToggleLeft, ToggleRight } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useConversations } from '@/hooks/useConversations'
 import { supabase } from '@/integrations/supabase/client'
 import { toast } from '@/hooks/use-toast'
 
+type ChatMode = 'retorna' | 'openai'
+
 const ConversationalChatInterface = () => {
   const { user } = useAuth()
   const {
-    conversations,
     currentConversation,
     messages,
     createConversation,
     addMessage,
-    selectConversation,
-    startNewConversation,
-    setMessages
   } = useConversations()
 
   const [inputMessage, setInputMessage] = useState('')
   const [loading, setLoading] = useState(false)
-  const [searchTerm, setSearchTerm] = useState('')
+  const [chatMode, setChatMode] = useState<ChatMode>('retorna')
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  const toggleChatMode = () => {
+    const newMode = chatMode === 'retorna' ? 'openai' : 'retorna'
+    setChatMode(newMode)
+    toast({
+      title: "Modo cambiado",
+      description: `Ahora usando modo ${newMode === 'retorna' ? 'Cerebro (Retorna)' : 'OpenAI General'}`
+    })
+  }
 
   const sendMessage = async () => {
     if (!inputMessage.trim() || loading || !user) return
@@ -39,7 +46,6 @@ const ConversationalChatInterface = () => {
     setInputMessage('')
     setLoading(true)
 
-    // Declare activeConversationId outside the try block so it's accessible in catch
     let activeConversationId = currentConversation?.id
 
     try {
@@ -55,13 +61,14 @@ const ConversationalChatInterface = () => {
       // Agregar mensaje del usuario
       await addMessage(activeConversationId, 'user', messageContent)
 
-      // Llamar a la función de chat AI
-      console.log('💬 Sending message to CEREBRO:', messageContent)
+      // Llamar a la función de chat AI con el modo
+      console.log(`💬 Sending message to ${chatMode.toUpperCase()} mode:`, messageContent)
 
       const { data, error } = await supabase.functions.invoke('chat-ai', {
         body: {
           message: messageContent,
           userId: user.id,
+          mode: chatMode,
           conversationHistory: messages.slice(-10).map(m => ({
             role: m.role,
             content: m.content
@@ -81,10 +88,10 @@ const ConversationalChatInterface = () => {
         data.sources
       )
 
-      console.log('✅ CEREBRO response received')
+      console.log(`✅ ${chatMode.toUpperCase()} response received`)
 
-      // Mostrar info si no encontró contenido relevante
-      if (!data.foundRelevantContent) {
+      // Mostrar info si no encontró contenido relevante en modo Retorna
+      if (chatMode === 'retorna' && !data.foundRelevantContent) {
         toast({
           title: "Información",
           description: "No se encontró contenido específico en la base de conocimiento. La respuesta se basa en el conocimiento general de CEREBRO.",
@@ -95,7 +102,6 @@ const ConversationalChatInterface = () => {
     } catch (error) {
       console.error('Chat error:', error)
       
-      // Agregar mensaje de error
       if (activeConversationId) {
         await addMessage(
           activeConversationId,
@@ -121,22 +127,6 @@ const ConversationalChatInterface = () => {
     }
   }
 
-  const filteredConversations = conversations.filter(conv =>
-    conv.title.toLowerCase().includes(searchTerm.toLowerCase())
-  )
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    const now = new Date()
-    const diff = now.getTime() - date.getTime()
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24))
-    
-    if (days === 0) return 'Hoy'
-    if (days === 1) return 'Ayer'
-    if (days < 7) return `Hace ${days} días`
-    return date.toLocaleDateString()
-  }
-
   if (!user) {
     return (
       <div className="h-full flex items-center justify-center">
@@ -152,214 +142,177 @@ const ConversationalChatInterface = () => {
   }
 
   return (
-    <div className="h-full flex bg-gray-50">
-      {/* Sidebar de conversaciones */}
-      <div className="w-80 bg-white border-r border-gray-200 flex flex-col">
-        <div className="p-4 border-b border-gray-200">
-          <Button 
-            onClick={startNewConversation}
-            className="w-full flex items-center space-x-2 bg-purple-600 hover:bg-purple-700"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Nueva Conversación</span>
-          </Button>
-        </div>
-        
-        <div className="p-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <Input
-              placeholder="Buscar conversaciones..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-        </div>
-
-        <ScrollArea className="flex-1 px-4">
-          <div className="space-y-2">
-            {filteredConversations.length === 0 ? (
-              <p className="text-sm text-gray-500 text-center py-4">
-                No hay conversaciones aún
-              </p>
-            ) : (
-              filteredConversations.map((conversation) => (
-                <Card
-                  key={conversation.id}
-                  className={`p-3 cursor-pointer transition-colors hover:bg-gray-50 ${
-                    currentConversation?.id === conversation.id ? 'border-purple-600 bg-purple-50' : ''
-                  }`}
-                  onClick={() => selectConversation(conversation)}
-                >
-                  <div className="flex items-start space-x-3">
-                    <MessageSquare className="w-4 h-4 text-gray-400 mt-1" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">
-                        {conversation.title}
-                      </p>
-                      <p className="text-xs text-gray-500 mt-1">
-                        {formatDate(conversation.updated_at)}
-                      </p>
-                    </div>
-                  </div>
-                </Card>
-              ))
-            )}
-          </div>
-        </ScrollArea>
-      </div>
-
-      {/* Área principal de chat */}
-      <div className="flex-1 flex flex-col">
-        {/* Header */}
-        <div className="bg-white border-b border-gray-200 p-4">
+    <div className="h-full flex flex-col bg-background">
+      {/* Header */}
+      <div className="bg-card border-b border-border p-4">
+        <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center">
-              <Bot className="w-4 h-4 text-white" />
+            <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
+              <Bot className="w-4 h-4 text-primary-foreground" />
             </div>
             <div>
-              <h1 className="text-lg font-semibold text-gray-900">
+              <h1 className="text-lg font-semibold text-foreground">
                 {currentConversation ? currentConversation.title : 'CEREBRO'}
               </h1>
-              <p className="text-sm text-gray-600">Asistente inteligente de Retorna</p>
+              <p className="text-sm text-muted-foreground">Asistente inteligente de Retorna</p>
             </div>
+          </div>
+          
+          {/* Chat Mode Toggle */}
+          <div className="flex items-center space-x-3">
+            <span className="text-sm text-muted-foreground">
+              {chatMode === 'retorna' ? 'Conocimiento Retorna' : 'OpenAI General'}
+            </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={toggleChatMode}
+              className="flex items-center space-x-2"
+            >
+              {chatMode === 'retorna' ? (
+                <ToggleLeft className="w-5 h-5 text-primary" />
+              ) : (
+                <ToggleRight className="w-5 h-5 text-primary" />
+              )}
+            </Button>
           </div>
         </div>
+      </div>
 
-        {/* Messages */}
-        <ScrollArea className="flex-1 p-6">
-          <div className="max-w-4xl mx-auto space-y-6">
-            {messages.length === 0 ? (
-              <div className="text-center py-12">
-                <Bot className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">
-                  ¡Hola {user?.email?.split('@')[0]}! 👋
-                </h3>
-                <p className="text-gray-500 max-w-md mx-auto mb-4">
-                  Soy CEREBRO, tu asistente de IA entrenado con el conocimiento de Retorna. 
-                  Puedo ayudarte con información sobre procesos, políticas, procedimientos y más.
-                </p>
-                <div className="grid grid-cols-2 gap-3 text-sm max-w-md mx-auto">
-                  <div className="flex items-center space-x-2 text-left">
-                    <FileText className="w-4 h-4 text-purple-600" />
-                    <span>Documentos internos</span>
-                  </div>
-                  <div className="flex items-center space-x-2 text-left">
-                    <FileText className="w-4 h-4 text-purple-600" />
-                    <span>Políticas y procesos</span>
-                  </div>
-                  <div className="flex items-center space-x-2 text-left">
-                    <FileText className="w-4 h-4 text-purple-600" />
-                    <span>Atención al cliente</span>
-                  </div>
-                  <div className="flex items-center space-x-2 text-left">
-                    <FileText className="w-4 h-4 text-purple-600" />
-                    <span>Compliance</span>
-                  </div>
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto p-6">
+        <div className="max-w-4xl mx-auto space-y-6">
+          {messages.length === 0 ? (
+            <div className="text-center py-12">
+              <Bot className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-foreground mb-2">
+                ¡Hola {user?.email?.split('@')[0]}! 👋
+              </h3>
+              <p className="text-muted-foreground max-w-md mx-auto mb-4">
+                Soy CEREBRO, tu asistente de IA. Actualmente en modo{' '}
+                <Badge variant="outline" className="mx-1">
+                  {chatMode === 'retorna' ? 'Conocimiento Retorna' : 'OpenAI General'}
+                </Badge>
+              </p>
+              <div className="grid grid-cols-2 gap-3 text-sm max-w-md mx-auto">
+                <div className="flex items-center space-x-2 text-left">
+                  <FileText className="w-4 h-4 text-primary" />
+                  <span>Documentos internos</span>
+                </div>
+                <div className="flex items-center space-x-2 text-left">
+                  <FileText className="w-4 h-4 text-primary" />
+                  <span>Políticas y procesos</span>
+                </div>
+                <div className="flex items-center space-x-2 text-left">
+                  <FileText className="w-4 h-4 text-primary" />
+                  <span>Atención al cliente</span>
+                </div>
+                <div className="flex items-center space-x-2 text-left">
+                  <FileText className="w-4 h-4 text-primary" />
+                  <span>Compliance</span>
                 </div>
               </div>
-            ) : (
-              messages.map((message) => (
-                <div
-                  key={message.id}
-                  className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                >
-                  <div className={`flex items-start space-x-3 max-w-3xl ${message.role === 'user' ? 'flex-row-reverse space-x-reverse' : ''}`}>
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                      message.role === 'user' ? 'bg-purple-600' : 'bg-purple-100'
-                    }`}>
-                      {message.role === 'user' ? (
-                        <User className="w-4 h-4 text-white" />
-                      ) : (
-                        <Bot className="w-4 h-4 text-purple-600" />
-                      )}
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Card className={`${
-                        message.role === 'user' 
-                          ? 'bg-purple-600 text-white' 
-                          : 'bg-white border-gray-200'
-                      }`}>
-                        <CardContent className="p-4">
-                          <div className="prose prose-sm max-w-none">
-                            <div className="whitespace-pre-wrap">{message.content}</div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                      
-                      {message.sources_used && message.sources_used.length > 0 && (
-                        <div className="flex flex-wrap gap-2">
-                          <span className="text-xs text-gray-500">Fuentes:</span>
-                          {message.sources_used.map((source, index) => (
-                            <Badge key={index} variant="outline" className="text-xs">
-                              <FileText className="w-3 h-3 mr-1" />
-                              {source}
-                            </Badge>
-                          ))}
-                        </div>
-                      )}
-                      
-                      <p className="text-xs text-gray-500">
-                        {new Date(message.timestamp).toLocaleTimeString()}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              ))
-            )}
-            
-            {loading && (
-              <div className="flex justify-start">
-                <div className="flex items-start space-x-3 max-w-3xl">
-                  <div className="w-8 h-8 rounded-full flex items-center justify-center bg-purple-100">
-                    <Bot className="w-4 h-4 text-purple-600" />
-                  </div>
-                  <Card className="bg-white">
-                    <CardContent className="p-4">
-                      <div className="flex items-center space-x-2">
-                        <span className="text-sm text-gray-500">CEREBRO está pensando</span>
-                        <div className="flex space-x-1">
-                          <div className="w-2 h-2 bg-purple-600 rounded-full animate-bounce"></div>
-                          <div className="w-2 h-2 bg-purple-600 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                          <div className="w-2 h-2 bg-purple-600 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-              </div>
-            )}
-            
-            <div ref={messagesEndRef} />
-          </div>
-        </ScrollArea>
-
-        {/* Input */}
-        <div className="bg-white border-t border-gray-200 p-4">
-          <div className="max-w-4xl mx-auto">
-            <div className="flex space-x-2">
-              <Input
-                value={inputMessage}
-                onChange={(e) => setInputMessage(e.target.value)}
-                onKeyPress={handleKeyPress}
-                placeholder="Pregúntale algo a CEREBRO..."
-                className="flex-1"
-                disabled={loading}
-              />
-              <Button 
-                onClick={sendMessage}
-                disabled={!inputMessage.trim() || loading}
-                className="bg-purple-600 hover:bg-purple-700"
-              >
-                <Send className="w-4 h-4" />
-              </Button>
             </div>
-            <p className="text-xs text-gray-500 mt-2 text-center">
-              Presiona Enter para enviar • CEREBRO puede cometer errores, verifica información importante.
-            </p>
+          ) : (
+            messages.map((message) => (
+              <div
+                key={message.id}
+                className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+              >
+                <div className={`flex items-start space-x-3 max-w-3xl ${message.role === 'user' ? 'flex-row-reverse space-x-reverse' : ''}`}>
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                    message.role === 'user' ? 'bg-primary' : 'bg-secondary'
+                  }`}>
+                    {message.role === 'user' ? (
+                      <User className="w-4 h-4 text-primary-foreground" />
+                    ) : (
+                      <Bot className="w-4 h-4 text-primary" />
+                    )}
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Card className={`${
+                      message.role === 'user' 
+                        ? 'bg-primary text-primary-foreground' 
+                        : 'bg-card border-border'
+                    }`}>
+                      <CardContent className="p-4">
+                        <div className="prose prose-sm max-w-none">
+                          <div className="whitespace-pre-wrap">{message.content}</div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                    
+                    {message.sources_used && message.sources_used.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        <span className="text-xs text-muted-foreground">Fuentes:</span>
+                        {message.sources_used.map((source, index) => (
+                          <Badge key={index} variant="outline" className="text-xs">
+                            <FileText className="w-3 h-3 mr-1" />
+                            {source}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                    
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(message.timestamp).toLocaleTimeString()}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+          
+          {loading && (
+            <div className="flex justify-start">
+              <div className="flex items-start space-x-3 max-w-3xl">
+                <div className="w-8 h-8 rounded-full flex items-center justify-center bg-secondary">
+                  <Bot className="w-4 h-4 text-primary" />
+                </div>
+                <Card className="bg-card">
+                  <CardContent className="p-4">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-sm text-muted-foreground">CEREBRO está pensando</span>
+                      <div className="flex space-x-1">
+                        <div className="w-2 h-2 bg-primary rounded-full animate-bounce"></div>
+                        <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                        <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+          )}
+          
+          <div ref={messagesEndRef} />
+        </div>
+      </div>
+
+      {/* Input */}
+      <div className="bg-card border-t border-border p-4">
+        <div className="max-w-4xl mx-auto">
+          <div className="flex space-x-2">
+            <Input
+              value={inputMessage}
+              onChange={(e) => setInputMessage(e.target.value)}
+              onKeyPress={handleKeyPress}
+              placeholder="Pregúntale algo a CEREBRO..."
+              className="flex-1"
+              disabled={loading}
+            />
+            <Button 
+              onClick={sendMessage}
+              disabled={!inputMessage.trim() || loading}
+              className="bg-primary hover:bg-primary/90"
+            >
+              <Send className="w-4 h-4" />
+            </Button>
           </div>
+          <p className="text-xs text-muted-foreground mt-2 text-center">
+            Presiona Enter para enviar • CEREBRO puede cometer errores, verifica información importante.
+          </p>
         </div>
       </div>
     </div>

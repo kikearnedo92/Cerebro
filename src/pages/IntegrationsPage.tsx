@@ -1,21 +1,15 @@
 
-import React from 'react'
+import React, { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Zap, FileText, MessageSquare, FolderOpen, CheckCircle, Clock, AlertCircle } from 'lucide-react'
+import NotionIntegration from '@/components/integrations/NotionIntegration'
 
 const IntegrationsPage = () => {
+  const [notionStatus, setNotionStatus] = useState<'connected' | 'disconnected' | 'pending'>('disconnected')
+  
   const integrations = [
-    {
-      id: 'notion',
-      name: 'Notion',
-      icon: FileText,
-      description: 'Sincroniza documentos y bases de conocimiento desde Notion',
-      status: 'connected',
-      lastSync: '2 horas',
-      documentsCount: 45
-    },
     {
       id: 'slack',
       name: 'Slack',
@@ -80,6 +74,12 @@ const IntegrationsPage = () => {
     }
   }
 
+  // Calcular estadísticas incluyendo Notion
+  const connectedCount = integrations.filter(i => i.status === 'connected').length + 
+                         (notionStatus === 'connected' ? 1 : 0)
+  
+  const totalDocuments = integrations.reduce((sum, i) => sum + i.documentsCount, 0)
+
   return (
     <div className="h-full p-6 space-y-6 overflow-y-auto">
       <div className="flex items-center justify-between">
@@ -103,9 +103,7 @@ const IntegrationsPage = () => {
             <div className="flex items-center space-x-2">
               <CheckCircle className="w-6 h-6 text-green-500" />
               <div>
-                <p className="text-lg font-bold">
-                  {integrations.filter(i => i.status === 'connected').length}
-                </p>
+                <p className="text-lg font-bold">{connectedCount}</p>
                 <p className="text-sm text-gray-600">Integraciones Activas</p>
               </div>
             </div>
@@ -117,9 +115,7 @@ const IntegrationsPage = () => {
             <div className="flex items-center space-x-2">
               <FileText className="w-6 h-6 text-blue-500" />
               <div>
-                <p className="text-lg font-bold">
-                  {integrations.reduce((sum, i) => sum + i.documentsCount, 0)}
-                </p>
+                <p className="text-lg font-bold">{totalDocuments}</p>
                 <p className="text-sm text-gray-600">Documentos Sincronizados</p>
               </div>
             </div>
@@ -131,7 +127,7 @@ const IntegrationsPage = () => {
             <div className="flex items-center space-x-2">
               <Clock className="w-6 h-6 text-purple-500" />
               <div>
-                <p className="text-lg font-bold">2 horas</p>
+                <p className="text-lg font-bold">Ahora</p>
                 <p className="text-sm text-gray-600">Última Sincronización</p>
               </div>
             </div>
@@ -143,6 +139,10 @@ const IntegrationsPage = () => {
       <div className="space-y-4">
         <h2 className="text-lg font-semibold">Integraciones Disponibles</h2>
         
+        {/* Notion Integration - Componente especial */}
+        <NotionIntegration onStatusChange={setNotionStatus} />
+        
+        {/* Otras integraciones */}
         {integrations.map((integration) => {
           const IconComponent = integration.icon
           return (

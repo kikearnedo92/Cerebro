@@ -1,20 +1,16 @@
 
-import React from 'react'
-import { useAuth } from '@/hooks/useAuth'
+import React, { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Card, CardContent } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
   useSidebar,
 } from '@/components/ui/sidebar'
 import {
@@ -26,24 +22,34 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { 
   Brain, 
-  MessageSquare, 
-  Database, 
-  BarChart3, 
-  Users, 
-  Settings2, 
-  Zap,
+  Plus,
+  Search,
+  MessageSquare,
   ChevronUp,
   User,
   LogOut,
-  Plus
+  Database,
+  Users,
+  BarChart3,
+  Zap,
+  Settings2
 } from 'lucide-react'
-import TenantSwitcher from '@/components/TenantSwitcher'
+import { useAuth } from '@/hooks/useAuth'
+import { useConversations } from '@/hooks/useConversations'
 
 export function AppSidebar() {
   const { user, profile, isAdmin, isSuperAdmin, signOut } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const { state } = useSidebar()
+  const [searchTerm, setSearchTerm] = useState('')
+  
+  const {
+    conversations,
+    currentConversation,
+    selectConversation,
+    startNewConversation
+  } = useConversations()
 
   const handleLogout = async () => {
     console.log('🚪 Attempting logout from AppSidebar')
@@ -57,55 +63,25 @@ export function AppSidebar() {
     }
   }
 
-  const mainNavigation = [
-    {
-      title: 'Chat',
-      url: '/chat',
-      icon: MessageSquare,
-      isActive: location.pathname === '/chat',
-    }
-  ]
+  const handleNavigation = (url: string) => {
+    navigate(url)
+  }
 
-  const adminNavigation = [
-    {
-      title: 'Knowledge Base',
-      url: '/knowledge',
-      icon: Database,
-      isActive: location.pathname === '/knowledge',
-      visible: isAdmin || isSuperAdmin
-    },
-    {
-      title: 'Users',
-      url: '/users',
-      icon: Users,
-      isActive: location.pathname === '/users',
-      visible: isAdmin || isSuperAdmin
-    },
-    {
-      title: 'Analytics',
-      url: '/analytics',
-      icon: BarChart3,
-      isActive: location.pathname === '/analytics',
-      visible: isAdmin || isSuperAdmin
-    },
-    {
-      title: 'Integraciones',
-      url: '/integrations',
-      icon: Zap,
-      isActive: location.pathname === '/integrations',
-      visible: isAdmin || isSuperAdmin
-    }
-  ].filter(item => item.visible)
+  const filteredConversations = conversations.filter(conv =>
+    conv.title.toLowerCase().includes(searchTerm.toLowerCase())
+  )
 
-  const superAdminNavigation = [
-    {
-      title: 'Tenants',
-      url: '/admin/tenants',
-      icon: Settings2,
-      isActive: location.pathname === '/admin/tenants',
-      visible: isSuperAdmin
-    }
-  ].filter(item => item.visible)
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString)
+    const now = new Date()
+    const diff = now.getTime() - date.getTime()
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24))
+    
+    if (days === 0) return 'Hoy'
+    if (days === 1) return 'Ayer'
+    if (days < 7) return `Hace ${days} días`
+    return date.toLocaleDateString()
+  }
 
   return (
     <Sidebar variant="sidebar" collapsible="icon">
@@ -117,182 +93,199 @@ export function AppSidebar() {
           {state === "expanded" && (
             <div className="grid flex-1 text-left text-sm leading-tight">
               <span className="truncate font-semibold">CEREBRO</span>
-              <span className="truncate text-xs text-muted-foreground">Asistente IA</span>
+              <span className="truncate text-xs text-muted-foreground">Conversaciones</span>
             </div>
           )}
         </div>
       </SidebarHeader>
 
       <SidebarContent>
-        {/* Tenant Switcher para Super Admins */}
-        <TenantSwitcher />
-
         {/* Nueva Conversación */}
-        <SidebarGroup>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton 
-                  onClick={() => navigate('/chat')}
-                  className="w-full"
-                  tooltip="Nueva Conversación"
+        <div className="p-4 border-b border-sidebar-border">
+          <Button 
+            onClick={startNewConversation}
+            className="w-full flex items-center space-x-2 bg-primary hover:bg-primary/90"
+            size={state === "collapsed" ? "icon" : "default"}
+          >
+            <Plus className="w-4 h-4" />
+            {state === "expanded" && <span>Nueva Conversación</span>}
+          </Button>
+        </div>
+        
+        {/* Search - Solo en modo expandido */}
+        {state === "expanded" && (
+          <div className="p-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar conversaciones..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Lista de Conversaciones */}
+        <ScrollArea className="flex-1 px-2">
+          <div className="space-y-2">
+            {state === "collapsed" ? (
+              // Modo colapsado - solo iconos
+              conversations.slice(0, 5).map((conversation) => (
+                <Button
+                  key={conversation.id}
+                  variant={currentConversation?.id === conversation.id ? "secondary" : "ghost"}
+                  size="icon"
+                  className="w-full h-10"
+                  onClick={() => selectConversation(conversation)}
                 >
-                  <Plus className="h-4 w-4" />
-                  <span>Nueva Conversación</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        {/* Navegación Principal */}
-        <SidebarGroup>
-          <SidebarGroupLabel>Principal</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {mainNavigation.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton 
-                    asChild 
-                    isActive={item.isActive}
-                    tooltip={item.title}
+                  <MessageSquare className="w-4 h-4" />
+                </Button>
+              ))
+            ) : (
+              // Modo expandido - lista completa
+              filteredConversations.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  No hay conversaciones aún
+                </p>
+              ) : (
+                filteredConversations.map((conversation) => (
+                  <Card
+                    key={conversation.id}
+                    className={`p-3 cursor-pointer transition-colors hover:bg-accent ${
+                      currentConversation?.id === conversation.id ? 'border-primary bg-accent' : ''
+                    }`}
+                    onClick={() => selectConversation(conversation)}
                   >
-                    <a href={item.url} onClick={(e) => { e.preventDefault(); navigate(item.url) }}>
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </a>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        {/* Navegación Admin */}
-        {adminNavigation.length > 0 && (
-          <SidebarGroup>
-            <SidebarGroupLabel>Administración</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {adminNavigation.map((item) => (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton 
-                      asChild 
-                      isActive={item.isActive}
-                      tooltip={item.title}
-                    >
-                      <a href={item.url} onClick={(e) => { e.preventDefault(); navigate(item.url) }}>
-                        <item.icon className="h-4 w-4" />
-                        <span>{item.title}</span>
-                      </a>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
-
-        {/* Navegación Super Admin */}
-        {superAdminNavigation.length > 0 && (
-          <SidebarGroup>
-            <SidebarGroupLabel>Super Admin</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {superAdminNavigation.map((item) => (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton 
-                      asChild 
-                      isActive={item.isActive}
-                      tooltip={item.title}
-                    >
-                      <a href={item.url} onClick={(e) => { e.preventDefault(); navigate(item.url) }}>
-                        <item.icon className="h-4 w-4" />
-                        <span>{item.title}</span>
-                      </a>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
+                    <div className="flex items-start space-x-3">
+                      <MessageSquare className="w-4 h-4 text-muted-foreground mt-1 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-foreground truncate">
+                          {conversation.title}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {formatDate(conversation.updated_at)}
+                        </p>
+                      </div>
+                    </div>
+                  </Card>
+                ))
+              )
+            )}
+          </div>
+        </ScrollArea>
       </SidebarContent>
 
       <SidebarFooter>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <SidebarMenuButton size="lg" className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground">
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-purple-100">
-                    <span className="text-sm font-medium text-purple-600">
-                      {user?.email?.charAt(0).toUpperCase()}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              className="w-full justify-start data-[state=open]:bg-accent"
+              size={state === "collapsed" ? "icon" : "default"}
+            >
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-purple-100">
+                <span className="text-sm font-medium text-purple-600">
+                  {user?.email?.charAt(0).toUpperCase()}
+                </span>
+              </div>
+              {state === "expanded" && (
+                <>
+                  <div className="grid flex-1 text-left text-sm leading-tight ml-2">
+                    <span className="truncate font-semibold">
+                      {profile?.full_name || 'Usuario'}
+                    </span>
+                    <span className="truncate text-xs text-muted-foreground">
+                      {profile?.area || 'Sin área'}
                     </span>
                   </div>
-                  {state === "expanded" && (
-                    <div className="grid flex-1 text-left text-sm leading-tight">
-                      <span className="truncate font-semibold">
-                        {profile?.full_name || 'Usuario'}
-                      </span>
-                      <span className="truncate text-xs text-muted-foreground">
-                        {profile?.area || 'Sin área'}
-                      </span>
-                    </div>
-                  )}
                   <ChevronUp className="ml-auto size-4" />
-                </SidebarMenuButton>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent 
-                side="top" 
-                className="w-[--radix-popper-anchor-width]"
-              >
-                <div className="p-2">
-                  <div className="flex items-center gap-2">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-purple-100">
-                      <span className="text-sm font-medium text-purple-600">
-                        {user?.email?.charAt(0).toUpperCase()}
-                      </span>
-                    </div>
-                    <div className="grid flex-1 text-left text-sm leading-tight">
-                      <span className="truncate font-semibold">
-                        {profile?.full_name || 'Usuario'}
-                      </span>
-                      <span className="truncate text-xs text-muted-foreground">
-                        {user?.email}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex gap-1 mt-2">
-                    {isSuperAdmin && (
-                      <Badge variant="default" className="bg-red-600 text-xs">
-                        Super
-                      </Badge>
-                    )}
-                    {isAdmin && !isSuperAdmin && (
-                      <Badge variant="default" className="bg-purple-600 text-xs">
-                        Admin
-                      </Badge>
-                    )}
-                  </div>
+                </>
+              )}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent 
+            side="top" 
+            className="w-64"
+            align={state === "collapsed" ? "start" : "end"}
+          >
+            {/* User Info */}
+            <div className="p-3">
+              <div className="flex items-center gap-2">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-purple-100">
+                  <span className="text-sm font-medium text-purple-600">
+                    {user?.email?.charAt(0).toUpperCase()}
+                  </span>
                 </div>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem>
-                  <User className="mr-2 h-4 w-4" />
-                  Mi Perfil
+                <div className="grid flex-1 text-left text-sm leading-tight">
+                  <span className="truncate font-semibold">
+                    {profile?.full_name || 'Usuario'}
+                  </span>
+                  <span className="truncate text-xs text-muted-foreground">
+                    {user?.email}
+                  </span>
+                </div>
+              </div>
+              <div className="flex gap-1 mt-2">
+                {isSuperAdmin && (
+                  <Badge variant="default" className="bg-red-600 text-xs">
+                    Super
+                  </Badge>
+                )}
+                {isAdmin && !isSuperAdmin && (
+                  <Badge variant="default" className="bg-purple-600 text-xs">
+                    Admin
+                  </Badge>
+                )}
+              </div>
+            </div>
+            
+            <DropdownMenuSeparator />
+            
+            {/* Navigation */}
+            {(isAdmin || isSuperAdmin) && (
+              <>
+                <DropdownMenuItem onClick={() => handleNavigation('/knowledge')}>
+                  <Database className="mr-2 h-4 w-4" />
+                  Knowledge Base
                 </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem 
-                  onClick={handleLogout}
-                  className="text-red-600 focus:text-red-600 focus:bg-red-50"
-                >
-                  <LogOut className="mr-2 h-4 w-4" />
-                  Cerrar Sesión
+                <DropdownMenuItem onClick={() => handleNavigation('/users')}>
+                  <Users className="mr-2 h-4 w-4" />
+                  Users
                 </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </SidebarMenuItem>
-        </SidebarMenu>
+                <DropdownMenuItem onClick={() => handleNavigation('/analytics')}>
+                  <BarChart3 className="mr-2 h-4 w-4" />
+                  Analytics
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleNavigation('/integrations')}>
+                  <Zap className="mr-2 h-4 w-4" />
+                  Integraciones
+                </DropdownMenuItem>
+                {isSuperAdmin && (
+                  <DropdownMenuItem onClick={() => handleNavigation('/admin/tenants')}>
+                    <Settings2 className="mr-2 h-4 w-4" />
+                    Tenants
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuSeparator />
+              </>
+            )}
+            
+            <DropdownMenuItem>
+              <User className="mr-2 h-4 w-4" />
+              Mi Perfil
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem 
+              onClick={handleLogout}
+              className="text-red-600 focus:text-red-600 focus:bg-red-50"
+            >
+              <LogOut className="mr-2 h-4 w-4" />
+              Cerrar Sesión
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </SidebarFooter>
     </Sidebar>
   )
