@@ -1,10 +1,10 @@
+
 import React, { useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Brain, MessageSquare, Database, BarChart3, Users, LogOut, User, Menu, X } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import TenantSwitcher from '@/components/TenantSwitcher'
 
 const Dashboard = () => {
   const { user, profile, isAdmin, isSuperAdmin, signOut } = useAuth()
@@ -22,10 +22,29 @@ const Dashboard = () => {
   }
 
   const navigation = [
-    { id: 'chat', name: 'Chat', icon: MessageSquare },
-    { id: 'knowledge', name: 'Knowledge Base', icon: Database, adminOnly: false },
-    { id: 'analytics', name: 'Analytics', icon: BarChart3, adminOnly: true },
-    { id: 'users', name: 'Usuarios', icon: Users, adminOnly: true }
+    {
+      id: 'chat',
+      name: 'Chat',
+      icon: MessageSquare,
+    },
+    {
+      id: 'knowledge',
+      name: 'Knowledge Base',
+      icon: Database,
+      adminOnly: false,
+    },
+    {
+      id: 'analytics',
+      name: 'Analytics',
+      icon: BarChart3,
+      adminOnly: true,
+    },
+    {
+      id: 'users',
+      name: 'Usuarios',
+      icon: Users,
+      adminOnly: true,
+    }
   ]
 
   const filteredNavigation = navigation.filter(item => !item.adminOnly || isAdmin || isSuperAdmin)
@@ -131,9 +150,6 @@ const Dashboard = () => {
               </Button>
             </div>
           </div>
-
-          {/* Tenant Switcher para Super Admins */}
-          <TenantSwitcher />
 
           {/* User Info */}
           <div className="p-4 border-b border-gray-200">
