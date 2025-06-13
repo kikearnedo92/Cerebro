@@ -89,7 +89,7 @@ export const checkAdminStatus = (profile: Profile | null, userEmail?: string) =>
   console.log('🔍 ProfileService: Admin check -', {
     email: userEmail,
     profileRole: profile?.role_system,
-    isSuperAdmin: profile?.is_super_admin,
+    profileSuperAdmin: profile?.is_super_admin,
     isAdmin,
     isSuperAdmin
   })
