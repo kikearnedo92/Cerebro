@@ -4,281 +4,363 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Send, Bot, User, FileText, ToggleLeft, ToggleRight } from 'lucide-react'
+import { Switch } from '@/components/ui/switch'
+import { Label } from '@/components/ui/label'
+import { Send, Bot, User, FileText, Brain, Sparkles, Loader2 } from 'lucide-react'
+import { useChat } from '@/hooks/useChat'
 import { useAuth } from '@/hooks/useAuth'
-import { useConversations } from '@/hooks/useConversations'
 import { supabase } from '@/integrations/supabase/client'
 import { toast } from '@/hooks/use-toast'
+import { useParams, useNavigate } from 'react-router-dom'
+import { useConversations } from '@/hooks/useConversations'
 
-type ChatMode = 'retorna' | 'openai'
+interface Message {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  timestamp: string
+}
 
 const ConversationalChatInterface = () => {
-  const { user } = useAuth()
-  const {
-    currentConversation,
-    messages,
-    createConversation,
-    addMessage,
-  } = useConversations()
-
-  const [inputMessage, setInputMessage] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [chatMode, setChatMode] = useState<ChatMode>('retorna')
+  const { conversationId } = useParams()
+  const navigate = useNavigate()
+  const { user, profile } = useAuth()
+  const { createConversation, updateConversationTitle } = useConversations()
+  const [messages, setMessages] = useState<Message[]>([])
+  const [input, setInput] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
+  const [useKnowledgeBase, setUseKnowledgeBase] = useState(true)
+  const [currentConversationId, setCurrentConversationId] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
+  const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
-
-  const toggleChatMode = () => {
-    const newMode = chatMode === 'retorna' ? 'openai' : 'retorna'
-    setChatMode(newMode)
-    toast({
-      title: "Modo cambiado",
-      description: `Ahora usando modo ${newMode === 'retorna' ? 'Cerebro (Retorna)' : 'OpenAI General'}`
-    })
   }
 
-  const sendMessage = async () => {
-    if (!inputMessage.trim() || loading || !user) return
+  useEffect(() => {
+    scrollToBottom()
+  }, [messages])
 
-    const messageContent = inputMessage.trim()
-    setInputMessage('')
-    setLoading(true)
+  // Load conversation messages when conversationId changes
+  useEffect(() => {
+    if (conversationId) {
+      setCurrentConversationId(conversationId)
+      loadConversationMessages(conversationId)
+    } else {
+      setCurrentConversationId(null)
+      setMessages([])
+    }
+  }, [conversationId])
 
-    let activeConversationId = currentConversation?.id
-
+  const loadConversationMessages = async (convId: string) => {
     try {
-      // Crear nueva conversación si no existe
-      if (!activeConversationId) {
-        const newConversation = await createConversation(
-          messageContent.slice(0, 50) + (messageContent.length > 50 ? '...' : '')
-        )
-        if (!newConversation) throw new Error('No se pudo crear la conversación')
-        activeConversationId = newConversation.id
+      const { data, error } = await supabase
+        .from('messages')
+        .select('*')
+        .eq('conversation_id', convId)
+        .order('timestamp', { ascending: true })
+
+      if (error) {
+        console.error('Error loading messages:', error)
+        return
       }
 
-      // Agregar mensaje del usuario
-      await addMessage(activeConversationId, 'user', messageContent)
+      setMessages(data || [])
+    } catch (error) {
+      console.error('Error loading conversation messages:', error)
+    }
+  }
 
-      // Llamar a la función de chat AI con el modo
-      console.log(`💬 Sending message to ${chatMode.toUpperCase()} mode:`, messageContent)
+  const checkQueryLimit = async (): Promise<boolean> => {
+    if (!user || !profile) return false
 
+    const today = new Date().toISOString().split('T')[0]
+    const limit = profile.daily_query_limit || 50
+    const used = profile.queries_used_today || 0
+    const lastReset = profile.last_query_reset
+
+    // Reset counter if it's a new day
+    if (lastReset !== today) {
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          queries_used_today: 0,
+          last_query_reset: today
+        })
+        .eq('id', user.id)
+
+      if (error) {
+        console.error('Error resetting query counter:', error)
+      }
+      return true
+    }
+
+    // Check if limit is reached (unlimited if limit is -1)
+    if (limit !== -1 && used >= limit) {
+      toast({
+        title: "Límite de consultas alcanzado",
+        description: `Has alcanzado tu límite diario de ${limit} consultas. Contacta al administrador.`,
+        variant: "destructive"
+      })
+      return false
+    }
+
+    return true
+  }
+
+  const incrementQueryCount = async () => {
+    if (!user) return
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({
+        queries_used_today: (profile?.queries_used_today || 0) + 1
+      })
+      .eq('id', user.id)
+
+    if (error) {
+      console.error('Error incrementing query count:', error)
+    }
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!input.trim() || isLoading || !user) return
+
+    // Check query limits
+    const canQuery = await checkQueryLimit()
+    if (!canQuery) return
+
+    const userMessage = input.trim()
+    setInput('')
+    setIsLoading(true)
+
+    try {
+      let activeConversationId = currentConversationId
+
+      // Create new conversation if none exists
+      if (!activeConversationId) {
+        activeConversationId = await createConversation('Nueva conversación')
+        setCurrentConversationId(activeConversationId)
+        navigate(`/chat/${activeConversationId}`, { replace: true })
+      }
+
+      // Add user message to UI immediately
+      const newUserMessage: Message = {
+        id: `temp-${Date.now()}`,
+        role: 'user',
+        content: userMessage,
+        timestamp: new Date().toISOString()
+      }
+      setMessages(prev => [...prev, newUserMessage])
+
+      // Save user message to database
+      const { data: savedUserMessage, error: userError } = await supabase
+        .from('messages')
+        .insert({
+          conversation_id: activeConversationId,
+          role: 'user',
+          content: userMessage
+        })
+        .select()
+        .single()
+
+      if (userError) {
+        console.error('Error saving user message:', userError)
+      } else {
+        // Update message with real ID
+        setMessages(prev => prev.map(msg => 
+          msg.id === newUserMessage.id ? { ...savedUserMessage } : msg
+        ))
+      }
+
+      // Update conversation title with first message
+      if (messages.length === 0) {
+        const title = userMessage.length > 50 ? userMessage.substring(0, 50) + '...' : userMessage
+        await updateConversationTitle(activeConversationId, title)
+      }
+
+      // Call AI function
       const { data, error } = await supabase.functions.invoke('chat-ai', {
         body: {
-          message: messageContent,
-          userId: user.id,
-          mode: chatMode,
-          conversationHistory: messages.slice(-10).map(m => ({
-            role: m.role,
-            content: m.content
-          }))
+          message: userMessage,
+          useKnowledgeBase: useKnowledgeBase,
+          conversationId: activeConversationId
         }
       })
 
       if (error) {
-        throw new Error(error.message)
+        throw error
       }
 
-      // Agregar respuesta del asistente
-      await addMessage(
-        activeConversationId, 
-        'assistant', 
-        data.response,
-        data.sources
-      )
+      // Add AI response to messages
+      const aiMessage: Message = {
+        id: `ai-${Date.now()}`,
+        role: 'assistant',
+        content: data.response,
+        timestamp: new Date().toISOString()
+      }
+      setMessages(prev => [...prev, aiMessage])
 
-      console.log(`✅ ${chatMode.toUpperCase()} response received`)
-
-      // Mostrar info si no encontró contenido relevante en modo Retorna
-      if (chatMode === 'retorna' && !data.foundRelevantContent) {
-        toast({
-          title: "Información",
-          description: "No se encontró contenido específico en la base de conocimiento. La respuesta se basa en el conocimiento general de CEREBRO.",
-          variant: "default"
+      // Save AI message to database
+      const { error: aiError } = await supabase
+        .from('messages')
+        .insert({
+          conversation_id: activeConversationId,
+          role: 'assistant',
+          content: data.response
         })
+
+      if (aiError) {
+        console.error('Error saving AI message:', aiError)
       }
+
+      // Increment query count
+      await incrementQueryCount()
 
     } catch (error) {
       console.error('Chat error:', error)
-      
-      if (activeConversationId) {
-        await addMessage(
-          activeConversationId,
-          'assistant',
-          `❌ Error: ${error instanceof Error ? error.message : 'Error desconocido'}\n\nPor favor intenta de nuevo o contacta al administrador.`
-        )
-      }
-      
       toast({
         title: "Error",
-        description: "Hubo un problema al procesar tu mensaje. Inténtalo de nuevo.",
+        description: "Hubo un problema con el chat. Inténtalo de nuevo.",
         variant: "destructive"
       })
     } finally {
-      setLoading(false)
+      setIsLoading(false)
     }
   }
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      sendMessage()
-    }
-  }
-
-  if (!user) {
-    return (
-      <div className="h-full flex items-center justify-center">
-        <Card className="p-8 text-center">
-          <CardContent>
-            <Bot className="h-12 w-12 text-purple-600 mx-auto mb-4" />
-            <h2 className="text-xl font-semibold mb-2">Bienvenido a CEREBRO</h2>
-            <p className="text-gray-600">Inicia sesión para comenzar a chatear con la IA</p>
-          </CardContent>
-        </Card>
-      </div>
-    )
+  const formatMessage = (content: string) => {
+    return content.split('\n').map((line, index) => (
+      <React.Fragment key={index}>
+        {line}
+        {index < content.split('\n').length - 1 && <br />}
+      </React.Fragment>
+    ))
   }
 
   return (
-    <div className="h-full flex flex-col bg-background">
+    <div className="flex flex-col h-full bg-gray-50">
       {/* Header */}
-      <div className="bg-card border-b border-border p-4">
-        <div className="flex items-center justify-between">
+      <div className="bg-white border-b border-gray-200 p-4">
+        <div className="flex items-center justify-between max-w-4xl mx-auto">
           <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
-              <Bot className="w-4 h-4 text-primary-foreground" />
+            <div className="w-10 h-10 bg-gradient-to-br from-purple-600 to-blue-600 rounded-lg flex items-center justify-center">
+              <Bot className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h1 className="text-lg font-semibold text-foreground">
-                {currentConversation ? currentConversation.title : 'CEREBRO'}
-              </h1>
-              <p className="text-sm text-muted-foreground">Asistente inteligente de Retorna</p>
+              <h1 className="text-xl font-bold text-gray-900">CEREBRO AI</h1>
+              <p className="text-sm text-gray-600">Tu asistente inteligente</p>
             </div>
           </div>
           
-          {/* Chat Mode Toggle */}
-          <div className="flex items-center space-x-3">
-            <span className="text-sm text-muted-foreground">
-              {chatMode === 'retorna' ? 'Conocimiento Retorna' : 'OpenAI General'}
-            </span>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={toggleChatMode}
-              className="flex items-center space-x-2"
-            >
-              {chatMode === 'retorna' ? (
-                <ToggleLeft className="w-5 h-5 text-primary" />
+          <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2">
+              <Label htmlFor="knowledge-toggle" className="text-sm font-medium">
+                Usar base de conocimiento
+              </Label>
+              <Switch
+                id="knowledge-toggle"
+                checked={useKnowledgeBase}
+                onCheckedChange={setUseKnowledgeBase}
+              />
+            </div>
+            <Badge variant={useKnowledgeBase ? "default" : "secondary"}>
+              {useKnowledgeBase ? (
+                <>
+                  <Brain className="w-3 h-3 mr-1" />
+                  Retorna
+                </>
               ) : (
-                <ToggleRight className="w-5 h-5 text-primary" />
+                <>
+                  <Sparkles className="w-3 h-3 mr-1" />
+                  OpenAI
+                </>
               )}
-            </Button>
+            </Badge>
           </div>
         </div>
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 overflow-y-auto p-4">
         <div className="max-w-4xl mx-auto space-y-6">
           {messages.length === 0 ? (
             <div className="text-center py-12">
-              <Bot className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-foreground mb-2">
-                ¡Hola {user?.email?.split('@')[0]}! 👋
+              <div className="w-16 h-16 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Bot className="w-8 h-8 text-white" />
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                ¡Hola! Soy CEREBRO AI
               </h3>
-              <p className="text-muted-foreground max-w-md mx-auto mb-4">
-                Soy CEREBRO, tu asistente de IA. Actualmente en modo{' '}
-                <Badge variant="outline" className="mx-1">
-                  {chatMode === 'retorna' ? 'Conocimiento Retorna' : 'OpenAI General'}
-                </Badge>
+              <p className="text-gray-600 mb-4">
+                {useKnowledgeBase 
+                  ? "Estoy aquí para ayudarte con información específica de Retorna. ¿En qué puedo asistirte?"
+                  : "Estoy funcionando con OpenAI. Puedo ayudarte con cualquier pregunta general."
+                }
               </p>
-              <div className="grid grid-cols-2 gap-3 text-sm max-w-md mx-auto">
-                <div className="flex items-center space-x-2 text-left">
-                  <FileText className="w-4 h-4 text-primary" />
-                  <span>Documentos internos</span>
-                </div>
-                <div className="flex items-center space-x-2 text-left">
-                  <FileText className="w-4 h-4 text-primary" />
-                  <span>Políticas y procesos</span>
-                </div>
-                <div className="flex items-center space-x-2 text-left">
-                  <FileText className="w-4 h-4 text-primary" />
-                  <span>Atención al cliente</span>
-                </div>
-                <div className="flex items-center space-x-2 text-left">
-                  <FileText className="w-4 h-4 text-primary" />
-                  <span>Compliance</span>
-                </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto">
+                <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setInput('¿Cuáles son las políticas de Retorna?')}>
+                  <CardContent className="p-4">
+                    <FileText className="w-6 h-6 text-purple-600 mb-2" />
+                    <h4 className="font-medium mb-1">Políticas empresariales</h4>
+                    <p className="text-sm text-gray-600">Consulta sobre normativas y procedimientos</p>
+                  </CardContent>
+                </Card>
+                <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setInput('¿Cómo funciona el proceso de onboarding?')}>
+                  <CardContent className="p-4">
+                    <User className="w-6 h-6 text-blue-600 mb-2" />
+                    <h4 className="font-medium mb-1">Procesos de trabajo</h4>
+                    <p className="text-sm text-gray-600">Información sobre flujos y procedimientos</p>
+                  </CardContent>
+                </Card>
               </div>
             </div>
           ) : (
             messages.map((message) => (
-              <div
-                key={message.id}
-                className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-              >
-                <div className={`flex items-start space-x-3 max-w-3xl ${message.role === 'user' ? 'flex-row-reverse space-x-reverse' : ''}`}>
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                    message.role === 'user' ? 'bg-primary' : 'bg-secondary'
-                  }`}>
-                    {message.role === 'user' ? (
-                      <User className="w-4 h-4 text-primary-foreground" />
-                    ) : (
-                      <Bot className="w-4 h-4 text-primary" />
-                    )}
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Card className={`${
+              <div key={message.id} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div className={`flex max-w-3xl ${message.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
+                  <div className={`flex-shrink-0 ${message.role === 'user' ? 'ml-3' : 'mr-3'}`}>
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
                       message.role === 'user' 
-                        ? 'bg-primary text-primary-foreground' 
-                        : 'bg-card border-border'
+                        ? 'bg-purple-600' 
+                        : 'bg-gradient-to-br from-purple-600 to-blue-600'
                     }`}>
-                      <CardContent className="p-4">
-                        <div className="prose prose-sm max-w-none">
-                          <div className="whitespace-pre-wrap">{message.content}</div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                    
-                    {message.sources_used && message.sources_used.length > 0 && (
-                      <div className="flex flex-wrap gap-2">
-                        <span className="text-xs text-muted-foreground">Fuentes:</span>
-                        {message.sources_used.map((source, index) => (
-                          <Badge key={index} variant="outline" className="text-xs">
-                            <FileText className="w-3 h-3 mr-1" />
-                            {source}
-                          </Badge>
-                        ))}
-                      </div>
-                    )}
-                    
-                    <p className="text-xs text-muted-foreground">
-                      {new Date(message.timestamp).toLocaleTimeString()}
-                    </p>
+                      {message.role === 'user' ? (
+                        <User className="w-4 h-4 text-white" />
+                      ) : (
+                        <Bot className="w-4 h-4 text-white" />
+                      )}
+                    </div>
                   </div>
+                  <Card className={`${message.role === 'user' ? 'bg-purple-600 text-white' : 'bg-white'}`}>
+                    <CardContent className="p-4">
+                      <div className="prose max-w-none">
+                        {formatMessage(message.content)}
+                      </div>
+                      <div className={`text-xs mt-2 ${message.role === 'user' ? 'text-purple-100' : 'text-gray-500'}`}>
+                        {new Date(message.timestamp).toLocaleTimeString()}
+                      </div>
+                    </CardContent>
+                  </Card>
                 </div>
               </div>
             ))
           )}
           
-          {loading && (
+          {isLoading && (
             <div className="flex justify-start">
-              <div className="flex items-start space-x-3 max-w-3xl">
-                <div className="w-8 h-8 rounded-full flex items-center justify-center bg-secondary">
-                  <Bot className="w-4 h-4 text-primary" />
+              <div className="flex">
+                <div className="flex-shrink-0 mr-3">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center">
+                    <Bot className="w-4 h-4 text-white" />
+                  </div>
                 </div>
-                <Card className="bg-card">
+                <Card className="bg-white">
                   <CardContent className="p-4">
                     <div className="flex items-center space-x-2">
-                      <span className="text-sm text-muted-foreground">CEREBRO está pensando</span>
-                      <div className="flex space-x-1">
-                        <div className="w-2 h-2 bg-primary rounded-full animate-bounce"></div>
-                        <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                        <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                      </div>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span className="text-gray-600">Pensando...</span>
                     </div>
                   </CardContent>
                 </Card>
@@ -291,28 +373,35 @@ const ConversationalChatInterface = () => {
       </div>
 
       {/* Input */}
-      <div className="bg-card border-t border-border p-4">
+      <div className="bg-white border-t border-gray-200 p-4">
         <div className="max-w-4xl mx-auto">
-          <div className="flex space-x-2">
+          <form onSubmit={handleSubmit} className="flex space-x-4">
             <Input
-              value={inputMessage}
-              onChange={(e) => setInputMessage(e.target.value)}
-              onKeyPress={handleKeyPress}
-              placeholder="Pregúntale algo a CEREBRO..."
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Escribe tu mensaje aquí..."
+              disabled={isLoading}
               className="flex-1"
-              disabled={loading}
             />
-            <Button 
-              onClick={sendMessage}
-              disabled={!inputMessage.trim() || loading}
-              className="bg-primary hover:bg-primary/90"
-            >
-              <Send className="w-4 h-4" />
+            <Button type="submit" disabled={isLoading || !input.trim()} className="bg-purple-600 hover:bg-purple-700">
+              {isLoading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Send className="w-4 h-4" />
+              )}
             </Button>
-          </div>
-          <p className="text-xs text-muted-foreground mt-2 text-center">
-            Presiona Enter para enviar • CEREBRO puede cometer errores, verifica información importante.
-          </p>
+          </form>
+          
+          {profile && (
+            <div className="flex justify-between items-center mt-2 text-xs text-gray-500">
+              <span>
+                Consultas hoy: {profile.queries_used_today || 0}/{profile.daily_query_limit === -1 ? '∞' : profile.daily_query_limit}
+              </span>
+              <span>
+                Modo: {useKnowledgeBase ? 'Base de conocimiento' : 'OpenAI general'}
+              </span>
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -1,312 +1,262 @@
 
-import React, { useState } from 'react'
+import React from 'react'
+import { Calendar, FileText, Users, Settings, BarChart3, Puzzle, MessageSquare, Trash2, Plus } from 'lucide-react'
+import { useAuth } from '@/hooks/useAuth'
+import { useConversations } from '@/hooks/useConversations'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Card, CardContent } from '@/components/ui/card'
+import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
-import { ScrollArea } from '@/components/ui/scroll-area'
+import { Button } from '@/components/ui/button'
 import {
   Sidebar,
   SidebarContent,
-  SidebarFooter,
   SidebarHeader,
-  useSidebar,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarFooter,
 } from '@/components/ui/sidebar'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { 
-  Brain, 
-  Plus,
-  Search,
-  MessageSquare,
-  ChevronUp,
-  User,
-  LogOut,
-  Database,
-  Users,
-  BarChart3,
-  Zap,
-  Settings2
-} from 'lucide-react'
-import { useAuth } from '@/hooks/useAuth'
-import { useConversations } from '@/hooks/useConversations'
+import { TenantSwitcher } from '@/components/TenantSwitcher'
+import { supabase } from '@/integrations/supabase/client'
+import { toast } from '@/hooks/use-toast'
 
-export function AppSidebar() {
-  const { user, profile, isAdmin, isSuperAdmin, signOut } = useAuth()
+const AppSidebar = () => {
+  const { user, profile, isAdmin, isSuperAdmin } = useAuth()
+  const { conversations, loading, refreshConversations, createConversation } = useConversations()
   const navigate = useNavigate()
   const location = useLocation()
-  const { state } = useSidebar()
-  const [searchTerm, setSearchTerm] = useState('')
-  
-  const {
-    conversations,
-    currentConversation,
-    selectConversation,
-    startNewConversation
-  } = useConversations()
 
-  const handleLogout = async () => {
-    console.log('🚪 Attempting logout from AppSidebar')
+  const handleDeleteConversation = async (conversationId: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    e.preventDefault()
+    
     try {
-      await signOut()
-      console.log('✅ Logout successful, redirecting to landing')
-      navigate('/landing', { replace: true })
+      const { error } = await supabase
+        .from('conversations')
+        .delete()
+        .eq('id', conversationId)
+
+      if (error) throw error
+
+      await refreshConversations()
+      
+      // Si estamos en la conversación que se eliminó, navegar al chat
+      if (location.pathname.includes(conversationId)) {
+        navigate('/chat')
+      }
+      
+      toast({
+        title: "Conversación eliminada",
+        description: "La conversación ha sido eliminada correctamente"
+      })
     } catch (error) {
-      console.error('❌ Logout error:', error)
-      navigate('/landing', { replace: true })
+      console.error('Error deleting conversation:', error)
+      toast({
+        title: "Error",
+        description: "No se pudo eliminar la conversación",
+        variant: "destructive"
+      })
     }
   }
 
-  const handleNavigation = (url: string) => {
-    navigate(url)
-  }
-
-  const handleNewConversation = () => {
-    console.log('🆕 Starting new conversation from sidebar')
-    startNewConversation()
-    
-    // Navigate to chat if not already there
-    if (location.pathname !== '/chat') {
-      navigate('/chat')
+  const handleNewConversation = async () => {
+    try {
+      const conversationId = await createConversation()
+      navigate(`/chat/${conversationId}`)
+    } catch (error) {
+      console.error('Error creating conversation:', error)
+      toast({
+        title: "Error",
+        description: "No se pudo crear la conversación",
+        variant: "destructive"
+      })
     }
   }
 
-  const filteredConversations = conversations.filter(conv =>
-    conv.title.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  const handleConversationClick = (conversationId: string) => {
+    navigate(`/chat/${conversationId}`)
+  }
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    const now = new Date()
-    const diff = now.getTime() - date.getTime()
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24))
-    
-    if (days === 0) return 'Hoy'
-    if (days === 1) return 'Ayer'
-    if (days < 7) return `Hace ${days} días`
-    return date.toLocaleDateString()
+  const isActive = (path: string) => {
+    if (path === '/chat') {
+      return location.pathname === '/chat' || location.pathname.startsWith('/chat/')
+    }
+    return location.pathname === path
   }
 
   return (
-    <Sidebar variant="sidebar" collapsible="icon">
+    <Sidebar variant="inset">
       <SidebarHeader>
-        <div className="flex items-center gap-2 px-2 py-4">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <Brain className="h-4 w-4" />
-          </div>
-          {state === "expanded" && (
-            <div className="grid flex-1 text-left text-sm leading-tight">
-              <span className="truncate font-semibold">CEREBRO</span>
-              <span className="truncate text-xs text-muted-foreground">Conversaciones</span>
-            </div>
-          )}
+        {isSuperAdmin && <TenantSwitcher />}
+        
+        <div className="px-4 py-2">
+          <h2 className="text-lg font-semibold">CEREBRO</h2>
+          <p className="text-sm text-gray-500">AI Assistant</p>
         </div>
       </SidebarHeader>
 
       <SidebarContent>
-        {/* Nueva Conversación */}
-        <div className="p-4 border-b border-sidebar-border">
-          <Button 
-            onClick={handleNewConversation}
-            className="w-full flex items-center space-x-2 bg-primary hover:bg-primary/90"
-            size={state === "collapsed" ? "icon" : "default"}
-          >
-            <Plus className="w-4 h-4" />
-            {state === "expanded" && <span>Nueva Conversación</span>}
-          </Button>
-        </div>
-        
-        {/* Search - Solo en modo expandido */}
-        {state === "expanded" && (
-          <div className="p-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Buscar conversaciones..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
+        {/* Conversations Section */}
+        <div className="px-4 py-2">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-medium text-gray-700">Conversaciones</h3>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleNewConversation}
+              className="h-6 w-6 p-0"
+            >
+              <Plus className="h-4 w-4" />
+            </Button>
+          </div>
+          
+          {loading ? (
+            <div className="space-y-2">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="h-8 bg-gray-100 rounded animate-pulse" />
+              ))}
             </div>
-          </div>
-        )}
-
-        {/* Lista de Conversaciones */}
-        <ScrollArea className="flex-1 px-2">
-          <div className="space-y-2">
-            {state === "collapsed" ? (
-              // Modo colapsado - solo iconos
-              conversations.slice(0, 5).map((conversation) => (
-                <Button
+          ) : conversations.length === 0 ? (
+            <div className="text-sm text-gray-500 text-center py-4">
+              No hay conversaciones
+            </div>
+          ) : (
+            <div className="space-y-1 max-h-64 overflow-y-auto">
+              {conversations.map((conversation) => (
+                <div
                   key={conversation.id}
-                  variant={currentConversation?.id === conversation.id ? "secondary" : "ghost"}
-                  size="icon"
-                  className="w-full h-10"
-                  onClick={() => {
-                    selectConversation(conversation)
-                    if (location.pathname !== '/chat') {
-                      navigate('/chat')
-                    }
-                  }}
+                  className={cn(
+                    "flex items-center justify-between p-2 rounded-lg cursor-pointer hover:bg-gray-100 group",
+                    location.pathname.includes(conversation.id) && "bg-purple-50 border border-purple-200"
+                  )}
+                  onClick={() => handleConversationClick(conversation.id)}
                 >
-                  <MessageSquare className="w-4 h-4" />
-                </Button>
-              ))
-            ) : (
-              // Modo expandido - lista completa
-              filteredConversations.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">
-                  No hay conversaciones aún
-                </p>
-              ) : (
-                filteredConversations.map((conversation) => (
-                  <Card
-                    key={conversation.id}
-                    className={`p-3 cursor-pointer transition-colors hover:bg-accent ${
-                      currentConversation?.id === conversation.id ? 'border-primary bg-accent' : ''
-                    }`}
-                    onClick={() => {
-                      selectConversation(conversation)
-                      if (location.pathname !== '/chat') {
-                        navigate('/chat')
-                      }
-                    }}
+                  <div className="flex items-center space-x-2 flex-1 min-w-0">
+                    <MessageSquare className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                    <span className="text-sm truncate">{conversation.title}</span>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => handleDeleteConversation(conversation.id, e)}
+                    className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100"
                   >
-                    <div className="flex items-start space-x-3">
-                      <MessageSquare className="w-4 h-4 text-muted-foreground mt-1 flex-shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-foreground truncate">
-                          {conversation.title}
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {formatDate(conversation.updated_at)}
-                        </p>
-                      </div>
-                    </div>
-                  </Card>
-                ))
-              )
-            )}
-          </div>
-        </ScrollArea>
+                    <Trash2 className="h-3 w-3 text-red-500" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </SidebarContent>
 
       <SidebarFooter>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              className="w-full justify-start data-[state=open]:bg-accent"
-              size={state === "collapsed" ? "icon" : "default"}
-            >
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-purple-100">
-                <span className="text-sm font-medium text-purple-600">
-                  {user?.email?.charAt(0).toUpperCase()}
-                </span>
-              </div>
-              {state === "expanded" && (
-                <>
-                  <div className="grid flex-1 text-left text-sm leading-tight ml-2">
-                    <span className="truncate font-semibold">
-                      {profile?.full_name || 'Usuario'}
-                    </span>
-                    <span className="truncate text-xs text-muted-foreground">
-                      {profile?.area || 'Sin área'}
-                    </span>
-                  </div>
-                  <ChevronUp className="ml-auto size-4" />
-                </>
-              )}
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent 
-            side="top" 
-            className="w-64"
-            align={state === "collapsed" ? "start" : "end"}
-          >
-            {/* User Info */}
-            <div className="p-3">
-              <div className="flex items-center gap-2">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-purple-100">
-                  <span className="text-sm font-medium text-purple-600">
-                    {user?.email?.charAt(0).toUpperCase()}
-                  </span>
-                </div>
-                <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold">
-                    {profile?.full_name || 'Usuario'}
-                  </span>
-                  <span className="truncate text-xs text-muted-foreground">
-                    {user?.email}
-                  </span>
-                </div>
-              </div>
-              <div className="flex gap-1 mt-2">
-                {isSuperAdmin && (
-                  <Badge variant="default" className="bg-red-600 text-xs">
-                    Super
-                  </Badge>
-                )}
-                {isAdmin && !isSuperAdmin && (
-                  <Badge variant="default" className="bg-purple-600 text-xs">
-                    Admin
-                  </Badge>
-                )}
-              </div>
-            </div>
-            
-            <DropdownMenuSeparator />
-            
-            {/* Navigation */}
-            {(isAdmin || isSuperAdmin) && (
-              <>
-                <DropdownMenuItem onClick={() => handleNavigation('/knowledge')}>
-                  <Database className="mr-2 h-4 w-4" />
-                  Knowledge Base
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <SidebarMenuButton>
+                  <Settings className="w-4 h-4" />
+                  <span>Navegación</span>
+                </SidebarMenuButton>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent side="top" align="start" className="w-56">
+                <DropdownMenuLabel>Páginas</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                
+                <DropdownMenuItem 
+                  onClick={() => navigate('/chat')}
+                  className={cn(isActive('/chat') && "bg-purple-50")}
+                >
+                  <MessageSquare className="w-4 h-4 mr-2" />
+                  Chat
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleNavigation('/users')}>
-                  <Users className="mr-2 h-4 w-4" />
-                  Users
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleNavigation('/analytics')}>
-                  <BarChart3 className="mr-2 h-4 w-4" />
+                
+                <DropdownMenuItem 
+                  onClick={() => navigate('/analytics')}
+                  className={cn(isActive('/analytics') && "bg-purple-50")}
+                >
+                  <BarChart3 className="w-4 h-4 mr-2" />
                   Analytics
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleNavigation('/integrations')}>
-                  <Zap className="mr-2 h-4 w-4" />
-                  Integraciones
-                </DropdownMenuItem>
-                {isSuperAdmin && (
-                  <DropdownMenuItem onClick={() => handleNavigation('/admin/tenants')}>
-                    <Settings2 className="mr-2 h-4 w-4" />
-                    Tenants
-                  </DropdownMenuItem>
+                
+                {(isAdmin || isSuperAdmin) && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuLabel>
+                      Administración
+                      {isSuperAdmin && <Badge className="ml-2 bg-red-600">Super</Badge>}
+                      {isAdmin && !isSuperAdmin && <Badge className="ml-2">Admin</Badge>}
+                    </DropdownMenuLabel>
+                    
+                    <DropdownMenuItem 
+                      onClick={() => navigate('/admin/knowledge')}
+                      className={cn(isActive('/admin/knowledge') && "bg-purple-50")}
+                    >
+                      <FileText className="w-4 h-4 mr-2" />
+                      Knowledge Base
+                    </DropdownMenuItem>
+                    
+                    <DropdownMenuItem 
+                      onClick={() => navigate('/users')}
+                      className={cn(isActive('/users') && "bg-purple-50")}
+                    >
+                      <Users className="w-4 h-4 mr-2" />
+                      Usuarios
+                    </DropdownMenuItem>
+                    
+                    <DropdownMenuItem 
+                      onClick={() => navigate('/integrations')}
+                      className={cn(isActive('/integrations') && "bg-purple-50")}
+                    >
+                      <Puzzle className="w-4 h-4 mr-2" />
+                      Integraciones
+                    </DropdownMenuItem>
+                    
+                    <DropdownMenuItem 
+                      onClick={() => navigate('/admin/analytics')}
+                      className={cn(isActive('/admin/analytics') && "bg-purple-50")}
+                    >
+                      <BarChart3 className="w-4 h-4 mr-2" />
+                      Analytics Admin
+                    </DropdownMenuItem>
+                  </>
                 )}
+
+                {isSuperAdmin && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuLabel>Super Admin</DropdownMenuLabel>
+                    <DropdownMenuItem 
+                      onClick={() => navigate('/admin/tenants')}
+                      className={cn(isActive('/admin/tenants') && "bg-purple-50")}
+                    >
+                      <Settings className="w-4 h-4 mr-2" />
+                      Tenants
+                    </DropdownMenuItem>
+                  </>
+                )}
+                
                 <DropdownMenuSeparator />
-              </>
-            )}
-            
-            <DropdownMenuItem>
-              <User className="mr-2 h-4 w-4" />
-              Mi Perfil
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem 
-              onClick={handleLogout}
-              className="text-red-600 focus:text-red-600 focus:bg-red-50"
-            >
-              <LogOut className="mr-2 h-4 w-4" />
-              Cerrar Sesión
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+                <DropdownMenuItem onClick={() => navigate('/profile')}>
+                  <Settings className="w-4 h-4 mr-2" />
+                  Perfil
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </SidebarMenuItem>
+        </SidebarMenu>
       </SidebarFooter>
     </Sidebar>
   )
 }
+
+export default AppSidebar

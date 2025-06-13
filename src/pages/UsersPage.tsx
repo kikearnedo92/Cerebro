@@ -7,7 +7,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { Users, UserPlus, Mail, Calendar, Shield, Building, User, Search } from 'lucide-react'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
+import { Users, UserPlus, Mail, Calendar, Shield, Building, User, Search, Trash2, Settings } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/integrations/supabase/client'
 import { toast } from '@/hooks/use-toast'
@@ -21,16 +22,19 @@ interface UserProfile {
   role_system: string
   created_at: string
   last_login?: string
+  daily_query_limit: number
+  queries_used_today: number
 }
 
 const UsersPage = () => {
-  const { user } = useAuth()
+  const { user, isSuperAdmin, isAdmin } = useAuth()
   const [users, setUsers] = useState<UserProfile[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [inviteModalOpen, setInviteModalOpen] = useState(false)
   const [inviting, setInviting] = useState(false)
+  const [editingUser, setEditingUser] = useState<UserProfile | null>(null)
 
   // Invite form state
   const [inviteForm, setInviteForm] = useState({
@@ -56,7 +60,9 @@ const UsersPage = () => {
           rol_empresa,
           role_system,
           created_at,
-          last_login
+          last_login,
+          daily_query_limit,
+          queries_used_today
         `)
         .order('created_at', { ascending: false })
 
@@ -177,6 +183,69 @@ const UsersPage = () => {
     }
   }
 
+  const updateUserQueryLimit = async (userId: string, newLimit: number) => {
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ daily_query_limit: newLimit })
+        .eq('id', userId)
+
+      if (error) {
+        throw new Error(`Error actualizando límite: ${error.message}`)
+      }
+
+      // Update local state
+      setUsers(prev => prev.map(u => 
+        u.id === userId ? { ...u, daily_query_limit: newLimit } : u
+      ))
+
+      toast({
+        title: "Éxito",
+        description: "Límite de consultas actualizado"
+      })
+
+    } catch (error) {
+      console.error('Query limit update error:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido'
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive"
+      })
+    }
+  }
+
+  const deleteUser = async (userId: string, userEmail: string) => {
+    try {
+      // Delete from profiles table
+      const { error } = await supabase
+        .from('profiles')
+        .delete()
+        .eq('id', userId)
+
+      if (error) {
+        throw new Error(`Error eliminando usuario: ${error.message}`)
+      }
+
+      // Update local state
+      setUsers(prev => prev.filter(u => u.id !== userId))
+
+      toast({
+        title: "Usuario eliminado",
+        description: `${userEmail} ha sido eliminado del sistema`
+      })
+
+    } catch (error) {
+      console.error('Delete user error:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido'
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive"
+      })
+    }
+  }
+
   const filteredUsers = users.filter(user => 
     user.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -184,8 +253,28 @@ const UsersPage = () => {
   )
 
   useEffect(() => {
-    fetchUsers()
-  }, [])
+    if (isAdmin || isSuperAdmin) {
+      fetchUsers()
+    }
+  }, [isAdmin, isSuperAdmin])
+
+  if (!isAdmin && !isSuperAdmin) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <Card className="border-red-200 bg-red-50">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-3">
+              <Shield className="w-8 h-8 text-red-600" />
+              <div>
+                <h3 className="font-medium text-red-900">Acceso restringido</h3>
+                <p className="text-sm text-red-700">No tienes permisos para acceder a esta página</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 
   if (loading) {
     return (
@@ -334,7 +423,7 @@ const UsersPage = () => {
               <Shield className="h-8 w-8 text-purple-600" />
               <div className="ml-4">
                 <p className="text-sm text-gray-600">Administradores</p>
-                <p className="text-2xl font-bold">{users.filter(u => u.role_system === 'admin').length}</p>
+                <p className="text-2xl font-bold">{users.filter(u => u.role_system === 'admin' || u.role_system === 'super_admin').length}</p>
               </div>
             </div>
           </CardContent>
@@ -405,6 +494,9 @@ const UsersPage = () => {
                         <Badge variant="outline" className="text-xs">
                           {userProfile.rol_empresa}
                         </Badge>
+                        <Badge variant="outline" className="text-xs">
+                          {userProfile.queries_used_today || 0}/{userProfile.daily_query_limit || 50} consultas
+                        </Badge>
                       </div>
                     </div>
                   </div>
@@ -420,18 +512,66 @@ const UsersPage = () => {
                     )}
                     
                     {userProfile.email !== user?.email && (
-                      <Select
-                        value={userProfile.role_system}
-                        onValueChange={(value) => updateUserRole(userProfile.id, value)}
-                      >
-                        <SelectTrigger className="w-32">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="user">Usuario</SelectItem>
-                          <SelectItem value="admin">Admin</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <div className="flex items-center gap-2">
+                        <Select
+                          value={userProfile.role_system}
+                          onValueChange={(value) => updateUserRole(userProfile.id, value)}
+                        >
+                          <SelectTrigger className="w-32">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="user">Usuario</SelectItem>
+                            <SelectItem value="admin">Admin</SelectItem>
+                            {isSuperAdmin && <SelectItem value="super_admin">Super Admin</SelectItem>}
+                          </SelectContent>
+                        </Select>
+                        
+                        <Select
+                          value={userProfile.daily_query_limit?.toString() || "50"}
+                          onValueChange={(value) => updateUserQueryLimit(userProfile.id, parseInt(value))}
+                        >
+                          <SelectTrigger className="w-20">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="10">10</SelectItem>
+                            <SelectItem value="25">25</SelectItem>
+                            <SelectItem value="50">50</SelectItem>
+                            <SelectItem value="100">100</SelectItem>
+                            <SelectItem value="500">500</SelectItem>
+                            <SelectItem value="-1">∞</SelectItem>
+                          </SelectContent>
+                        </Select>
+
+                        {isSuperAdmin && (
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="ghost" size="sm" className="text-red-600">
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>¿Eliminar usuario?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Esta acción eliminará permanentemente a {userProfile.full_name} ({userProfile.email}) del sistema.
+                                  Esta acción no se puede deshacer.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => deleteUser(userProfile.id, userProfile.email)}
+                                  className="bg-red-600 hover:bg-red-700"
+                                >
+                                  Eliminar
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>

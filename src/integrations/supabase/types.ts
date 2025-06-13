@@ -109,39 +109,84 @@ export type Database = {
           },
         ]
       }
+      integrations_config: {
+        Row: {
+          config: Json
+          created_at: string
+          id: string
+          integration_type: string
+          last_sync: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          config?: Json
+          created_at?: string
+          id?: string
+          integration_type: string
+          last_sync?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          config?: Json
+          created_at?: string
+          id?: string
+          integration_type?: string
+          last_sync?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       knowledge_base: {
         Row: {
           active: boolean | null
           content: string
           created_at: string
           created_by: string
+          external_id: string | null
+          file_type: string | null
           file_url: string | null
           id: string
           project: string
+          source: string | null
           tags: string[] | null
           title: string
+          user_id: string | null
         }
         Insert: {
           active?: boolean | null
           content: string
           created_at?: string
           created_by: string
+          external_id?: string | null
+          file_type?: string | null
           file_url?: string | null
           id?: string
           project: string
+          source?: string | null
           tags?: string[] | null
           title: string
+          user_id?: string | null
         }
         Update: {
           active?: boolean | null
           content?: string
           created_at?: string
           created_by?: string
+          external_id?: string | null
+          file_type?: string | null
           file_url?: string | null
           id?: string
           project?: string
+          source?: string | null
           tags?: string[] | null
           title?: string
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -184,12 +229,15 @@ export type Database = {
         Row: {
           area: string
           created_at: string
+          daily_query_limit: number | null
           department: string | null
           email: string
           full_name: string
           id: string
           is_super_admin: boolean | null
           last_login: string | null
+          last_query_reset: string | null
+          queries_used_today: number | null
           rol_empresa: string
           role_system: string
           tenant_id: string | null
@@ -197,12 +245,15 @@ export type Database = {
         Insert: {
           area: string
           created_at?: string
+          daily_query_limit?: number | null
           department?: string | null
           email: string
           full_name: string
           id: string
           is_super_admin?: boolean | null
           last_login?: string | null
+          last_query_reset?: string | null
+          queries_used_today?: number | null
           rol_empresa: string
           role_system?: string
           tenant_id?: string | null
@@ -210,12 +261,15 @@ export type Database = {
         Update: {
           area?: string
           created_at?: string
+          daily_query_limit?: number | null
           department?: string | null
           email?: string
           full_name?: string
           id?: string
           is_super_admin?: boolean | null
           last_login?: string | null
+          last_query_reset?: string | null
+          queries_used_today?: number | null
           rol_empresa?: string
           role_system?: string
           tenant_id?: string | null

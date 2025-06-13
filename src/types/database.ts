@@ -11,6 +11,9 @@ export interface Profile {
   tenant_id?: string
   department?: string
   is_super_admin?: boolean
+  daily_query_limit?: number
+  queries_used_today?: number
+  last_query_reset?: string
 }
 
 export interface Tenant {
@@ -43,6 +46,10 @@ export interface KnowledgeBase {
   active: boolean
   created_at: string
   created_by: string
+  external_id?: string
+  source?: string
+  file_type?: string
+  user_id?: string
 }
 
 export interface DocumentChunk {
@@ -91,4 +98,15 @@ export interface UsageAnalytics {
   sources_used?: any
   rating?: number
   created_at?: string
+}
+
+export interface IntegrationsConfig {
+  id: string
+  user_id: string
+  integration_type: string
+  config: any
+  status: string
+  last_sync?: string
+  created_at: string
+  updated_at: string
 }
