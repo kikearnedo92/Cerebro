@@ -12,21 +12,64 @@ export const useAuth = () => {
   const [session, setSession] = useState<Session | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
+  const [initialized, setInitialized] = useState(false)
 
   useEffect(() => {
     console.log('🔐 Auth: Initializing useAuth hook...')
     
     let mounted = true
 
-    // Get initial session first
-    const getInitialSession = async () => {
+    const initializeAuth = async () => {
       try {
+        console.log('🔐 Auth: Starting initialization...')
+        
+        // Set up auth state listener first
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+          console.log('🔐 Auth: State change -', event, session ? `User: ${session.user.email}` : 'No session')
+          
+          if (!mounted) {
+            console.log('🔐 Auth: Component unmounted, ignoring state change')
+            return
+          }
+
+          setSession(session)
+          setUser(session?.user ?? null)
+          
+          if (session?.user && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED')) {
+            console.log('👤 Auth: User signed in, fetching profile for:', session.user.email)
+            try {
+              const profileData = await fetchProfile(session.user.id)
+              if (mounted) {
+                setProfile(profileData)
+                console.log('✅ Auth: Profile loaded after signin:', profileData?.full_name, 'Role:', profileData?.role_system)
+              }
+            } catch (error) {
+              console.error('❌ Auth: Profile fetch error after signin:', error)
+              if (mounted) setProfile(null)
+            }
+          } else if (event === 'SIGNED_OUT') {
+            console.log('🚪 Auth: User signed out, clearing profile')
+            if (mounted) setProfile(null)
+          }
+          
+          // Only set loading to false if this is the initial load or we're fully initialized
+          if (mounted && (!initialized || event === 'SIGNED_IN' || event === 'SIGNED_OUT')) {
+            setLoading(false)
+            setInitialized(true)
+            console.log('✅ Auth: Loading set to false after state change')
+          }
+        })
+
+        // Get initial session
         console.log('🔐 Auth: Getting initial session...')
         const { data: { session: initialSession }, error } = await supabase.auth.getSession()
         
         if (error) {
           console.error('❌ Auth: Error getting initial session:', error)
-          if (mounted) setLoading(false)
+          if (mounted) {
+            setLoading(false)
+            setInitialized(true)
+          }
           return
         }
         
@@ -56,57 +99,31 @@ export const useAuth = () => {
         
         if (mounted) {
           setLoading(false)
+          setInitialized(true)
           console.log('✅ Auth: Initial loading complete')
+        }
+
+        // Cleanup function for subscription
+        return () => {
+          console.log('🔐 Auth: Cleaning up auth subscription')
+          subscription.unsubscribe()
         }
       } catch (error) {
         console.error('❌ Auth: Initialization error:', error)
-        if (mounted) setLoading(false)
+        if (mounted) {
+          setLoading(false)
+          setInitialized(true)
+        }
       }
     }
 
-    // Set up auth state listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('🔐 Auth: State change -', event, session ? `User: ${session.user.email}` : 'No session')
-      
-      if (!mounted) {
-        console.log('🔐 Auth: Component unmounted, ignoring state change')
-        return
-      }
-
-      setSession(session)
-      setUser(session?.user ?? null)
-      
-      if (session?.user && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED')) {
-        console.log('👤 Auth: User signed in, fetching profile for:', session.user.email)
-        try {
-          const profileData = await fetchProfile(session.user.id)
-          if (mounted) {
-            setProfile(profileData)
-            console.log('✅ Auth: Profile loaded after signin:', profileData?.full_name, 'Role:', profileData?.role_system)
-          }
-        } catch (error) {
-          console.error('❌ Auth: Profile fetch error after signin:', error)
-          if (mounted) setProfile(null)
-        }
-      } else if (event === 'SIGNED_OUT') {
-        console.log('🚪 Auth: User signed out, clearing profile')
-        if (mounted) setProfile(null)
-      }
-      
-      // Set loading to false after any auth state change
-      if (mounted) {
-        setLoading(false)
-        console.log('✅ Auth: Loading set to false after state change')
-      }
-    })
-
-    // Start initialization
-    getInitialSession()
+    // Start initialization and store cleanup function
+    const cleanup = initializeAuth()
 
     return () => {
       console.log('🔐 Auth: Cleaning up useAuth hook')
       mounted = false
-      subscription.unsubscribe()
+      cleanup.then(cleanupFn => cleanupFn && cleanupFn())
     }
   }, [])
 
@@ -153,6 +170,7 @@ export const useAuth = () => {
     profileName: profile?.full_name,
     profileRole: profile?.role_system,
     loading,
+    initialized,
     isAdmin,
     isSuperAdmin
   })

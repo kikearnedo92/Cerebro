@@ -19,7 +19,10 @@ export const fetchProfile = async (userId: string): Promise<Profile | null> => {
         
         // Obtener información básica del usuario
         const { data: { user } } = await supabase.auth.getUser()
-        if (!user) throw new Error('No user found')
+        if (!user) {
+          console.error('❌ ProfileService: No user found for profile creation')
+          return null
+        }
 
         // Determinar rol según email
         let role_system = 'user'
@@ -48,7 +51,7 @@ export const fetchProfile = async (userId: string): Promise<Profile | null> => {
 
         if (createError) {
           console.error('❌ ProfileService: Error creating profile:', createError)
-          throw createError
+          return null
         }
 
         console.log('✅ ProfileService: Basic profile created:', createdProfile)
@@ -56,7 +59,7 @@ export const fetchProfile = async (userId: string): Promise<Profile | null> => {
       }
       
       console.error('❌ ProfileService: Error fetching profile:', error)
-      throw error
+      return null
     }
 
     console.log('✅ ProfileService: Profile loaded:', data?.full_name, 'Role:', data?.role_system)
