@@ -10,6 +10,7 @@ import ChatPage from "./pages/ChatPage"
 import KnowledgePage from "./pages/KnowledgePage"
 import UsersPage from "./pages/UsersPage"
 import AnalyticsPage from "./pages/AnalyticsPage"
+import IntegrationsPage from "./pages/IntegrationsPage"
 import TenantsPage from "./pages/admin/TenantsPage"
 import MainLayout from "./components/layout/MainLayout"
 import './index.css'
@@ -106,6 +107,14 @@ const App = () => {
               element={
                 <ProtectedRoute>
                   <AnalyticsPage />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/integrations" 
+              element={
+                <ProtectedRoute>
+                  <IntegrationsPage />
                 </ProtectedRoute>
               } 
             />

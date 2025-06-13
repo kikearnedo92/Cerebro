@@ -3,7 +3,7 @@ import React from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Brain, MessageSquare, Database, BarChart3, Users, LogOut, User, Settings2 } from 'lucide-react'
+import { Brain, MessageSquare, Database, BarChart3, Users, LogOut, User, Settings2, Zap } from 'lucide-react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import TenantSwitcher from '@/components/TenantSwitcher'
 
@@ -60,6 +60,13 @@ const MainLayout = ({ children }: MainLayoutProps) => {
       icon: BarChart3,
       current: location.pathname === '/analytics',
       visible: isAdmin || isSuperAdmin
+    },
+    {
+      name: 'Integraciones',
+      href: '/integrations',
+      icon: Zap,
+      current: location.pathname === '/integrations',
+      visible: isAdmin || isSuperAdmin
     }
   ]
 
@@ -74,16 +81,15 @@ const MainLayout = ({ children }: MainLayoutProps) => {
   ]
 
   return (
-    <div className="h-screen flex bg-gray-50">
-      <div className="w-64 bg-white shadow-sm border-r border-gray-200 flex flex-col">
-        <div className="p-6 border-b border-gray-200">
+    <div className="h-screen flex bg-gray-50 overflow-hidden">
+      <div className="w-64 bg-white shadow-sm border-r border-gray-200 flex flex-col overflow-hidden">
+        <div className="p-6 border-b border-gray-200 flex-shrink-0">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-purple-700 rounded-xl flex items-center justify-center">
               <Brain className="w-6 h-6 text-white" />
             </div>
             <div>
               <h1 className="text-xl font-bold text-gray-900">CEREBRO</h1>
-              <p className="text-xs text-gray-500">by Retorna</p>
             </div>
           </div>
         </div>
@@ -91,7 +97,7 @@ const MainLayout = ({ children }: MainLayoutProps) => {
         {/* Tenant Switcher para Super Admins */}
         <TenantSwitcher />
 
-        <div className="p-4 border-b border-gray-200">
+        <div className="p-4 border-b border-gray-200 flex-shrink-0">
           <div className="flex items-center space-x-3">
             <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
               <span className="text-sm font-medium text-purple-600">
@@ -119,7 +125,7 @@ const MainLayout = ({ children }: MainLayoutProps) => {
           </div>
         </div>
 
-        <nav className="flex-1 p-4 space-y-2">
+        <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
           <div>
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
               Principal
@@ -176,7 +182,7 @@ const MainLayout = ({ children }: MainLayoutProps) => {
           )}
         </nav>
 
-        <div className="p-4 border-t border-gray-200 space-y-2">
+        <div className="p-4 border-t border-gray-200 space-y-2 flex-shrink-0">
           <Button variant="ghost" className="w-full justify-start">
             <User className="w-4 h-4 mr-3" />
             Mi Perfil
@@ -192,14 +198,15 @@ const MainLayout = ({ children }: MainLayoutProps) => {
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col min-w-0">
-        <div className="bg-white shadow-sm border-b border-gray-200 px-6 py-4">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        <div className="bg-white shadow-sm border-b border-gray-200 px-6 py-4 flex-shrink-0">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-gray-900">
               {location.pathname === '/chat' && 'Chat con Cerebro'}
               {location.pathname === '/knowledge' && 'Base de Conocimiento'}
               {location.pathname === '/users' && 'Gestión de Usuarios'}
               {location.pathname === '/analytics' && 'Analytics'}
+              {location.pathname === '/integrations' && 'Integraciones'}
               {location.pathname === '/admin/tenants' && 'Gestión de Tenants'}
             </h2>
             <div className="flex items-center space-x-4">
@@ -215,7 +222,7 @@ const MainLayout = ({ children }: MainLayoutProps) => {
           </div>
         </div>
 
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 overflow-auto">
           {children}
         </div>
       </div>

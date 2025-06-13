@@ -14,9 +14,12 @@ export interface Message {
   foundRelevantContent?: boolean
 }
 
+export type ChatMode = 'retorna' | 'openai'
+
 export const useChat = () => {
   const [messages, setMessages] = useState<Message[]>([])
   const [loading, setLoading] = useState(false)
+  const [chatMode, setChatMode] = useState<ChatMode>('retorna')
   const { user } = useAuth()
 
   const sendMessage = async (content: string) => {
@@ -33,13 +36,14 @@ export const useChat = () => {
     setLoading(true)
 
     try {
-      console.log('💬 Sending message to REAL AI with vector search:', content)
+      console.log(`💬 Sending message to ${chatMode.toUpperCase()} mode:`, content)
 
       // Call the enhanced chat-ai edge function
       const { data, error } = await supabase.functions.invoke('chat-ai', {
         body: {
           message: content,
-          userId: user.id
+          userId: user.id,
+          mode: chatMode // Enviar el modo actual
         }
       })
 
@@ -57,10 +61,10 @@ export const useChat = () => {
       }
 
       setMessages(prev => [...prev, assistantMessage])
-      console.log('✅ REAL AI response with vector search received')
+      console.log(`✅ ${chatMode.toUpperCase()} response received`)
 
-      // Show info if no relevant content was found
-      if (!data.foundRelevantContent) {
+      // Show info if no relevant content was found in Retorna mode
+      if (chatMode === 'retorna' && !data.foundRelevantContent) {
         toast({
           title: "Información",
           description: "No se encontró contenido específico en la base de conocimiento. La respuesta se basa en el conocimiento general de CEREBRO.",
@@ -99,10 +103,21 @@ export const useChat = () => {
     })
   }
 
+  const toggleChatMode = () => {
+    const newMode = chatMode === 'retorna' ? 'openai' : 'retorna'
+    setChatMode(newMode)
+    toast({
+      title: "Modo cambiado",
+      description: `Ahora usando modo ${newMode === 'retorna' ? 'Cerebro (Retorna)' : 'OpenAI General'}`
+    })
+  }
+
   return {
     messages,
     loading,
+    chatMode,
     sendMessage,
-    clearMessages
+    clearMessages,
+    toggleChatMode
   }
 }

@@ -4,12 +4,12 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Send, Bot, User, RotateCcw, FileText } from 'lucide-react'
+import { Send, Bot, User, RotateCcw, FileText, Brain, Zap } from 'lucide-react'
 import { useChat } from '@/hooks/useChat'
 import { useAuth } from '@/hooks/useAuth'
 
 const ChatPage = () => {
-  const { messages, loading, sendMessage, clearMessages } = useChat()
+  const { messages, loading, chatMode, sendMessage, clearMessages, toggleChatMode } = useChat()
   const { user } = useAuth()
   const [inputValue, setInputValue] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -36,34 +36,6 @@ const ChatPage = () => {
     }
   }
 
-  // Welcome message when no messages
-  useEffect(() => {
-    if (messages.length === 0 && user) {
-      const welcomeMessage = {
-        id: 'welcome',
-        role: 'assistant' as const,
-        content: `¡Hola ${user.email}! 👋
-
-Soy **Cerebro**, tu asistente de IA de Retorna. Estoy aquí para ayudarte con información sobre:
-
-🔹 **Documentos internos** - Políticas, procedimientos, manuales
-🔹 **Atención al cliente** - Scripts y mejores prácticas  
-🔹 **Investigaciones** - Estudios de mercado y análisis
-🔹 **Procesos operativos** - Workflows y procedimientos
-🔹 **Compliance** - Normativas y regulaciones
-
-¿En qué puedo ayudarte hoy?`,
-        timestamp: new Date(),
-        sources: undefined
-      }
-      
-      // Only show welcome if no real messages
-      if (messages.length === 0) {
-        // This is just for display, not added to actual messages state
-      }
-    }
-  }, [user, messages.length])
-
   return (
     <div className="h-full flex flex-col bg-gray-50">
       {/* Header */}
@@ -79,17 +51,39 @@ Soy **Cerebro**, tu asistente de IA de Retorna. Estoy aquí para ayudarte con in
             </div>
           </div>
           
-          {messages.length > 0 && (
-            <Button 
-              variant="outline" 
+          <div className="flex items-center space-x-2">
+            {/* Chat Mode Selector */}
+            <Button
+              variant={chatMode === 'retorna' ? 'default' : 'outline'}
               size="sm"
-              onClick={clearMessages}
+              onClick={toggleChatMode}
               className="flex items-center space-x-2"
             >
-              <RotateCcw className="w-4 h-4" />
-              <span>Nueva conversación</span>
+              {chatMode === 'retorna' ? (
+                <>
+                  <Brain className="w-4 h-4" />
+                  <span>Cerebro (Retorna)</span>
+                </>
+              ) : (
+                <>
+                  <Zap className="w-4 h-4" />
+                  <span>OpenAI General</span>
+                </>
+              )}
             </Button>
-          )}
+
+            {messages.length > 0 && (
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={clearMessages}
+                className="flex items-center space-x-2"
+              >
+                <RotateCcw className="w-4 h-4" />
+                <span>Nueva conversación</span>
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -100,32 +94,49 @@ Soy **Cerebro**, tu asistente de IA de Retorna. Estoy aquí para ayudarte con in
             <Card className="max-w-2xl">
               <CardContent className="p-6 text-center">
                 <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Bot className="w-8 h-8 text-purple-600" />
+                  {chatMode === 'retorna' ? (
+                    <Brain className="w-8 h-8 text-purple-600" />
+                  ) : (
+                    <Zap className="w-8 h-8 text-purple-600" />
+                  )}
                 </div>
                 <h2 className="text-xl font-semibold text-gray-900 mb-2">
                   ¡Hola {user?.email?.split('@')[0]}! 👋
                 </h2>
-                <p className="text-gray-600 mb-4">
-                  Soy <strong>Cerebro</strong>, tu asistente de IA de Retorna. Puedo ayudarte con:
-                </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                  <div className="flex items-center space-x-2 text-left">
-                    <FileText className="w-4 h-4 text-purple-600" />
-                    <span>Documentos internos</span>
-                  </div>
-                  <div className="flex items-center space-x-2 text-left">
-                    <FileText className="w-4 h-4 text-purple-600" />
-                    <span>Atención al cliente</span>
-                  </div>
-                  <div className="flex items-center space-x-2 text-left">
-                    <FileText className="w-4 h-4 text-purple-600" />
-                    <span>Investigaciones</span>
-                  </div>
-                  <div className="flex items-center space-x-2 text-left">
-                    <FileText className="w-4 h-4 text-purple-600" />
-                    <span>Compliance</span>
-                  </div>
-                </div>
+                {chatMode === 'retorna' ? (
+                  <>
+                    <p className="text-gray-600 mb-4">
+                      Soy <strong>Cerebro</strong>, tu asistente de IA de Retorna. Puedo ayudarte con:
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                      <div className="flex items-center space-x-2 text-left">
+                        <FileText className="w-4 h-4 text-purple-600" />
+                        <span>Documentos internos</span>
+                      </div>
+                      <div className="flex items-center space-x-2 text-left">
+                        <FileText className="w-4 h-4 text-purple-600" />
+                        <span>Atención al cliente</span>
+                      </div>
+                      <div className="flex items-center space-x-2 text-left">
+                        <FileText className="w-4 h-4 text-purple-600" />
+                        <span>Investigaciones</span>
+                      </div>
+                      <div className="flex items-center space-x-2 text-left">
+                        <FileText className="w-4 h-4 text-purple-600" />
+                        <span>Compliance</span>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-gray-600 mb-4">
+                      Modo <strong>OpenAI General</strong> activado. Puedo ayudarte con cualquier pregunta general.
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      En este modo tengo acceso a conocimiento general, no específico de Retorna.
+                    </p>
+                  </>
+                )}
                 <p className="text-sm text-gray-500 mt-4">
                   Escribe tu pregunta abajo para comenzar
                 </p>
@@ -193,7 +204,9 @@ Soy **Cerebro**, tu asistente de IA de Retorna. Estoy aquí para ayudarte con in
               <Card className="bg-white">
                 <CardContent className="p-4">
                   <div className="flex items-center space-x-2">
-                    <span className="text-sm text-gray-500">Cerebro está pensando</span>
+                    <span className="text-sm text-gray-500">
+                      {chatMode === 'retorna' ? 'Cerebro' : 'OpenAI'} está pensando
+                    </span>
                     <div className="flex space-x-1">
                       <div className="w-2 h-2 bg-purple-600 rounded-full animate-bounce"></div>
                       <div className="w-2 h-2 bg-purple-600 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
@@ -216,7 +229,11 @@ Soy **Cerebro**, tu asistente de IA de Retorna. Estoy aquí para ayudarte con in
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyPress={handleKeyPress}
-            placeholder="Pregúntale a Cerebro sobre Retorna..."
+            placeholder={
+              chatMode === 'retorna' 
+                ? "Pregúntale a Cerebro sobre Retorna..." 
+                : "Pregunta cualquier cosa a OpenAI..."
+            }
             className="flex-1"
             disabled={loading}
           />
@@ -229,7 +246,7 @@ Soy **Cerebro**, tu asistente de IA de Retorna. Estoy aquí para ayudarte con in
           </Button>
         </div>
         <p className="text-xs text-gray-500 mt-2">
-          Presiona Enter para enviar • Los datos pueden no ser exactos, verifica información importante.
+          Presiona Enter para enviar • Modo actual: {chatMode === 'retorna' ? 'Cerebro (Retorna)' : 'OpenAI General'}
         </p>
       </div>
     </div>
