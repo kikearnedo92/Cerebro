@@ -21,13 +21,21 @@ export const fetchProfile = async (userId: string): Promise<Profile | null> => {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) throw new Error('No user found')
 
+        // Determinar rol según email
+        let role_system = 'user'
+        if (user.email === 'eduardoarnedog@gmail.com') {
+          role_system = 'super_admin'
+        } else if (user.email === 'eduardo@retorna.app') {
+          role_system = 'admin'
+        }
+
         const newProfile = {
           id: userId,
           full_name: user.email?.split('@')[0] || 'Usuario',
           email: user.email || '',
           area: 'Sin asignar',
-          rol_empresa: 'user',
-          role_system: user.email === 'eduardo@retorna.app' ? 'admin' : 'user',
+          rol_empresa: user.email === 'eduardo@retorna.app' ? 'Director' : 'user',
+          role_system: role_system,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         }
@@ -51,7 +59,7 @@ export const fetchProfile = async (userId: string): Promise<Profile | null> => {
       throw error
     }
 
-    console.log('✅ ProfileService: Profile loaded:', data?.full_name)
+    console.log('✅ ProfileService: Profile loaded:', data?.full_name, 'Role:', data?.role_system)
     return data as Profile
   } catch (error) {
     console.error('❌ ProfileService: Profile fetch failed:', error)
