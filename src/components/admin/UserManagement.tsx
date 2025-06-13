@@ -8,28 +8,18 @@ import { Users, UserPlus, Shield, Clock } from 'lucide-react'
 import { supabase } from '@/integrations/supabase/client'
 import { useAuth } from '@/hooks/useAuth'
 import { toast } from '@/hooks/use-toast'
-
-interface UserProfile {
-  id: string
-  email: string
-  full_name: string
-  area: string
-  rol_empresa: string
-  role_system: string
-  created_at: string
-  updated_at: string
-}
+import { Profile } from '@/types/database'
 
 const UserManagement = () => {
-  const { isAdmin, isSuperAdmin } = useAuth()
-  const [users, setUsers] = useState<UserProfile[]>([])
+  const { isAdmin } = useAuth()
+  const [users, setUsers] = useState<Profile[]>([])
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    if (isAdmin || isSuperAdmin) {
+    if (isAdmin) {
       fetchUsers()
     }
-  }, [isAdmin, isSuperAdmin])
+  }, [isAdmin])
 
   const fetchUsers = async () => {
     setLoading(true)
@@ -82,27 +72,6 @@ const UserManagement = () => {
       'General': 'bg-gray-100 text-gray-800'
     }
     return colors[area] || 'bg-gray-100 text-gray-800'
-  }
-
-  const getActiveUsersToday = () => {
-    // Como no tenemos last_login, usar created_at como proxy
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    
-    return users.filter(user => {
-      const userDate = new Date(user.created_at)
-      return userDate >= today
-    }).length
-  }
-
-  const getNewUsersThisWeek = () => {
-    const weekAgo = new Date()
-    weekAgo.setDate(weekAgo.getDate() - 7)
-    
-    return users.filter(user => {
-      const userDate = new Date(user.created_at)
-      return userDate >= weekAgo
-    }).length
   }
 
   if (loading) {
@@ -162,7 +131,14 @@ const UserManagement = () => {
             <div className="flex items-center space-x-2">
               <Clock className="w-6 h-6 text-green-500" />
               <div>
-                <p className="text-lg font-bold">{getActiveUsersToday()}</p>
+                <p className="text-lg font-bold">
+                  {users.filter(u => {
+                    const today = new Date()
+                    today.setHours(0, 0, 0, 0)
+                    const userDate = new Date(u.created_at)
+                    return userDate >= today
+                  }).length}
+                </p>
                 <p className="text-sm text-gray-600">Registros Hoy</p>
               </div>
             </div>
@@ -174,7 +150,14 @@ const UserManagement = () => {
             <div className="flex items-center space-x-2">
               <UserPlus className="w-6 h-6 text-orange-500" />
               <div>
-                <p className="text-lg font-bold">{getNewUsersThisWeek()}</p>
+                <p className="text-lg font-bold">
+                  {users.filter(u => {
+                    const weekAgo = new Date()
+                    weekAgo.setDate(weekAgo.getDate() - 7)
+                    const userDate = new Date(u.created_at)
+                    return userDate >= weekAgo
+                  }).length}
+                </p>
                 <p className="text-sm text-gray-600">Nuevos (7 días)</p>
               </div>
             </div>

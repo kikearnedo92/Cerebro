@@ -515,10 +515,6 @@ export type Database = {
         Args: { "": unknown[] }
         Returns: number
       }
-      switch_tenant_context: {
-        Args: { p_tenant_subdomain: string }
-        Returns: Json
-      }
       vector_avg: {
         Args: { "": number[] }
         Returns: string
