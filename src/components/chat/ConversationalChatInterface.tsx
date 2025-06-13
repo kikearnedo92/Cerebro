@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -40,9 +39,10 @@ const ConversationalChatInterface = () => {
     setInputMessage('')
     setLoading(true)
 
-    try {
-      let activeConversationId = currentConversation?.id
+    // Declare activeConversationId outside the try block so it's accessible in catch
+    let activeConversationId = currentConversation?.id
 
+    try {
       // Crear nueva conversación si no existe
       if (!activeConversationId) {
         const newConversation = await createConversation(
