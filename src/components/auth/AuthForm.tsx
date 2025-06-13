@@ -9,7 +9,7 @@ import { Brain, Mail, Lock, Eye, EyeOff, User } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { toast } from '@/hooks/use-toast'
 
-const RETORNA_AREAS = [
+const COMPANY_AREAS = [
   'Customer Success',
   'Tesorería', 
   'Compliance',
@@ -21,7 +21,7 @@ const RETORNA_AREAS = [
   'Otros'
 ]
 
-const ROLES_EMPRESA = [
+const COMPANY_ROLES = [
   'Agente',
   'Analista',
   'Manager',
@@ -112,7 +112,6 @@ const AuthForm = () => {
             <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-purple-800 bg-clip-text text-transparent">
               CEREBRO
             </h1>
-            <span className="text-sm text-gray-500 font-medium">by Retorna</span>
           </div>
         </div>
         <div>
@@ -120,7 +119,7 @@ const AuthForm = () => {
             {isLogin ? 'Accede a tu conocimiento' : 'Únete a Cerebro'}
           </CardTitle>
           <p className="text-sm text-muted-foreground">
-            {isLogin ? 'La plataforma de conocimiento de Retorna' : 'Solo empleados con email @retorna.app'}
+            {isLogin ? 'Tu plataforma de conocimiento empresarial' : 'Crea tu cuenta empresarial'}
           </p>
         </div>
       </CardHeader>
@@ -152,7 +151,7 @@ const AuthForm = () => {
               <Input
                 id="email"
                 type="email"
-                placeholder="tu@retorna.app"
+                placeholder="tu@empresa.com"
                 value={formData.email}
                 onChange={(e) => setFormData({...formData, email: e.target.value})}
                 className="pl-10"
@@ -187,13 +186,13 @@ const AuthForm = () => {
           {!isLogin && (
             <>
               <div className="space-y-2">
-                <Label htmlFor="area">Área de Retorna</Label>
+                <Label htmlFor="area">Área de la empresa</Label>
                 <Select onValueChange={(value) => setFormData({...formData, area: value})} required={!isLogin}>
                   <SelectTrigger>
                     <SelectValue placeholder="Selecciona tu área" />
                   </SelectTrigger>
                   <SelectContent>
-                    {RETORNA_AREAS.map(area => (
+                    {COMPANY_AREAS.map(area => (
                       <SelectItem key={area} value={area}>{area}</SelectItem>
                     ))}
                   </SelectContent>
@@ -207,7 +206,7 @@ const AuthForm = () => {
                     <SelectValue placeholder="Selecciona tu rol" />
                   </SelectTrigger>
                   <SelectContent>
-                    {ROLES_EMPRESA.map(rol => (
+                    {COMPANY_ROLES.map(rol => (
                       <SelectItem key={rol} value={rol}>{rol}</SelectItem>
                     ))}
                   </SelectContent>

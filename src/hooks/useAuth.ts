@@ -14,7 +14,7 @@ export const useAuth = () => {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    console.log('🔐 Auth: Initializing...')
+    console.log('🔐 Auth: Initializing useAuth hook...')
     
     let mounted = true
 
@@ -22,18 +22,21 @@ export const useAuth = () => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('🔐 Auth: State change -', event, session ? `User: ${session.user.email}` : 'No session')
       
-      if (!mounted) return
+      if (!mounted) {
+        console.log('🔐 Auth: Component unmounted, ignoring state change')
+        return
+      }
 
       setSession(session)
       setUser(session?.user ?? null)
       
       if (session?.user && event === 'SIGNED_IN') {
-        console.log('👤 Auth: User signed in, fetching profile...')
+        console.log('👤 Auth: User signed in, fetching profile for:', session.user.email)
         try {
           const profileData = await fetchProfile(session.user.id)
           if (mounted) {
             setProfile(profileData)
-            console.log('✅ Auth: Profile loaded after signin')
+            console.log('✅ Auth: Profile loaded after signin:', profileData?.full_name)
           }
         } catch (error) {
           console.error('❌ Auth: Profile fetch error after signin:', error)
@@ -54,7 +57,15 @@ export const useAuth = () => {
     // Get initial session AFTER setting up listener
     const getInitialSession = async () => {
       try {
-        const { data: { session: initialSession } } = await supabase.auth.getSession()
+        console.log('🔐 Auth: Getting initial session...')
+        const { data: { session: initialSession }, error } = await supabase.auth.getSession()
+        
+        if (error) {
+          console.error('❌ Auth: Error getting initial session:', error)
+          if (mounted) setLoading(false)
+          return
+        }
+        
         console.log('🔐 Auth: Initial session -', initialSession ? `User: ${initialSession.user.email}` : 'No session')
         
         if (!mounted) return
@@ -63,17 +74,19 @@ export const useAuth = () => {
         setUser(initialSession?.user ?? null)
         
         if (initialSession?.user) {
+          console.log('👤 Auth: Initial session has user, fetching profile...')
           try {
             const profileData = await fetchProfile(initialSession.user.id)
             if (mounted) {
               setProfile(profileData)
-              console.log('✅ Auth: Profile loaded for', initialSession.user.email)
+              console.log('✅ Auth: Initial profile loaded for', initialSession.user.email, ':', profileData?.full_name)
             }
           } catch (error) {
-            console.error('❌ Auth: Profile fetch error:', error)
+            console.error('❌ Auth: Initial profile fetch error:', error)
             if (mounted) setProfile(null)
           }
         } else {
+          console.log('👤 Auth: No initial session user')
           if (mounted) setProfile(null)
         }
       } catch (error) {
@@ -95,9 +108,10 @@ export const useAuth = () => {
         console.log('⏰ Auth: Timeout reached, forcing loading false')
         setLoading(false)
       }
-    }, 1500)
+    }, 3000) // Increased to 3 seconds
 
     return () => {
+      console.log('🔐 Auth: Cleaning up useAuth hook')
       mounted = false
       subscription.unsubscribe()
       clearTimeout(timeoutId)
@@ -144,6 +158,7 @@ export const useAuth = () => {
     userEmail: user?.email,
     hasSession: !!session,
     hasProfile: !!profile,
+    profileName: profile?.full_name,
     loading,
     isAdmin,
     isSuperAdmin

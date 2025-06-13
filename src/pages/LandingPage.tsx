@@ -57,7 +57,6 @@ const LandingPage = () => {
             </div>
             <div>
               <h1 className="text-2xl font-bold text-purple-900">CEREBRO</h1>
-              <p className="text-sm text-purple-600">by Retorna</p>
             </div>
           </div>
         </div>
@@ -72,7 +71,7 @@ const LandingPage = () => {
                 <span className="text-transparent bg-gradient-to-r from-purple-600 to-purple-800 bg-clip-text"> conocimiento</span>
               </h2>
               <p className="text-xl text-gray-600 leading-relaxed">
-                Cerebro es la plataforma de conocimiento interno de Retorna. 
+                Cerebro es tu plataforma de conocimiento empresarial. 
                 Accede a toda la información que necesitas para tu trabajo diario.
               </p>
             </div>
@@ -84,7 +83,7 @@ const LandingPage = () => {
                 </div>
                 <h3 className="font-semibold text-gray-900">IA Inteligente</h3>
                 <p className="text-gray-600 text-sm">
-                  Respuestas instantáneas basadas en nuestro conocimiento interno
+                  Respuestas instantáneas basadas en tu conocimiento interno
                 </p>
               </div>
               <div className="space-y-2">
