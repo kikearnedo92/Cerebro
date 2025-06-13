@@ -13,6 +13,8 @@ export const fetchProfile = async (userId: string): Promise<Profile | null> => {
       .single()
 
     if (error) {
+      console.error('❌ ProfileService: Error fetching profile:', error)
+      
       // Si no existe el perfil, crear uno básico
       if (error.code === 'PGRST116') {
         console.log('👤 ProfileService: Profile not found, creating basic profile')
@@ -26,8 +28,11 @@ export const fetchProfile = async (userId: string): Promise<Profile | null> => {
 
         // Determinar rol según email
         let role_system = 'user'
+        let is_super_admin = false
+        
         if (user.email === 'eduardoarnedog@gmail.com') {
           role_system = 'super_admin'
+          is_super_admin = true
         } else if (user.email === 'eduardo@retorna.app') {
           role_system = 'admin'
         }
@@ -39,8 +44,8 @@ export const fetchProfile = async (userId: string): Promise<Profile | null> => {
           area: 'Sin asignar',
           rol_empresa: user.email === 'eduardo@retorna.app' ? 'Director' : 'user',
           role_system: role_system,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
+          is_super_admin: is_super_admin,
+          created_at: new Date().toISOString()
         }
 
         const { data: createdProfile, error: createError } = await supabase
@@ -58,7 +63,6 @@ export const fetchProfile = async (userId: string): Promise<Profile | null> => {
         return createdProfile as Profile
       }
       
-      console.error('❌ ProfileService: Error fetching profile:', error)
       return null
     }
 
@@ -71,8 +75,10 @@ export const fetchProfile = async (userId: string): Promise<Profile | null> => {
 }
 
 export const checkAdminStatus = (profile: Profile | null, userEmail?: string) => {
-  // Verificar super admin por email específico
-  const isSuperAdmin = userEmail === 'eduardoarnedog@gmail.com'
+  // Verificar super admin por email específico o por perfil
+  const isSuperAdmin = userEmail === 'eduardoarnedog@gmail.com' || 
+                       profile?.is_super_admin === true ||
+                       profile?.role_system === 'super_admin'
   
   // Verificar admin por role_system en el perfil o email específico
   const isAdmin = profile?.role_system === 'admin' || 
@@ -83,6 +89,7 @@ export const checkAdminStatus = (profile: Profile | null, userEmail?: string) =>
   console.log('🔍 ProfileService: Admin check -', {
     email: userEmail,
     profileRole: profile?.role_system,
+    isSuperAdmin: profile?.is_super_admin,
     isAdmin,
     isSuperAdmin
   })
