@@ -1,10 +1,16 @@
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Users, UserPlus, Mail, Calendar, Shield, Building, User, Search } from 'lucide-react'
+import { useAuth } from '@/hooks/useAuth'
+import { supabase } from '@/integrations/supabase/client'
+import { toast } from '@/hooks/use-toast'
 
 interface UserProfile {
   id: string
@@ -15,38 +21,161 @@ interface UserProfile {
   role_system: string
   created_at: string
   last_login?: string
-  status: 'active' | 'pending' | 'disabled'
 }
 
-const RETORNA_AREAS = [
-  'Customer Success',
-  'Tesorería', 
-  'Compliance',
-  'Growth',
-  'Producto',
-  'Operaciones',
-  'People',
-  'Administración',
-  'Otros'
-]
-
 const UsersPage = () => {
-  const [users, setUsers] = useState<UserProfile[]>([
-    {
-      id: '1',
-      email: 'eduardo@retorna.app',
-      full_name: 'Eduardo Administrador',
-      area: 'Administración',
-      rol_empresa: 'Director',
-      role_system: 'admin',
-      created_at: '2024-01-01',
-      last_login: '2024-01-15T10:30:00Z',
-      status: 'active'
-    }
-  ])
-  
+  const { user } = useAuth()
+  const [users, setUsers] = useState<UserProfile[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [inviteModalOpen, setInviteModalOpen] = useState(false)
+  const [inviting, setInviting] = useState(false)
+
+  // Invite form state
+  const [inviteForm, setInviteForm] = useState({
+    email: '',
+    area: '',
+    rol_empresa: ''
+  })
+
+  const fetchUsers = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      
+      console.log('👥 Fetching users from Supabase...')
+      
+      const { data, error } = await supabase
+        .from('profiles')
+        .select(`
+          id,
+          email,
+          full_name,
+          area,
+          rol_empresa,
+          role_system,
+          created_at,
+          last_login
+        `)
+        .order('created_at', { ascending: false })
+
+      if (error) {
+        console.error('Users fetch error:', error)
+        throw new Error(`Error cargando usuarios: ${error.message}`)
+      }
+
+      console.log('✅ Users loaded:', data?.length || 0)
+      setUsers(data || [])
+      
+    } catch (error) {
+      console.error('Users fetch failed:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido'
+      setError(errorMessage)
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive"
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleInviteUser = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    if (!inviteForm.email || !inviteForm.area || !inviteForm.rol_empresa) {
+      toast({
+        title: "Error",
+        description: "Por favor completa todos los campos",
+        variant: "destructive"
+      })
+      return
+    }
+
+    setInviting(true)
+    
+    try {
+      // Check if user exists
+      const { data: existing } = await supabase
+        .from('profiles')
+        .select('email')
+        .eq('email', inviteForm.email)
+        .single()
+
+      if (existing) {
+        throw new Error('Este usuario ya está registrado')
+      }
+
+      // Create registration link
+      const registrationParams = new URLSearchParams({
+        invited: 'true',
+        area: inviteForm.area,
+        role: inviteForm.rol_empresa,
+        email: inviteForm.email
+      })
+      
+      const registrationLink = `${window.location.origin}/landing?${registrationParams.toString()}`
+
+      // Copy to clipboard
+      await navigator.clipboard.writeText(registrationLink)
+
+      toast({
+        title: "✅ Invitación creada",
+        description: `Link de registro copiado al portapapeles. Compártelo con ${inviteForm.email}`,
+      })
+
+      console.log('📧 Invitation link generated:', registrationLink)
+      
+      // Reset form and close modal
+      setInviteForm({ email: '', area: '', rol_empresa: '' })
+      setInviteModalOpen(false)
+      
+    } catch (error) {
+      console.error('Invite error:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido'
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive"
+      })
+    } finally {
+      setInviting(false)
+    }
+  }
+
+  const updateUserRole = async (userId: string, newRole: string) => {
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ role_system: newRole })
+        .eq('id', userId)
+
+      if (error) {
+        throw new Error(`Error actualizando rol: ${error.message}`)
+      }
+
+      // Update local state
+      setUsers(prev => prev.map(u => 
+        u.id === userId ? { ...u, role_system: newRole } : u
+      ))
+
+      toast({
+        title: "Éxito",
+        description: "Rol actualizado correctamente"
+      })
+
+    } catch (error) {
+      console.error('Role update error:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido'
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive"
+      })
+    }
+  }
 
   const filteredUsers = users.filter(user => 
     user.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -54,121 +183,194 @@ const UsersPage = () => {
     user.area.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
-  const handleInviteUser = () => {
-    const newUser: UserProfile = {
-      id: Date.now().toString(),
-      email: 'nuevo@retorna.app',
-      full_name: 'Nuevo Usuario',
-      area: 'Customer Success',
-      rol_empresa: 'Agente',
-      role_system: 'user',
-      created_at: new Date().toISOString().split('T')[0],
-      status: 'pending'
-    }
-    setUsers(prev => [newUser, ...prev])
-    setInviteModalOpen(false)
+  useEffect(() => {
+    fetchUsers()
+  }, [])
+
+  if (loading) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="flex items-center justify-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+          <span className="ml-3 text-gray-600">Cargando usuarios...</span>
+        </div>
+      </div>
+    )
   }
 
-  const updateUserRole = (userId: string, newRole: string) => {
-    setUsers(prev => prev.map(u => 
-      u.id === userId ? { ...u, role_system: newRole } : u
-    ))
-  }
-
-  const updateUserStatus = (userId: string, newStatus: 'active' | 'pending' | 'disabled') => {
-    setUsers(prev => prev.map(u => 
-      u.id === userId ? { ...u, status: newStatus } : u
-    ))
+  if (error) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <Card className="border-red-200 bg-red-50">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center">
+                <Users className="w-4 h-4 text-red-600" />
+              </div>
+              <div>
+                <h3 className="font-medium text-red-900">Error al cargar usuarios</h3>
+                <p className="text-sm text-red-700">{error}</p>
+              </div>
+            </div>
+            <Button onClick={fetchUsers} className="mt-4" variant="outline">
+              Reintentar
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   return (
-    <div className="min-h-screen overflow-y-auto">
-      <div className="p-6 space-y-6">
-        {/* Header */}
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Gestión de Usuarios</h1>
-            <p className="text-gray-600">Administra los usuarios de Cerebro - Retorna</p>
-          </div>
-          
-          <Button 
-            onClick={() => setInviteModalOpen(true)}
-            className="bg-purple-600 hover:bg-purple-700"
-          >
-            <UserPlus className="w-4 h-4 mr-2" />
-            Invitar Usuario
-          </Button>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* Header */}
+      <div className="flex justify-between items-center mb-8">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Gestión de Usuarios</h1>
+          <p className="text-gray-600">Administra los usuarios de CEREBRO</p>
         </div>
-
-        {/* Search */}
-        <div className="relative max-w-md">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-          <Input
-            placeholder="Buscar usuarios..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-
-        {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center">
-                <Users className="h-8 w-8 text-blue-600" />
-                <div className="ml-4">
-                  <p className="text-sm text-gray-600">Total Usuarios</p>
-                  <p className="text-2xl font-bold">{users.length}</p>
-                </div>
+        
+        <Dialog open={inviteModalOpen} onOpenChange={setInviteModalOpen}>
+          <DialogTrigger asChild>
+            <Button className="bg-purple-600 hover:bg-purple-700">
+              <UserPlus className="w-4 h-4 mr-2" />
+              Invitar Usuario
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Invitar Nuevo Usuario</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleInviteUser} className="space-y-4">
+              <div>
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={inviteForm.email}
+                  onChange={(e) => setInviteForm(prev => ({ ...prev, email: e.target.value }))}
+                  placeholder="usuario@empresa.com"
+                  required
+                />
               </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center">
-                <Shield className="h-8 w-8 text-purple-600" />
-                <div className="ml-4">
-                  <p className="text-sm text-gray-600">Administradores</p>
-                  <p className="text-2xl font-bold">{users.filter(u => u.role_system === 'admin').length}</p>
-                </div>
+              
+              <div>
+                <Label htmlFor="area">Área</Label>
+                <Select value={inviteForm.area} onValueChange={(value) => setInviteForm(prev => ({ ...prev, area: value }))}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecciona área" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ATC">ATC</SelectItem>
+                    <SelectItem value="Operaciones">Operaciones</SelectItem>
+                    <SelectItem value="Cumplimiento">Cumplimiento</SelectItem>
+                    <SelectItem value="Tecnología">Tecnología</SelectItem>
+                    <SelectItem value="Finanzas">Finanzas</SelectItem>
+                    <SelectItem value="RRHH">RRHH</SelectItem>
+                    <SelectItem value="Legal">Legal</SelectItem>
+                    <SelectItem value="Otro">Otro</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center">
-                <Calendar className="h-8 w-8 text-green-600" />
-                <div className="ml-4">
-                  <p className="text-sm text-gray-600">Activos</p>
-                  <p className="text-2xl font-bold">{users.filter(u => u.status === 'active').length}</p>
-                </div>
+              
+              <div>
+                <Label htmlFor="role">Rol en la Empresa</Label>
+                <Select value={inviteForm.rol_empresa} onValueChange={(value) => setInviteForm(prev => ({ ...prev, rol_empresa: value }))}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecciona rol" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Agente">Agente</SelectItem>
+                    <SelectItem value="Supervisor">Supervisor</SelectItem>
+                    <SelectItem value="Gerente">Gerente</SelectItem>
+                    <SelectItem value="Director">Director</SelectItem>
+                    <SelectItem value="Analista">Analista</SelectItem>
+                    <SelectItem value="Especialista">Especialista</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-            </CardContent>
-          </Card>
+              
+              <div className="flex gap-2">
+                <Button type="submit" disabled={inviting} className="flex-1">
+                  {inviting ? 'Creando invitación...' : 'Crear Invitación'}
+                </Button>
+                <Button type="button" variant="outline" onClick={() => setInviteModalOpen(false)}>
+                  Cancelar
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+      </div>
 
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center">
-                <Mail className="h-8 w-8 text-yellow-600" />
-                <div className="ml-4">
-                  <p className="text-sm text-gray-600">Pendientes</p>
-                  <p className="text-2xl font-bold">{users.filter(u => u.status === 'pending').length}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+      {/* Search */}
+      <div className="relative max-w-md mb-6">
+        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+        <Input
+          placeholder="Buscar usuarios..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="pl-10"
+        />
+      </div>
 
-        {/* Users Table */}
+      {/* Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <Card>
-          <CardHeader>
-            <CardTitle>Usuarios Registrados ({filteredUsers.length})</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4 max-h-96 overflow-y-auto">
+          <CardContent className="p-6">
+            <div className="flex items-center">
+              <Users className="h-8 w-8 text-blue-600" />
+              <div className="ml-4">
+                <p className="text-sm text-gray-600">Total Usuarios</p>
+                <p className="text-2xl font-bold">{users.length}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center">
+              <Shield className="h-8 w-8 text-purple-600" />
+              <div className="ml-4">
+                <p className="text-sm text-gray-600">Administradores</p>
+                <p className="text-2xl font-bold">{users.filter(u => u.role_system === 'admin').length}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center">
+              <Calendar className="h-8 w-8 text-green-600" />
+              <div className="ml-4">
+                <p className="text-sm text-gray-600">Activos Hoy</p>
+                <p className="text-2xl font-bold">{users.filter(u => u.last_login && new Date(u.last_login).toDateString() === new Date().toDateString()).length}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Users Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Usuarios Registrados ({filteredUsers.length})</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {filteredUsers.length === 0 ? (
+            <div className="text-center py-8">
+              <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No hay usuarios registrados</h3>
+              <p className="text-gray-500 mb-4">Invita al primer usuario para comenzar</p>
+              <Button onClick={() => setInviteModalOpen(true)} variant="outline">
+                <UserPlus className="w-4 h-4 mr-2" />
+                Invitar Usuario
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-4">
               {filteredUsers.map((userProfile) => (
                 <div
                   key={userProfile.id}
@@ -181,11 +383,18 @@ const UsersPage = () => {
                     <div>
                       <div className="flex items-center gap-2">
                         <p className="font-medium text-gray-900">{userProfile.full_name}</p>
-                        <Badge 
-                          variant={userProfile.status === 'active' ? 'default' : userProfile.status === 'pending' ? 'secondary' : 'destructive'}
-                        >
-                          {userProfile.status}
-                        </Badge>
+                        {userProfile.role_system === 'admin' && (
+                          <Badge className="bg-purple-600">
+                            <Shield className="w-3 h-3 mr-1" />
+                            Admin
+                          </Badge>
+                        )}
+                        {userProfile.role_system === 'super_admin' && (
+                          <Badge className="bg-red-600">
+                            <Shield className="w-3 h-3 mr-1" />
+                            Super Admin
+                          </Badge>
+                        )}
                       </div>
                       <p className="text-sm text-gray-500">{userProfile.email}</p>
                       <div className="flex items-center gap-3 mt-1">
@@ -196,17 +405,11 @@ const UsersPage = () => {
                         <Badge variant="outline" className="text-xs">
                           {userProfile.rol_empresa}
                         </Badge>
-                        {userProfile.role_system === 'admin' && (
-                          <Badge className="bg-purple-600 text-xs">
-                            <Shield className="w-3 h-3 mr-1" />
-                            Admin
-                          </Badge>
-                        )}
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-4">
                     {userProfile.last_login ? (
                       <div className="text-right">
                         <p className="text-xs text-gray-500">Último acceso</p>
@@ -216,66 +419,27 @@ const UsersPage = () => {
                       <p className="text-xs text-gray-400">Nunca</p>
                     )}
                     
-                    <select
-                      value={userProfile.role_system}
-                      onChange={(e) => updateUserRole(userProfile.id, e.target.value)}
-                      className="ml-4 px-2 py-1 border border-gray-300 rounded text-xs"
-                    >
-                      <option value="user">Usuario</option>
-                      <option value="admin">Admin</option>
-                    </select>
-                    
-                    <select
-                      value={userProfile.status}
-                      onChange={(e) => updateUserStatus(userProfile.id, e.target.value as any)}
-                      className="ml-2 px-2 py-1 border border-gray-300 rounded text-xs"
-                    >
-                      <option value="active">Activo</option>
-                      <option value="pending">Pendiente</option>
-                      <option value="disabled">Deshabilitado</option>
-                    </select>
+                    {userProfile.email !== user?.email && (
+                      <Select
+                        value={userProfile.role_system}
+                        onValueChange={(value) => updateUserRole(userProfile.id, value)}
+                      >
+                        <SelectTrigger className="w-32">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="user">Usuario</SelectItem>
+                          <SelectItem value="admin">Admin</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
                   </div>
                 </div>
               ))}
             </div>
-          </CardContent>
-        </Card>
-
-        {/* Invite Modal */}
-        {inviteModalOpen && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <Card className="w-96">
-              <CardHeader>
-                <CardTitle>Invitar Nuevo Usuario - Retorna</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <Input placeholder="Email (@retorna.app)" />
-                <select className="w-full px-3 py-2 border border-gray-300 rounded-md">
-                  <option>Seleccionar área</option>
-                  {RETORNA_AREAS.map(area => (
-                    <option key={area} value={area}>{area}</option>
-                  ))}
-                </select>
-                <select className="w-full px-3 py-2 border border-gray-300 rounded-md">
-                  <option>Seleccionar rol</option>
-                  <option value="Agente">Agente</option>
-                  <option value="Analista">Analista</option>
-                  <option value="Manager">Manager</option>
-                  <option value="Director">Director</option>
-                </select>
-                <div className="flex gap-2">
-                  <Button onClick={handleInviteUser} className="flex-1">
-                    Enviar Invitación
-                  </Button>
-                  <Button variant="outline" onClick={() => setInviteModalOpen(false)}>
-                    Cancelar
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-      </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }
