@@ -16,7 +16,15 @@ import TenantsPage from "./pages/admin/TenantsPage"
 import MainLayout from "./components/layout/MainLayout"
 import './index.css'
 
-const queryClient = new QueryClient()
+// Create QueryClient outside component to avoid recreating on every render
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 5, // 5 minutes
+      retry: 1,
+    },
+  },
+})
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth()
@@ -70,7 +78,6 @@ const App = () => {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <Toaster />
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Index />} />
@@ -130,6 +137,7 @@ const App = () => {
             <Route path="*" element={<Navigate to="/landing" replace />} />
           </Routes>
         </BrowserRouter>
+        <Toaster />
       </TooltipProvider>
     </QueryClientProvider>
   )
