@@ -141,6 +141,17 @@ const UsersPage = () => {
         console.warn('⚠️ UsersPage: Profile creation failed:', profileError)
       }
 
+      // AUTO-LOGIN: Iniciar sesión automáticamente después del registro
+      try {
+        await supabase.auth.signInWithPassword({
+          email: newUser.email,
+          password: 'TempPass123!'
+        })
+        console.log('✅ Auto-login successful for:', newUser.email)
+      } catch (loginError) {
+        console.warn('⚠️ Auto-login failed:', loginError)
+      }
+
       toast({
         title: "Usuario creado",
         description: `Usuario ${newUser.email} creado exitosamente`,
