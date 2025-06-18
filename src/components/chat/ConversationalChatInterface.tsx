@@ -54,6 +54,8 @@ const ConversationalChatInterface = () => {
 
   const loadConversationMessages = async (convId: string) => {
     try {
+      navigate(`/chat/${convId}`) // FIX: Navegación correcta
+      
       const { data, error } = await supabase
         .from('messages')
         .select('*')
@@ -144,7 +146,6 @@ const ConversationalChatInterface = () => {
         navigate(`/chat/${activeConversationId}`, { replace: true })
       }
 
-      // Add user message to UI immediately
       const newUserMessage: Message = {
         id: `temp-${Date.now()}`,
         role: 'user',
@@ -154,7 +155,6 @@ const ConversationalChatInterface = () => {
       }
       setMessages(prev => [...prev, newUserMessage])
 
-      // Save user message to database
       const { data: savedUserMessage, error: userError } = await supabase
         .from('messages')
         .insert({
@@ -174,16 +174,16 @@ const ConversationalChatInterface = () => {
         ))
       }
 
-      // Update conversation title with first message
       if (messages.length === 0) {
         const title = userMessage.length > 50 ? userMessage.substring(0, 50) + '...' : userMessage
         await updateConversationTitle(activeConversationId, title)
       }
 
-      // Call AI function with image support
+      // FIX: Llamada correcta a Edge Function
       const { data, error } = await supabase.functions.invoke('chat-ai', {
         body: {
           message: userMessage,
+          userId: user.id,
           useKnowledgeBase: useKnowledgeBase,
           conversationId: activeConversationId,
           imageData: imageData
@@ -194,22 +194,20 @@ const ConversationalChatInterface = () => {
         throw error
       }
 
-      // Add AI response to messages
       const aiMessage: Message = {
         id: `ai-${Date.now()}`,
         role: 'assistant',
-        content: data.response,
+        content: data.response || 'Lo siento, hubo un error procesando tu mensaje.',
         timestamp: new Date().toISOString()
       }
       setMessages(prev => [...prev, aiMessage])
 
-      // Save AI message to database
       const { error: aiError } = await supabase
         .from('messages')
         .insert({
           conversation_id: activeConversationId,
           role: 'assistant',
-          content: data.response
+          content: aiMessage.content
         })
 
       if (aiError) {
@@ -232,16 +230,15 @@ const ConversationalChatInterface = () => {
 
   const formatMessage = (content: string) => {
     return content.split('\n').map((line, index) => (
-      <span key={index}>
-  {line}
-  {index < content.split('\n').length - 1 && <br />}
-</span>
+      <React.Fragment key={index}>
+        {line}
+        {index < content.split('\n').length - 1 && <br />}
+      </React.Fragment>
     ))
   }
 
   return (
     <div className="flex flex-col h-full bg-gray-50">
-      {/* Header */}
       <div className="bg-white border-b border-gray-200 p-4">
         <div className="flex items-center justify-between max-w-4xl mx-auto">
           <div className="flex items-center space-x-3">
@@ -282,7 +279,6 @@ const ConversationalChatInterface = () => {
         </div>
       </div>
 
-      {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4">
         <div className="max-w-4xl mx-auto space-y-6">
           {messages.length === 0 ? (
@@ -396,7 +392,6 @@ const ConversationalChatInterface = () => {
         </div>
       </div>
 
-      {/* Input */}
       <div className="bg-white border-t border-gray-200 p-4">
         <div className="max-w-4xl mx-auto">
           <form onSubmit={handleSubmit} className="space-y-2">

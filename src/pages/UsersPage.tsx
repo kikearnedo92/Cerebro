@@ -38,6 +38,31 @@ const UsersPage = () => {
     daily_query_limit: 50
   })
 
+  const updateUserRole = async (userId: string, newRole: string) => {
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ role_system: newRole, is_super_admin: newRole === 'super_admin' })
+        .eq('id', userId)
+      
+      if (error) throw error
+      
+      toast({
+        title: "Usuario actualizado",
+        description: `Rol cambiado a ${newRole}`,
+      })
+      
+      fetchUsers()
+    } catch (error) {
+      console.error('Error updating user:', error)
+      toast({
+        title: "Error",
+        description: "No se pudo actualizar el usuario",
+        variant: "destructive"
+      })
+    }
+  }
+
   const fetchUsers = useCallback(async () => {
     try {
       console.log('👥 UsersPage: Fetching users...')
@@ -80,12 +105,11 @@ const UsersPage = () => {
     }
   }, [currentUser, isSuperAdmin])
 
-  // Solo ejecutar una vez cuando el componente se monta
   useEffect(() => {
     if (isAdmin) {
       fetchUsers()
     }
-  }, []) // Sin dependencias para evitar bucles
+  }, [])
 
   const createUser = async () => {
     try {
@@ -141,7 +165,6 @@ const UsersPage = () => {
         console.warn('⚠️ UsersPage: Profile creation failed:', profileError)
       }
 
-      // AUTO-LOGIN: Iniciar sesión automáticamente después del registro
       try {
         await supabase.auth.signInWithPassword({
           email: newUser.email,
@@ -314,6 +337,17 @@ const UsersPage = () => {
                       </Badge>
                       <span className="text-xs text-gray-500">{user.area}</span>
                     </div>
+                    {isSuperAdmin && user.id !== currentUser?.id && (
+                      <div className="flex items-center space-x-2 mt-2">
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          onClick={() => updateUserRole(user.id, user.role_system === 'admin' ? 'user' : 'admin')}
+                        >
+                          {user.role_system === 'admin' ? 'Hacer Usuario' : 'Hacer Admin'}
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="text-right text-sm text-gray-600">
