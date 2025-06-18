@@ -1,10 +1,9 @@
-
-import { useState, useEffect, createContext, useContext } from 'react'
+import React, { useState, useEffect, createContext, useContext, ReactNode } from 'react'
 import { User, Session, AuthChangeEvent } from '@supabase/supabase-js'
 import { supabase } from '@/integrations/supabase/client'
 import { Profile } from '@/types/database'
-import { fetchProfile, checkAdminStatus } from './auth/profileService'
-import { signIn as authSignIn, signUp as authSignUp } from './auth/authService'
+import { fetchProfile, checkAdminStatus } from '@/hooks/auth/profileService'
+import { signIn as authSignIn, signUp as authSignUp } from '@/hooks/auth/authService'
 import { toast } from '@/hooks/use-toast'
 
 interface AuthContextType {
@@ -36,19 +35,7 @@ const AuthContext = createContext<AuthContextType>({
 export const useAuth = () => {
   const context = useContext(AuthContext)
   if (!context) {
-    // Return a safe default when context is not available
-    return {
-      user: null,
-      profile: null,
-      session: null,
-      loading: false,
-      initialized: true,
-      isAdmin: false,
-      isSuperAdmin: false,
-      signIn: async () => {},
-      signUp: async () => {},
-      signOut: async () => {}
-    }
+    throw new Error('useAuth must be used within an AuthProvider')
   }
   return context
 }
@@ -63,9 +50,9 @@ export const useAuthProvider = () => {
   const initializeAuth = async () => {
     try {
       console.log('🔄 Auth: Starting initialization...')
-      
+
       const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession()
-      
+
       if (sessionError) {
         console.error('❌ Auth: Session error:', sessionError)
         setLoading(false)
@@ -77,28 +64,26 @@ export const useAuthProvider = () => {
         console.log('✅ Auth: User found:', currentSession.user.email)
         setUser(currentSession.user)
         setSession(currentSession)
-        
-        // Try to fetch profile
+
         try {
           const userProfile = await fetchProfile(currentSession.user.id)
           setProfile(userProfile)
           console.log('✅ Auth: Initial profile loaded for', currentSession.user.email, ':', userProfile?.full_name, 'Role:', userProfile?.role_system)
         } catch (profileError) {
           console.error('❌ Auth: Profile loading failed:', profileError)
-          // Continue without profile - app should still work
         }
       } else {
         console.log('ℹ️ Auth: No active session')
       }
 
       console.log('🔐 Auth: Setting up auth state listener...')
-      
+
       const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: AuthChangeEvent, session: Session | null) => {
         console.log('🔐 Auth: State change -', event, 'User:', session?.user?.email)
-        
+
         setUser(session?.user ?? null)
         setSession(session)
-        
+
         if (session?.user && event !== 'TOKEN_REFRESHED') {
           try {
             const userProfile = await fetchProfile(session.user.id)
@@ -113,7 +98,7 @@ export const useAuthProvider = () => {
 
       console.log('✅ Auth: Initialization complete')
       setInitialized(true)
-      
+
       return () => {
         subscription.unsubscribe()
       }
@@ -167,7 +152,6 @@ export const useAuthProvider = () => {
     }
   }
 
-  // Debug log current state
   useEffect(() => {
     if (initialized) {
       console.log('🔍 Auth: Current state -', {
@@ -199,4 +183,12 @@ export const useAuthProvider = () => {
   }
 }
 
-export const AuthProvider = AuthContext.Provider
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const authValue = useAuthProvider()
+
+  return React.createElement(
+    AuthContext.Provider,
+    { value: authValue },
+    children
+  )
+}

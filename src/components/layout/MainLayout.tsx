@@ -1,4 +1,3 @@
-
 import React from 'react'
 import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar'
 import AppSidebar from './AppSidebar'
@@ -17,19 +16,22 @@ const MainLayout = ({ children }: MainLayoutProps) => {
   const getPageTitle = () => {
     switch (location.pathname) {
       case '/chat':
-        return 'Chat con Cerebro'
+        return 'Chat'
       case '/knowledge':
         return 'Base de Conocimiento'
       case '/users':
-        return 'Gestión de Usuarios'
+        return 'Usuarios'
       case '/analytics':
         return 'Analytics'
       case '/integrations':
         return 'Integraciones'
-      case '/admin/tenants':
-        return 'Gestión de Tenants'
+      case '/profile':
+        return 'Perfil'
       default:
-        return 'Dashboard'
+        if (location.pathname.startsWith('/chat/')) {
+          return 'Chat'
+        }
+        return 'Chat'
     }
   }
 

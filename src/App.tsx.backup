@@ -1,13 +1,7 @@
-import React from 'react'
-import {
-  BrowserRouter as Router,
-  Routes,
-  Route,
-  Navigate
-} from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from '@/components/ui/toaster'
-import { AuthProvider, useAuth } from '@/hooks/useAuth'
+import { AuthProvider, useAuth, useAuthProvider } from '@/hooks/useAuth'
 
 // Pages
 import LandingPage from '@/pages/LandingPage'
@@ -34,6 +28,7 @@ const queryClient = new QueryClient({
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading, initialized } = useAuth()
 
+  // Show loading only if not initialized
   if (!initialized || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-purple-100">
@@ -52,65 +47,65 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
-// Routes Component
+// Routes Component (inside AuthProvider)
 function AppRoutes() {
   return (
     <Router>
       <Routes>
-        {/* Public routes */}
+        {/* Public route */}
         <Route path="/landing" element={<LandingPage />} />
         <Route path="/login" element={<LandingPage />} />
         <Route path="/auth/*" element={<LandingPage />} />
-
+        
         {/* Protected routes */}
         <Route path="/" element={
           <ProtectedRoute>
             <Navigate to="/chat" replace />
           </ProtectedRoute>
         } />
-
+        
         <Route path="/chat" element={
           <ProtectedRoute>
             <MainLayout><ChatPage /></MainLayout>
           </ProtectedRoute>
         } />
-
+        
         <Route path="/chat/:conversationId" element={
           <ProtectedRoute>
             <MainLayout><ChatPage /></MainLayout>
           </ProtectedRoute>
         } />
-
+        
         <Route path="/knowledge" element={
           <ProtectedRoute>
             <MainLayout><KnowledgePage /></MainLayout>
           </ProtectedRoute>
         } />
-
+        
         <Route path="/analytics" element={
           <ProtectedRoute>
             <MainLayout><AnalyticsPage /></MainLayout>
           </ProtectedRoute>
         } />
-
+        
         <Route path="/profile" element={
           <ProtectedRoute>
             <MainLayout><ProfilePage /></MainLayout>
           </ProtectedRoute>
         } />
-
+        
         <Route path="/users" element={
           <ProtectedRoute>
             <MainLayout><UsersPage /></MainLayout>
           </ProtectedRoute>
         } />
-
+        
         <Route path="/integrations" element={
           <ProtectedRoute>
             <MainLayout><IntegrationsPage /></MainLayout>
           </ProtectedRoute>
         } />
-
+        
         {/* Catch all - redirect to landing */}
         <Route path="/admin/*" element={<Navigate to="/landing" replace />} />
         <Route path="*" element={<Navigate to="/landing" replace />} />
@@ -119,11 +114,13 @@ function AppRoutes() {
   )
 }
 
-// Main App
+// Main App with proper AuthProvider structure
 function App() {
+  const authValue = useAuthProvider()
+
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
+      <AuthProvider value={authValue}>
         <AppRoutes />
         <Toaster />
       </AuthProvider>
