@@ -176,7 +176,7 @@ const ConversationalChatInterface = () => {
     })
 
     // LLAMADA AL EDGE FUNCTION CORREGIDA - USANDO SUPABASE CLIENT
-    const { data, error } = await supabase.functions.invoke('chat-ai', {
+    const { data, error } = await supabase.functions.invoke('cerebro-chat', {
       body: {
         message: messageText,
         useKnowledgeBase: useKnowledgeBase,
@@ -275,13 +275,13 @@ const ConversationalChatInterface = () => {
 }
 
   const formatMessage = (content: string) => {
-    return content.split('\n').map((line, index) => (
-      <React.Fragment key={index}>
-        {line}
-        {index < content.split('\n').length - 1 && <br />}
-      </React.Fragment>
-    ))
-  }
+  return content.split('\n').map((line, index) => (
+    <React.Fragment key={index}>
+      {line}
+      {index < content.split('\n').length - 1 && <br />}
+    </React.Fragment>
+  ))
+}
 
   return (
     <div className="flex flex-col h-full bg-gray-50">
