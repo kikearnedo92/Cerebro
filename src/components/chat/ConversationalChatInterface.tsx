@@ -24,7 +24,7 @@ interface Message {
 const ConversationalChatInterface = () => {
   const { conversationId } = useParams()
   const navigate = useNavigate()
-  const { user, profile } = useAuth()
+  const { user, profile, session } = useAuth()
   const { createConversation, updateConversationTitle } = useConversations()
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
@@ -54,8 +54,6 @@ const ConversationalChatInterface = () => {
 
   const loadConversationMessages = async (convId: string) => {
     try {
-      navigate(`/chat/${convId}`) // FIX: Navegación correcta
-      
       const { data, error } = await supabase
         .from('messages')
         .select('*')
@@ -123,110 +121,158 @@ const ConversationalChatInterface = () => {
     }
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if ((!input.trim() && !selectedImage) || isLoading || !user) return
+ const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault()
+  
+  if (!input.trim() && !selectedImage) return
+  
+  // Verificar límites de consulta
+  const canProceed = await checkQueryLimit()
+  if (!canProceed) return
 
-    const canQuery = await checkQueryLimit()
-    if (!canQuery) return
+  // Crear mensaje del usuario
+  const userMessage: Message = {
+    id: `user-${Date.now()}`,
+    role: 'user',
+    content: input,
+    timestamp: new Date().toISOString(),
+    imageData: selectedImage || undefined
+  }
 
-    const userMessage = input.trim() || (selectedImage ? '[Imagen adjunta]' : '')
-    const imageData = selectedImage
-    
-    setInput('')
-    setSelectedImage(null)
-    setIsLoading(true)
+  // Añadir mensaje del usuario al chat
+  setMessages(prev => [...prev, userMessage])
 
+  // Crear nueva conversación si no existe
+  let conversationIdToUse = currentConversationId
+  if (!conversationIdToUse) {
     try {
-      let activeConversationId = currentConversationId
-
-      if (!activeConversationId) {
-        activeConversationId = await createConversation('Nueva conversación')
-        setCurrentConversationId(activeConversationId)
-        navigate(`/chat/${activeConversationId}`, { replace: true })
-      }
-
-      const newUserMessage: Message = {
-        id: `temp-${Date.now()}`,
-        role: 'user',
-        content: userMessage,
-        timestamp: new Date().toISOString(),
-        imageData: imageData || undefined
-      }
-      setMessages(prev => [...prev, newUserMessage])
-
-      const { data: savedUserMessage, error: userError } = await supabase
-        .from('messages')
-        .insert({
-          conversation_id: activeConversationId,
-          role: 'user',
-          content: userMessage,
-          image_data: imageData
-        })
-        .select()
-        .single()
-
-      if (userError) {
-        console.error('Error saving user message:', userError)
-      } else {
-        setMessages(prev => prev.map(msg => 
-          msg.id === newUserMessage.id ? { ...savedUserMessage, imageData: imageData || undefined } : msg
-        ))
-      }
-
-      if (messages.length === 0) {
-        const title = userMessage.length > 50 ? userMessage.substring(0, 50) + '...' : userMessage
-        await updateConversationTitle(activeConversationId, title)
-      }
-
-      // FIX: Llamada correcta a Edge Function
-      const { data, error } = await supabase.functions.invoke('chat-ai', {
-        body: {
-          message: userMessage,
-          userId: user.id,
-          useKnowledgeBase: useKnowledgeBase,
-          conversationId: activeConversationId,
-          imageData: imageData
-        }
+      const title = input.length > 50 ? input.substring(0, 50) + '...' : input
+      conversationIdToUse = await createConversation(title)
+      setCurrentConversationId(conversationIdToUse)
+      navigate(`/chat/${conversationIdToUse}`)
+    } catch (error) {
+      console.error('Error creating conversation:', error)
+      toast({
+        title: "Error",
+        description: "No se pudo crear la conversación",
+        variant: "destructive"
       })
+      return
+    }
+  }
 
-      if (error) {
-        throw error
+  // Limpiar input y imagen
+  const messageText = input
+  setInput('')
+  setSelectedImage(null)
+  setIsLoading(true)
+
+  try {
+    console.log('🚀 Enviando mensaje a CEREBRO:', {
+      message: messageText,
+      useKnowledgeBase,
+      conversationId: conversationIdToUse,
+      hasImage: !!selectedImage
+    })
+
+    // LLAMADA AL EDGE FUNCTION CORREGIDA - USANDO SUPABASE CLIENT
+    const { data, error } = await supabase.functions.invoke('chat-ai', {
+      body: {
+        message: messageText,
+        useKnowledgeBase: useKnowledgeBase,
+        conversationId: conversationIdToUse,
+        imageData: selectedImage
       }
+    })
 
+    console.log('📡 Supabase Function Response:', { data, error })
+    
+    if (error) {
+      throw new Error(`Supabase Function Error: ${error.message}`)
+    }
+
+    console.log('📥 Respuesta de CEREBRO:', data)
+
+    // MANEJAR RESPUESTA EXITOSA
+    if (data?.response) {
       const aiMessage: Message = {
         id: `ai-${Date.now()}`,
         role: 'assistant',
-        content: data.response || 'Lo siento, hubo un error procesando tu mensaje.',
+        content: data.response,
         timestamp: new Date().toISOString()
       }
+
       setMessages(prev => [...prev, aiMessage])
+      
+      // Guardar mensajes en la base de datos
+      try {
+        const messagesToSave = [
+          {
+            conversation_id: conversationIdToUse,
+            role: 'user',
+            content: messageText,
+            timestamp: userMessage.timestamp,
+            image_data: selectedImage
+          },
+          {
+            conversation_id: conversationIdToUse,
+            role: 'assistant',
+            content: data.response,
+            timestamp: aiMessage.timestamp
+          }
+        ]
 
-      const { error: aiError } = await supabase
-        .from('messages')
-        .insert({
-          conversation_id: activeConversationId,
-          role: 'assistant',
-          content: aiMessage.content
+        const { error: saveError } = await supabase
+          .from('messages')
+          .insert(messagesToSave)
+
+        if (saveError) {
+          console.error('Error saving messages:', saveError)
+        }
+      } catch (saveError) {
+        console.error('Error saving messages to database:', saveError)
+      }
+      
+      // Log de documentos usados
+      if (data.documentsUsed > 0) {
+        console.log(`✅ CEREBRO usó ${data.documentsUsed} documentos de la base de conocimiento`)
+        toast({
+          title: "Base de conocimiento consultada",
+          description: `Se usaron ${data.documentsUsed} documentos de Retorna`,
+          duration: 3000
         })
-
-      if (aiError) {
-        console.error('Error saving AI message:', aiError)
+      } else if (useKnowledgeBase) {
+        console.log('⚠️ Base de conocimiento activada pero no se encontraron documentos relevantes')
       }
 
+      // Incrementar contador de consultas
       await incrementQueryCount()
-
-    } catch (error) {
-      console.error('Chat error:', error)
-      toast({
-        title: "Error",
-        description: "Hubo un problema con el chat. Inténtalo de nuevo.",
-        variant: "destructive"
-      })
-    } finally {
-      setIsLoading(false)
+      
+    } else {
+      throw new Error(data?.error || 'Respuesta vacía del servidor')
     }
+
+  } catch (error: any) {
+    console.error('❌ Error enviando mensaje a CEREBRO:', error)
+    
+    const errorMessage: Message = {
+      id: `error-${Date.now()}`,
+      role: 'assistant', 
+      content: `Lo siento, hubo un error técnico: ${error.message}. Por favor intenta de nuevo.`,
+      timestamp: new Date().toISOString()
+    }
+    
+    setMessages(prev => [...prev, errorMessage])
+    
+    toast({
+      title: "Error de comunicación",
+      description: "Hubo un problema conectando con CEREBRO. Intenta de nuevo.",
+      variant: "destructive"
+    })
+  } finally {
+    setIsLoading(false)
   }
+}
 
   const formatMessage = (content: string) => {
     return content.split('\n').map((line, index) => (
@@ -402,6 +448,7 @@ const ConversationalChatInterface = () => {
                 placeholder={selectedImage ? "Describe qué quieres saber sobre esta imagen..." : "Escribe tu mensaje aquí..."}
                 disabled={isLoading}
                 className="flex-1"
+                name="message"
               />
               <Button type="submit" disabled={isLoading || (!input.trim() && !selectedImage)} className="bg-purple-600 hover:bg-purple-700">
                 {isLoading ? (

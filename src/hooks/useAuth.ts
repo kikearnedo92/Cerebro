@@ -78,20 +78,21 @@ export const useAuthProvider = () => {
 
       console.log('🔐 Auth: Setting up auth state listener...')
 
-      const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: AuthChangeEvent, session: Session | null) => {
-        console.log('🔐 Auth: State change -', event, 'User:', session?.user?.email)
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: AuthChangeEvent, newSession: Session | null) => {
+        console.log('🔐 Auth: State change -', event, 'User:', newSession?.user?.email)
 
-        setUser(session?.user ?? null)
-        setSession(session)
+        setUser(newSession?.user ?? null)
+        setSession(newSession)
 
-        if (session?.user && event !== 'TOKEN_REFRESHED') {
+        if (newSession?.user && event !== 'TOKEN_REFRESHED') {
           try {
-            const userProfile = await fetchProfile(session.user.id)
+            const userProfile = await fetchProfile(newSession.user.id)
             setProfile(userProfile)
+            console.log('✅ Auth: Profile updated for', newSession.user.email, ':', userProfile?.full_name)
           } catch (error) {
             console.error('❌ Auth: Profile loading in state change failed:', error)
           }
-        } else if (!session?.user) {
+        } else if (!newSession?.user) {
           setProfile(null)
         }
       })
@@ -158,6 +159,7 @@ export const useAuthProvider = () => {
         hasUser: !!user,
         userEmail: user?.email,
         hasSession: !!session,
+        sessionValid: session?.access_token ? 'Valid' : 'Invalid',
         hasProfile: !!profile,
         profileName: profile?.full_name,
         profileRole: profile?.role_system,

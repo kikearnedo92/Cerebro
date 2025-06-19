@@ -63,11 +63,9 @@ function AppRoutes() {
         <Route path="/auth/*" element={<LandingPage />} />
 
         {/* Protected routes */}
-        <Route path="/" element={
-          <ProtectedRoute>
-            <Navigate to="/chat" replace />
-          </ProtectedRoute>
-        } />
+        <Route path="/" element={<Navigate to="/chat" replace />} />
+<Route path="/admin/*" element={<Navigate to="/chat" replace />} />
+<Route path="/tenants/*" element={<Navigate to="/chat" replace />} />
 
         <Route path="/chat" element={
           <ProtectedRoute>
