@@ -7,7 +7,7 @@ import { useKnowledgeBaseUpload } from './knowledge/useKnowledgeBaseUpload'
 export const useKnowledgeBase = () => {
   const { items, setItems, isLoading, error, fetchItems } = useKnowledgeBaseData()
   const { searchKnowledgeBase } = useKnowledgeBaseSearch()
-  const { addItem, updateItem, toggleActive, deleteItem } = useKnowledgeBaseItems(items, setItems)
+  const { addItem, updateItem, toggleActive, deleteItem, syncDocuments } = useKnowledgeBaseItems(items, setItems)
   const { isUploading, uploadFile } = useKnowledgeBaseUpload(setItems)
 
   return {
@@ -21,6 +21,7 @@ export const useKnowledgeBase = () => {
     updateItem,
     toggleActive,
     uploadFile,
-    deleteItem
+    deleteItem,
+    syncDocuments
   }
 }

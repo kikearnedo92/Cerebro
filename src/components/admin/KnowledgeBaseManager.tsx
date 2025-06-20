@@ -10,7 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Switch } from '@/components/ui/switch'
-import { FileText, Upload, Download, Trash2, Edit, Plus, Search, Filter } from 'lucide-react'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
+import { FileText, Upload, Download, Trash2, Edit, Plus, Search, Filter, RefreshCw, Sync } from 'lucide-react'
 import { useKnowledgeBase } from '@/hooks/useKnowledgeBase'
 import { toast } from '@/hooks/use-toast'
 
@@ -23,7 +24,8 @@ const KnowledgeBaseManager = () => {
     updateItem, 
     toggleActive, 
     deleteItem, 
-    uploadFile 
+    uploadFile,
+    syncDocuments
   } = useKnowledgeBase()
   
   const [searchTerm, setSearchTerm] = useState('')
@@ -31,6 +33,7 @@ const KnowledgeBaseManager = () => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [selectedItem, setSelectedItem] = useState<any>(null)
+  const [isSyncing, setIsSyncing] = useState(false)
   const [newItem, setNewItem] = useState({
     title: '',
     content: '',
@@ -110,10 +113,17 @@ const KnowledgeBaseManager = () => {
     event.target.value = ''
   }
 
-  const handleDelete = async (id: string) => {
-    if (window.confirm('¿Estás seguro de que quieres eliminar este elemento?')) {
-      await deleteItem(id)
+  const handleSync = async () => {
+    setIsSyncing(true)
+    try {
+      await syncDocuments()
+    } finally {
+      setIsSyncing(false)
     }
+  }
+
+  const handleDelete = async (id: string) => {
+    await deleteItem(id)
   }
 
   if (isLoading) {
@@ -137,6 +147,19 @@ const KnowledgeBaseManager = () => {
         </div>
         
         <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            onClick={handleSync}
+            disabled={isSyncing}
+          >
+            {isSyncing ? (
+              <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Sync className="w-4 h-4 mr-2" />
+            )}
+            {isSyncing ? 'Sincronizando...' : 'Sincronizar'}
+          </Button>
+          
           <input
             type="file"
             multiple
@@ -361,14 +384,34 @@ const KnowledgeBaseManager = () => {
                         >
                           <Edit className="w-4 h-4" />
                         </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleDelete(item.id)}
-                          className="text-red-600 hover:text-red-700"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-red-600 hover:text-red-700"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>¿Eliminar documento?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Esta acción no se puede deshacer. El documento será eliminado permanentemente.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => handleDelete(item.id)}
+                                className="bg-red-600 hover:bg-red-700"
+                              >
+                                Eliminar
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       </div>
                     </TableCell>
                   </TableRow>

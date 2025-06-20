@@ -9,6 +9,39 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      company_config: {
+        Row: {
+          brand_colors: Json | null
+          created_at: string | null
+          id: string
+          logo_url: string | null
+          name: string
+          system_prompt: string
+          updated_at: string | null
+          voice_tone: string
+        }
+        Insert: {
+          brand_colors?: Json | null
+          created_at?: string | null
+          id?: string
+          logo_url?: string | null
+          name?: string
+          system_prompt?: string
+          updated_at?: string | null
+          voice_tone?: string
+        }
+        Update: {
+          brand_colors?: Json | null
+          created_at?: string | null
+          id?: string
+          logo_url?: string | null
+          name?: string
+          system_prompt?: string
+          updated_at?: string | null
+          voice_tone?: string
+        }
+        Relationships: []
+      }
       conversations: {
         Row: {
           created_at: string
@@ -148,11 +181,12 @@ export type Database = {
           content: string
           created_at: string
           created_by: string
+          embedding: string | null
           external_id: string | null
           file_type: string | null
           file_url: string | null
           id: string
-          project: string
+          project: string | null
           source: string | null
           tags: string[] | null
           title: string
@@ -163,11 +197,12 @@ export type Database = {
           content: string
           created_at?: string
           created_by: string
+          embedding?: string | null
           external_id?: string | null
           file_type?: string | null
           file_url?: string | null
           id?: string
-          project: string
+          project?: string | null
           source?: string | null
           tags?: string[] | null
           title: string
@@ -178,11 +213,12 @@ export type Database = {
           content?: string
           created_at?: string
           created_by?: string
+          embedding?: string | null
           external_id?: string | null
           file_type?: string | null
           file_url?: string | null
           id?: string
-          project?: string
+          project?: string | null
           source?: string | null
           tags?: string[] | null
           title?: string
@@ -196,6 +232,7 @@ export type Database = {
           content: string
           conversation_id: string
           id: string
+          image_data: string | null
           role: string
           timestamp: string
         }
@@ -204,6 +241,7 @@ export type Database = {
           content: string
           conversation_id: string
           id?: string
+          image_data?: string | null
           role: string
           timestamp?: string
         }
@@ -212,6 +250,7 @@ export type Database = {
           content?: string
           conversation_id?: string
           id?: string
+          image_data?: string | null
           role?: string
           timestamp?: string
         }
@@ -224,6 +263,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      notion_integrations: {
+        Row: {
+          created_at: string
+          database_id: string
+          documents_synced: number | null
+          id: string
+          last_sync: string | null
+          metadata: Json | null
+          notion_token: string
+          status: string | null
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          database_id: string
+          documents_synced?: number | null
+          id?: string
+          last_sync?: string | null
+          metadata?: Json | null
+          notion_token: string
+          status?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          database_id?: string
+          documents_synced?: number | null
+          id?: string
+          last_sync?: string | null
+          metadata?: Json | null
+          notion_token?: string
+          status?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
       }
       profiles: {
         Row: {
@@ -239,11 +317,12 @@ export type Database = {
           last_query_reset: string | null
           queries_used_today: number | null
           rol_empresa: string
+          role: string | null
           role_system: string
           tenant_id: string | null
         }
         Insert: {
-          area: string
+          area?: string
           created_at?: string
           daily_query_limit?: number | null
           department?: string | null
@@ -254,7 +333,8 @@ export type Database = {
           last_login?: string | null
           last_query_reset?: string | null
           queries_used_today?: number | null
-          rol_empresa: string
+          rol_empresa?: string
+          role?: string | null
           role_system?: string
           tenant_id?: string | null
         }
@@ -271,6 +351,7 @@ export type Database = {
           last_query_reset?: string | null
           queries_used_today?: number | null
           rol_empresa?: string
+          role?: string | null
           role_system?: string
           tenant_id?: string | null
         }
@@ -407,6 +488,47 @@ export type Database = {
         }
         Relationships: []
       }
+      usage_metrics: {
+        Row: {
+          conversation_id: string | null
+          created_at: string | null
+          has_image: boolean | null
+          id: string
+          image_analysis_tokens: number | null
+          knowledge_base_used: boolean | null
+          model_used: string | null
+          tokens_used: number | null
+        }
+        Insert: {
+          conversation_id?: string | null
+          created_at?: string | null
+          has_image?: boolean | null
+          id?: string
+          image_analysis_tokens?: number | null
+          knowledge_base_used?: boolean | null
+          model_used?: string | null
+          tokens_used?: number | null
+        }
+        Update: {
+          conversation_id?: string | null
+          created_at?: string | null
+          has_image?: boolean | null
+          id?: string
+          image_analysis_tokens?: number | null
+          knowledge_base_used?: boolean | null
+          model_used?: string | null
+          tokens_used?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "usage_metrics_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -480,27 +602,21 @@ export type Database = {
         Args: { "": string } | { "": unknown } | { "": unknown }
         Returns: unknown
       }
+      reset_daily_query_limits: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
       search_documents: {
-        Args:
-          | {
-              query_embedding: string
-              similarity_threshold?: number
-              match_count?: number
-            }
-          | {
-              query_embedding: string
-              similarity_threshold?: number
-              match_count?: number
-              tenant_filter?: string
-            }
+        Args: {
+          query_embedding: string
+          similarity_threshold?: number
+          match_count?: number
+        }
         Returns: {
-          id: string
-          document_id: string
           title: string
           chunk_text: string
-          chunk_index: number
-          metadata: Json
           similarity: number
+          project: string
         }[]
       }
       sparsevec_out: {

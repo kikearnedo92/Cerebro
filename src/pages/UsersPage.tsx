@@ -1,14 +1,17 @@
+
 import React, { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, Car
+dContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Users, Plus, Edit, Shield, UserCheck } from 'lucide-react'
+import { Users, Plus, Edit, Shield, UserCheck, Settings } from 'lucide-react'
 import { supabase } from '@/integrations/supabase/client'
 import { toast } from '@/hooks/use-toast'
+import UserLimitDialog from '@/components/admin/UserLimitDialog'
 
 interface User {
   id: string
@@ -27,7 +30,8 @@ const UsersPage = () => {
   const { isAdmin, isSuperAdmin, user: currentUser } = useAuth()
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
-  const [editingUser, setEditingUser] = useState<User | null>(null)
+  const [selectedUser, setSelectedUser] = useState<User | null>(null)
+  const [isLimitDialogOpen, setIsLimitDialogOpen] = useState(false)
 
   const [newUser, setNewUser] = useState({
     email: '',
@@ -165,16 +169,6 @@ const UsersPage = () => {
         console.warn('⚠️ UsersPage: Profile creation failed:', profileError)
       }
 
-      try {
-        await supabase.auth.signInWithPassword({
-          email: newUser.email,
-          password: 'TempPass123!'
-        })
-        console.log('✅ Auto-login successful for:', newUser.email)
-      } catch (loginError) {
-        console.warn('⚠️ Auto-login failed:', loginError)
-      }
-
       toast({
         title: "Usuario creado",
         description: `Usuario ${newUser.email} creado exitosamente`,
@@ -199,6 +193,11 @@ const UsersPage = () => {
         variant: "destructive"
       })
     }
+  }
+
+  const handleEditLimit = (user: User) => {
+    setSelectedUser(user)
+    setIsLimitDialogOpen(true)
   }
 
   if (!isAdmin) {
@@ -337,8 +336,8 @@ const UsersPage = () => {
                       </Badge>
                       <span className="text-xs text-gray-500">{user.area}</span>
                     </div>
-                    {isSuperAdmin && user.id !== currentUser?.id && (
-                      <div className="flex items-center space-x-2 mt-2">
+                    <div className="flex items-center space-x-2 mt-2">
+                      {isSuperAdmin && user.id !== currentUser?.id && (
                         <Button 
                           size="sm" 
                           variant="outline" 
@@ -346,8 +345,16 @@ const UsersPage = () => {
                         >
                           {user.role_system === 'admin' ? 'Hacer Usuario' : 'Hacer Admin'}
                         </Button>
-                      </div>
-                    )}
+                      )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleEditLimit(user)}
+                      >
+                        <Settings className="h-3 w-3 mr-1" />
+                        Editar Límite
+                      </Button>
+                    </div>
                   </div>
                 </div>
                 <div className="text-right text-sm text-gray-600">
@@ -367,6 +374,13 @@ const UsersPage = () => {
           </CardContent>
         </Card>
       )}
+
+      <UserLimitDialog
+        isOpen={isLimitDialogOpen}
+        onOpenChange={setIsLimitDialogOpen}
+        user={selectedUser}
+        onUserUpdated={fetchUsers}
+      />
     </div>
   )
 }
