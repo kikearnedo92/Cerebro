@@ -159,12 +159,14 @@ export const useKnowledgeBaseItems = (
     }
   }
 
-  // Delete document (admin only)
+  // Delete document (admin only) - FIXED VERSION
   const deleteItem = async (id: string) => {
     try {
       if (!isAdmin) {
         throw new Error('Solo los administradores pueden eliminar documentos')
       }
+
+      console.log('🗑️ Deleting document with ID:', id)
 
       const { error } = await supabase
         .from('knowledge_base')
@@ -176,19 +178,25 @@ export const useKnowledgeBaseItems = (
         throw new Error(`No se pudo eliminar el documento: ${error.message}`)
       }
 
+      // Update local state immediately
       setItems(prev => prev.filter(item => item.id !== id))
+      
       toast({
-        title: "Éxito",
-        description: "Documento eliminado correctamente"
+        title: "Documento eliminado",
+        description: "El documento ha sido eliminado correctamente"
       })
+
+      console.log('✅ Document deleted successfully')
+      
     } catch (error) {
-      console.error('Delete error:', error)
+      console.error('❌ Delete error:', error)
       const errorMessage = error instanceof Error ? error.message : 'Error desconocido'
       toast({
-        title: "Error",
+        title: "Error al eliminar",
         description: errorMessage,
         variant: "destructive"
       })
+      throw error
     }
   }
 
