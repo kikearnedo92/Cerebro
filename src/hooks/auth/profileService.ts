@@ -1,3 +1,4 @@
+
 // ProfileService.ts - VERSIÓN ARREGLADA SIN RLS
 import { supabase } from '@/integrations/supabase/client'
 import { Profile } from '@/types/database'
@@ -90,7 +91,7 @@ const createMinimalProfile = async (userId: string, user?: any): Promise<Profile
       role_system: role_system,
       is_super_admin: is_super_admin,
       created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+      last_login: new Date().toISOString(),
       daily_query_limit: role_system === 'admin' ? 1000 : 50,
       queries_used_today: 0,
       last_query_reset: new Date().toISOString().split('T')[0]
@@ -118,7 +119,7 @@ const createMinimalProfile = async (userId: string, user?: any): Promise<Profile
       role_system: 'user',
       is_super_admin: false,
       created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+      last_login: null,
       daily_query_limit: 50,
       queries_used_today: 0,
       last_query_reset: new Date().toISOString().split('T')[0]

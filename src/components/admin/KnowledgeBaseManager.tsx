@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -11,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Switch } from '@/components/ui/switch'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
-import { FileText, Upload, Download, Trash2, Edit, Plus, Search, Filter, RefreshCw, Sync } from 'lucide-react'
+import { FileText, Upload, Download, Trash2, Edit, Plus, Search, Filter, RefreshCw } from 'lucide-react'
 import { useKnowledgeBase } from '@/hooks/useKnowledgeBase'
 import { toast } from '@/hooks/use-toast'
 
@@ -155,7 +154,7 @@ const KnowledgeBaseManager = () => {
             {isSyncing ? (
               <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
             ) : (
-              <Sync className="w-4 h-4 mr-2" />
+              <RefreshCw className="w-4 h-4 mr-2" />
             )}
             {isSyncing ? 'Sincronizando...' : 'Sincronizar'}
           </Button>

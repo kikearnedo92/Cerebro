@@ -1,4 +1,3 @@
-
 export interface Profile {
   id: string
   email: string
@@ -8,6 +7,7 @@ export interface Profile {
   role_system: string
   last_login: string | null
   created_at: string
+  updated_at?: string
   tenant_id?: string
   department?: string
   is_super_admin?: boolean
