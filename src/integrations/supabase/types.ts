@@ -9,6 +9,63 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      churn_predictions: {
+        Row: {
+          avg_transfer_amount: number | null
+          churn_probability: number
+          created_at: string
+          days_since_last_transfer: number | null
+          id: string
+          intervention_suggested: string | null
+          key_factors: Json
+          kyc_completion_status: string | null
+          last_complaint_date: string | null
+          predicted_churn_date: string | null
+          risk_level: string
+          support_tickets_count: number | null
+          total_transfers: number | null
+          total_volume_sent: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          avg_transfer_amount?: number | null
+          churn_probability: number
+          created_at?: string
+          days_since_last_transfer?: number | null
+          id?: string
+          intervention_suggested?: string | null
+          key_factors: Json
+          kyc_completion_status?: string | null
+          last_complaint_date?: string | null
+          predicted_churn_date?: string | null
+          risk_level: string
+          support_tickets_count?: number | null
+          total_transfers?: number | null
+          total_volume_sent?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          avg_transfer_amount?: number | null
+          churn_probability?: number
+          created_at?: string
+          days_since_last_transfer?: number | null
+          id?: string
+          intervention_suggested?: string | null
+          key_factors?: Json
+          kyc_completion_status?: string | null
+          last_complaint_date?: string | null
+          predicted_churn_date?: string | null
+          risk_level?: string
+          support_tickets_count?: number | null
+          total_transfers?: number | null
+          total_volume_sent?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       company_config: {
         Row: {
           brand_colors: Json | null
@@ -39,6 +96,54 @@ export type Database = {
           system_prompt?: string
           updated_at?: string | null
           voice_tone?: string
+        }
+        Relationships: []
+      }
+      conversation_analytics: {
+        Row: {
+          affected_journey_stage: string | null
+          conversation_id: string | null
+          conversation_type: string
+          created_at: string
+          id: string
+          issue_category: string
+          metadata: Json | null
+          priority_level: string
+          resolution_status: string
+          sentiment_score: number | null
+          suggested_improvement: string | null
+          user_id: string | null
+          user_type: string
+        }
+        Insert: {
+          affected_journey_stage?: string | null
+          conversation_id?: string | null
+          conversation_type: string
+          created_at?: string
+          id?: string
+          issue_category: string
+          metadata?: Json | null
+          priority_level?: string
+          resolution_status?: string
+          sentiment_score?: number | null
+          suggested_improvement?: string | null
+          user_id?: string | null
+          user_type: string
+        }
+        Update: {
+          affected_journey_stage?: string | null
+          conversation_id?: string | null
+          conversation_type?: string
+          created_at?: string
+          id?: string
+          issue_category?: string
+          metadata?: Json | null
+          priority_level?: string
+          resolution_status?: string
+          sentiment_score?: number | null
+          suggested_improvement?: string | null
+          user_id?: string | null
+          user_type?: string
         }
         Relationships: []
       }
@@ -141,6 +246,54 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      improvement_suggestions: {
+        Row: {
+          category: string
+          created_at: string
+          department_owner: string | null
+          estimated_impact: Json | null
+          first_mentioned: string
+          frequency_count: number
+          id: string
+          impact_area: string
+          implementation_status: string
+          last_mentioned: string
+          priority_score: number
+          suggestion_text: string
+          updated_at: string
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          department_owner?: string | null
+          estimated_impact?: Json | null
+          first_mentioned?: string
+          frequency_count?: number
+          id?: string
+          impact_area: string
+          implementation_status?: string
+          last_mentioned?: string
+          priority_score?: number
+          suggestion_text: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          department_owner?: string | null
+          estimated_impact?: Json | null
+          first_mentioned?: string
+          frequency_count?: number
+          id?: string
+          impact_area?: string
+          implementation_status?: string
+          last_mentioned?: string
+          priority_score?: number
+          suggestion_text?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       integrations_config: {
         Row: {

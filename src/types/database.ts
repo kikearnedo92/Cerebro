@@ -110,3 +110,54 @@ export interface IntegrationsConfig {
   created_at: string
   updated_at: string
 }
+
+export interface ConversationAnalytic {
+  id: string
+  conversation_id?: string
+  user_id?: string
+  conversation_type: string
+  issue_category: string
+  sentiment_score?: number
+  priority_level: string
+  user_type: string
+  resolution_status: string
+  suggested_improvement?: string
+  affected_journey_stage?: string
+  created_at: string
+  metadata?: any
+}
+
+export interface ChurnPrediction {
+  id: string
+  user_id: string
+  churn_probability: number
+  risk_level: string
+  key_factors: any
+  days_since_last_transfer?: number
+  total_transfers?: number
+  total_volume_sent?: number
+  avg_transfer_amount?: number
+  kyc_completion_status?: string
+  support_tickets_count?: number
+  last_complaint_date?: string
+  predicted_churn_date?: string
+  intervention_suggested?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface ImprovementSuggestion {
+  id: string
+  suggestion_text: string
+  category: string
+  frequency_count: number
+  first_mentioned: string
+  last_mentioned: string
+  priority_score: number
+  impact_area: string
+  implementation_status: string
+  estimated_impact?: any
+  department_owner?: string
+  created_at: string
+  updated_at: string
+}
