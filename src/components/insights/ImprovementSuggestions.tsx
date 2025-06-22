@@ -128,7 +128,7 @@ export const ImprovementSuggestions: React.FC<ImprovementSuggestionsProps> = ({
             <Lightbulb className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{analytics.totalSugerencias}</div>
+            <div className="text-2xl font-bold">{analytics.totalSuggestions}</div>
             <p className="text-xs text-muted-foreground">
               Ideas de mejora identificadas
             </p>
@@ -177,7 +177,7 @@ export const ImprovementSuggestions: React.FC<ImprovementSuggestionsProps> = ({
               {analytics.urgentSuggestions.length}
             </div>
             <p className="text-xs text-muted-foreground">
-              Prioridad >80, pendientes
+              Prioridad mayor a 80, pendientes
             </p>
           </CardContent>
         </Card>

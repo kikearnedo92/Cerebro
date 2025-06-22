@@ -1,3 +1,4 @@
+
 import React from 'react'
 import {
   BrowserRouter as Router,
@@ -17,6 +18,8 @@ import AnalyticsPage from '@/pages/AnalyticsPage'
 import ProfilePage from '@/pages/ProfilePage'
 import UsersPage from '@/pages/UsersPage'
 import IntegrationsPage from '@/pages/IntegrationsPage'
+import InsightsPage from '@/pages/InsightsPage'
+import AutoDevPage from '@/pages/AutoDevPage'
 
 // Layout
 import MainLayout from '@/components/layout/MainLayout'
@@ -64,8 +67,8 @@ function AppRoutes() {
 
         {/* Protected routes */}
         <Route path="/" element={<Navigate to="/chat" replace />} />
-<Route path="/admin/*" element={<Navigate to="/chat" replace />} />
-<Route path="/tenants/*" element={<Navigate to="/chat" replace />} />
+        <Route path="/admin/*" element={<Navigate to="/chat" replace />} />
+        <Route path="/tenants/*" element={<Navigate to="/chat" replace />} />
 
         <Route path="/chat" element={
           <ProtectedRoute>
@@ -76,6 +79,18 @@ function AppRoutes() {
         <Route path="/chat/:conversationId" element={
           <ProtectedRoute>
             <MainLayout><ChatPage /></MainLayout>
+          </ProtectedRoute>
+        } />
+
+        <Route path="/insights" element={
+          <ProtectedRoute>
+            <MainLayout><InsightsPage /></MainLayout>
+          </ProtectedRoute>
+        } />
+
+        <Route path="/autodev" element={
+          <ProtectedRoute>
+            <MainLayout><AutoDevPage /></MainLayout>
           </ProtectedRoute>
         } />
 
