@@ -16,7 +16,6 @@ interface TenantFeatureFlag {
   feature_flag_id: string
   is_enabled: boolean
   config: Record<string, any>
-  feature_flag: FeatureFlag
 }
 
 interface UserFeaturePermission {
@@ -25,7 +24,6 @@ interface UserFeaturePermission {
   feature_flag_id: string
   tenant_id: string
   is_enabled: boolean
-  feature_flag: FeatureFlag
 }
 
 export const useFeatureFlags = () => {
@@ -35,8 +33,8 @@ export const useFeatureFlags = () => {
   const [tenantFlags, setTenantFlags] = useState<TenantFeatureFlag[]>([])
   const [userPermissions, setUserPermissions] = useState<UserFeaturePermission[]>([])
 
-  // Check if user has access to a specific feature
-  const hasFeatureAccess = async (featureName: string, tenantId?: string): Promise<boolean> => {
+  // Simple feature access check - just return true for super admin for now
+  const hasFeatureAccess = async (featureName: string): Promise<boolean> => {
     if (!user) return false
     
     // Super admin or eduardo@retorna.app always has access
@@ -44,27 +42,21 @@ export const useFeatureFlags = () => {
       return true
     }
 
-    try {
-      const { data, error } = await supabase.rpc('user_has_feature_access', {
-        _user_id: user.id,
-        _feature_name: featureName,
-        _tenant_id: tenantId || profile?.tenant_id
-      })
-
-      if (error) {
-        console.error('Error checking feature access:', error)
-        return false
-      }
-
-      return data || false
-    } catch (error) {
-      console.error('Error checking feature access:', error)
-      return false
+    // For now, enable basic features for all users to test
+    if (['chat_ai'].includes(featureName)) {
+      return true
     }
+
+    return false
   }
 
-  // Load all feature flags (for admin)
+  // Load feature flags (only for super admin)
   const loadFeatureFlags = async () => {
+    if (!user || (!profile?.is_super_admin && profile?.email !== 'eduardo@retorna.app')) {
+      setLoading(false)
+      return
+    }
+
     try {
       const { data, error } = await supabase
         .from('feature_flags')
@@ -78,43 +70,7 @@ export const useFeatureFlags = () => {
     }
   }
 
-  // Load tenant feature flags
-  const loadTenantFlags = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('tenant_feature_flags')
-        .select(`
-          *,
-          feature_flag:feature_flags(*)
-        `)
-        .order('created_at')
-
-      if (error) throw error
-      setTenantFlags(data || [])
-    } catch (error) {
-      console.error('Error loading tenant flags:', error)
-    }
-  }
-
-  // Load user permissions
-  const loadUserPermissions = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('user_feature_permissions')
-        .select(`
-          *,
-          feature_flag:feature_flags(*)
-        `)
-        .order('created_at')
-
-      if (error) throw error
-      setUserPermissions(data || [])
-    } catch (error) {
-      console.error('Error loading user permissions:', error)
-    }
-  }
-
-  // Toggle tenant feature flag
+  // Simplified toggle functions
   const toggleTenantFeature = async (tenantId: string, featureId: string, enabled: boolean) => {
     try {
       const { error } = await supabase
@@ -128,14 +84,13 @@ export const useFeatureFlags = () => {
         })
 
       if (error) throw error
-      await loadTenantFlags()
+      await loadFeatureFlags()
     } catch (error) {
       console.error('Error toggling tenant feature:', error)
       throw error
     }
   }
 
-  // Toggle user permission
   const toggleUserPermission = async (userId: string, featureId: string, tenantId: string, enabled: boolean) => {
     try {
       const { error } = await supabase
@@ -151,7 +106,6 @@ export const useFeatureFlags = () => {
         })
 
       if (error) throw error
-      await loadUserPermissions()
     } catch (error) {
       console.error('Error toggling user permission:', error)
       throw error
@@ -159,12 +113,8 @@ export const useFeatureFlags = () => {
   }
 
   useEffect(() => {
-    if (user && (profile?.is_super_admin || profile?.email === 'eduardo@retorna.app')) {
-      Promise.all([
-        loadFeatureFlags(),
-        loadTenantFlags(),
-        loadUserPermissions()
-      ]).finally(() => setLoading(false))
+    if (user) {
+      loadFeatureFlags().finally(() => setLoading(false))
     } else {
       setLoading(false)
     }
@@ -178,8 +128,6 @@ export const useFeatureFlags = () => {
     hasFeatureAccess,
     toggleTenantFeature,
     toggleUserPermission,
-    loadFeatureFlags,
-    loadTenantFlags,
-    loadUserPermissions
+    loadFeatureFlags
   }
 }

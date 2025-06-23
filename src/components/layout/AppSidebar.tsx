@@ -1,4 +1,3 @@
-
 import * as React from 'react'
 import { useState, useEffect } from 'react'
 import {
@@ -40,37 +39,12 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useAuth } from '@/hooks/useAuth'
-import { useFeatureFlags } from '@/hooks/useFeatureFlags'
-import { supabase } from '@/integrations/supabase/client'
 import { useNavigate, useLocation } from 'react-router-dom'
 
 const AppSidebar = () => {
   const { user, profile, signOut } = useAuth()
-  const { hasFeatureAccess } = useFeatureFlags()
   const navigate = useNavigate()
   const location = useLocation()
-  const [availableFeatures, setAvailableFeatures] = useState({
-    chat_ai: false,
-    insights: false,
-    autodev: false
-  })
-
-  // Check feature access when component mounts
-  useEffect(() => {
-    const checkFeatureAccess = async () => {
-      if (!user || !profile) return
-
-      const features = {
-        chat_ai: await hasFeatureAccess('chat_ai'),
-        insights: await hasFeatureAccess('insights'),
-        autodev: await hasFeatureAccess('autodev')
-      }
-
-      setAvailableFeatures(features)
-    }
-
-    checkFeatureAccess()
-  }, [user, profile, hasFeatureAccess])
 
   const handleSignOut = async () => {
     try {
@@ -81,30 +55,25 @@ const AppSidebar = () => {
     }
   }
 
+  // Simplified navigation - for now enable based on user role
   const navigationItems = [
-    // Chat AI - Always visible but may be disabled
     {
       title: 'Chat',
       url: '/chat',
       icon: MessageSquare,
-      feature: 'chat_ai',
-      enabled: availableFeatures.chat_ai
+      enabled: true // Always enabled for now
     },
-    // Insights
     {
       title: 'Insights',
       url: '/insights',
       icon: TrendingUp,
-      feature: 'insights',
-      enabled: availableFeatures.insights
+      enabled: profile?.is_super_admin || profile?.email === 'eduardo@retorna.app'
     },
-    // AutoDev
     {
       title: 'AutoDev',
       url: '/autodev',
       icon: Code,
-      feature: 'autodev',
-      enabled: availableFeatures.autodev
+      enabled: profile?.is_super_admin || profile?.email === 'eduardo@retorna.app'
     }
   ]
 
@@ -199,16 +168,38 @@ const AppSidebar = () => {
             <SidebarGroupLabel>Administración</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {adminItems.map((item) => (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton asChild isActive={location.pathname === item.url}>
-                      <a href={item.url}>
-                        <item.icon />
-                        <span>{item.title}</span>
-                      </a>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={location.pathname === '/knowledge'}>
+                    <a href="/knowledge">
+                      <BookOpen />
+                      <span>Base de Conocimiento</span>
+                    </a>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={location.pathname === '/users'}>
+                    <a href="/users">
+                      <Users />
+                      <span>Usuarios</span>
+                    </a>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={location.pathname === '/analytics'}>
+                    <a href="/analytics">
+                      <BarChart3 />
+                      <span>Analytics</span>
+                    </a>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={location.pathname === '/integrations'}>
+                    <a href="/integrations">
+                      <Settings />
+                      <span>Integraciones</span>
+                    </a>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
@@ -220,16 +211,14 @@ const AppSidebar = () => {
             <SidebarGroupLabel>Super Admin</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {superAdminItems.map((item) => (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton asChild isActive={location.pathname === item.url}>
-                      <a href={item.url}>
-                        <item.icon />
-                        <span>{item.title}</span>
-                      </a>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={location.pathname === '/feature-flags'}>
+                    <a href="/feature-flags">
+                      <ToggleLeft />
+                      <span>Feature Flags</span>
+                    </a>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>

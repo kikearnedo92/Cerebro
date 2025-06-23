@@ -7,7 +7,8 @@ import { CodeGenerationQueue } from './CodeGenerationQueue'
 import { AutomationPipelines } from './AutomationPipelines'
 import { APIIntegrations } from './APIIntegrations'
 import { AutoDevMetrics } from './AutoDevMetrics'
-import { Loader2, Zap, Code, Settings, GitBranch, Workflow } from 'lucide-react'
+import { ImprovementRoadmap } from './ImprovementRoadmap'
+import { Loader2, Zap, Code, Settings, GitBranch, Workflow, Rocket } from 'lucide-react'
 
 export const AutoDevDashboard = () => {
   const { data, apiIntegrations, loading, error, refetch, triggerCodeGeneration, togglePipeline, retryFailedGeneration } = useAutoDevData()
@@ -86,21 +87,29 @@ export const AutoDevDashboard = () => {
       </div>
 
       {/* Tabs de AutoDev */}
-      <Tabs defaultValue="queue" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-3">
+      <Tabs defaultValue="roadmap" className="space-y-4">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="roadmap" className="flex items-center">
+            <Rocket className="h-4 w-4 mr-2" />
+            Roadmap
+          </TabsTrigger>
           <TabsTrigger value="queue" className="flex items-center">
             <Code className="h-4 w-4 mr-2" />
             Cola de Generación
           </TabsTrigger>
           <TabsTrigger value="pipelines" className="flex items-center">
             <Workflow className="h-4 w-4 mr-2" />
-            Pipelines de Automatización
+            Pipelines
           </TabsTrigger>
           <TabsTrigger value="integrations" className="flex items-center">
             <Settings className="h-4 w-4 mr-2" />
-            Configuración APIs
+            APIs
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="roadmap" className="space-y-4">
+          <ImprovementRoadmap />
+        </TabsContent>
 
         <TabsContent value="queue" className="space-y-4">
           <CodeGenerationQueue 
