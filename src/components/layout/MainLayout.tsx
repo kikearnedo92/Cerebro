@@ -1,3 +1,4 @@
+
 import React from 'react'
 import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar'
 import AppSidebar from './AppSidebar'
@@ -17,6 +18,10 @@ const MainLayout = ({ children }: MainLayoutProps) => {
     switch (location.pathname) {
       case '/chat':
         return 'Chat'
+      case '/insights':
+        return 'Insights'
+      case '/autodev':
+        return 'AutoDev'
       case '/knowledge':
         return 'Base de Conocimiento'
       case '/users':
@@ -25,6 +30,8 @@ const MainLayout = ({ children }: MainLayoutProps) => {
         return 'Analytics'
       case '/integrations':
         return 'Integraciones'
+      case '/feature-flags':
+        return 'Feature Flags'
       case '/profile':
         return 'Perfil'
       default:
@@ -48,7 +55,7 @@ const MainLayout = ({ children }: MainLayoutProps) => {
               </h1>
               <div className="flex items-center space-x-4">
                 <Badge variant="outline" className="text-xs">
-                  v1.0
+                  v2.0.0
                 </Badge>
                 {isSuperAdmin && (
                   <Badge variant="default" className="bg-red-600 text-xs">

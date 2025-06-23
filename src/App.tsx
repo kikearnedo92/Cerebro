@@ -1,145 +1,130 @@
 
-import React from 'react'
-import {
-  BrowserRouter as Router,
-  Routes,
-  Route,
-  Navigate
-} from 'react-router-dom'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from '@/components/ui/toaster'
-import { AuthProvider, useAuth } from '@/hooks/useAuth'
+import { Toaster as Sonner } from '@/components/ui/sonner'
+import { TooltipProvider } from '@/components/ui/tooltip'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { useAuth } from '@/hooks/useAuth'
+import Index from './pages/Index'
+import ChatPage from './pages/ChatPage'
+import UsersPage from './pages/UsersPage'
+import AnalyticsPage from './pages/AnalyticsPage'
+import KnowledgePage from './pages/KnowledgePage'
+import ProfilePage from './pages/ProfilePage'
+import IntegrationsPage from './pages/IntegrationsPage'
+import InsightsPage from './pages/InsightsPage'
+import AutoDevPage from './pages/AutoDevPage'
+import FeatureFlagsPage from './pages/FeatureFlagsPage'
+import LandingPage from './pages/LandingPage'
+import NotFound from './pages/NotFound'
+import MainLayout from './components/layout/MainLayout'
 
-// Pages
-import LandingPage from '@/pages/LandingPage'
-import ChatPage from '@/pages/ChatPage'
-import KnowledgePage from '@/pages/KnowledgePage'
-import AnalyticsPage from '@/pages/AnalyticsPage'
-import ProfilePage from '@/pages/ProfilePage'
-import UsersPage from '@/pages/UsersPage'
-import IntegrationsPage from '@/pages/IntegrationsPage'
-import InsightsPage from '@/pages/InsightsPage'
-import AutoDevPage from '@/pages/AutoDevPage'
+const queryClient = new QueryClient()
 
-// Layout
-import MainLayout from '@/components/layout/MainLayout'
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: 1,
-      refetchOnWindowFocus: false,
-    },
-  },
-})
-
-// Protected Route Component
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading, initialized } = useAuth()
-
-  if (!initialized || loading) {
+const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+  const { user, loading } = useAuth()
+  
+  if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-purple-100">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Cargando Cerebro...</p>
-        </div>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
       </div>
     )
   }
-
+  
   if (!user) {
     return <Navigate to="/landing" replace />
   }
-
-  return <>{children}</>
+  
+  return <MainLayout>{children}</MainLayout>
 }
 
-// Routes Component
-function AppRoutes() {
-  return (
-    <Router>
-      <Routes>
-        {/* Public routes */}
-        <Route path="/landing" element={<LandingPage />} />
-        <Route path="/login" element={<LandingPage />} />
-        <Route path="/auth/*" element={<LandingPage />} />
-
-        {/* Protected routes */}
-        <Route path="/" element={<Navigate to="/chat" replace />} />
-        <Route path="/admin/*" element={<Navigate to="/chat" replace />} />
-        <Route path="/tenants/*" element={<Navigate to="/chat" replace />} />
-
-        <Route path="/chat" element={
-          <ProtectedRoute>
-            <MainLayout><ChatPage /></MainLayout>
-          </ProtectedRoute>
-        } />
-
-        <Route path="/chat/:conversationId" element={
-          <ProtectedRoute>
-            <MainLayout><ChatPage /></MainLayout>
-          </ProtectedRoute>
-        } />
-
-        <Route path="/insights" element={
-          <ProtectedRoute>
-            <MainLayout><InsightsPage /></MainLayout>
-          </ProtectedRoute>
-        } />
-
-        <Route path="/autodev" element={
-          <ProtectedRoute>
-            <MainLayout><AutoDevPage /></MainLayout>
-          </ProtectedRoute>
-        } />
-
-        <Route path="/knowledge" element={
-          <ProtectedRoute>
-            <MainLayout><KnowledgePage /></MainLayout>
-          </ProtectedRoute>
-        } />
-
-        <Route path="/analytics" element={
-          <ProtectedRoute>
-            <MainLayout><AnalyticsPage /></MainLayout>
-          </ProtectedRoute>
-        } />
-
-        <Route path="/profile" element={
-          <ProtectedRoute>
-            <MainLayout><ProfilePage /></MainLayout>
-          </ProtectedRoute>
-        } />
-
-        <Route path="/users" element={
-          <ProtectedRoute>
-            <MainLayout><UsersPage /></MainLayout>
-          </ProtectedRoute>
-        } />
-
-        <Route path="/integrations" element={
-          <ProtectedRoute>
-            <MainLayout><IntegrationsPage /></MainLayout>
-          </ProtectedRoute>
-        } />
-
-        {/* Catch all - redirect to landing */}
-        <Route path="/admin/*" element={<Navigate to="/landing" replace />} />
-        <Route path="*" element={<Navigate to="/landing" replace />} />
-      </Routes>
-    </Router>
-  )
-}
-
-// Main App
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <AppRoutes />
+      <TooltipProvider>
         <Toaster />
-      </AuthProvider>
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            <Route path="/landing" element={<LandingPage />} />
+            <Route path="/" element={<Navigate to="/chat" replace />} />
+            <Route
+              path="/chat/*"
+              element={
+                <ProtectedRoute>
+                  <ChatPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/insights"
+              element={
+                <ProtectedRoute>
+                  <InsightsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/autodev"
+              element={
+                <ProtectedRoute>
+                  <AutoDevPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/users"
+              element={
+                <ProtectedRoute>
+                  <UsersPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/analytics"
+              element={
+                <ProtectedRoute>
+                  <AnalyticsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/knowledge"
+              element={
+                <ProtectedRoute>
+                  <KnowledgePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/integrations"
+              element={
+                <ProtectedRoute>
+                  <IntegrationsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/feature-flags"
+              element={
+                <ProtectedRoute>
+                  <FeatureFlagsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/profile"
+              element={
+                <ProtectedRoute>
+                  <ProfilePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </TooltipProvider>
     </QueryClientProvider>
   )
 }

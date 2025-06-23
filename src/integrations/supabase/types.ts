@@ -247,6 +247,33 @@ export type Database = {
           },
         ]
       }
+      feature_flags: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_global: boolean | null
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_global?: boolean | null
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_global?: boolean | null
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       improvement_suggestions: {
         Row: {
           category: string
@@ -518,6 +545,51 @@ export type Database = {
           },
         ]
       }
+      tenant_feature_flags: {
+        Row: {
+          config: Json | null
+          created_at: string
+          feature_flag_id: string | null
+          id: string
+          is_enabled: boolean | null
+          tenant_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          config?: Json | null
+          created_at?: string
+          feature_flag_id?: string | null
+          id?: string
+          is_enabled?: boolean | null
+          tenant_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          config?: Json | null
+          created_at?: string
+          feature_flag_id?: string | null
+          id?: string
+          is_enabled?: boolean | null
+          tenant_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_feature_flags_feature_flag_id_fkey"
+            columns: ["feature_flag_id"]
+            isOneToOne: false
+            referencedRelation: "feature_flags"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tenant_feature_flags_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tenants: {
         Row: {
           admin_email: string | null
@@ -682,6 +754,57 @@ export type Database = {
           },
         ]
       }
+      user_feature_permissions: {
+        Row: {
+          created_at: string
+          feature_flag_id: string | null
+          granted_at: string | null
+          granted_by: string | null
+          id: string
+          is_enabled: boolean | null
+          tenant_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          feature_flag_id?: string | null
+          granted_at?: string | null
+          granted_by?: string | null
+          id?: string
+          is_enabled?: boolean | null
+          tenant_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          feature_flag_id?: string | null
+          granted_at?: string | null
+          granted_by?: string | null
+          id?: string
+          is_enabled?: boolean | null
+          tenant_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_feature_permissions_feature_flag_id_fkey"
+            columns: ["feature_flag_id"]
+            isOneToOne: false
+            referencedRelation: "feature_flags"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_feature_permissions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -783,6 +906,10 @@ export type Database = {
       sparsevec_typmod_in: {
         Args: { "": unknown[] }
         Returns: number
+      }
+      user_has_feature_access: {
+        Args: { _user_id: string; _feature_name: string; _tenant_id?: string }
+        Returns: boolean
       }
       vector_avg: {
         Args: { "": number[] }

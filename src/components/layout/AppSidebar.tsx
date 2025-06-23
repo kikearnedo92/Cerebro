@@ -1,5 +1,4 @@
-
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   Sidebar,
   SidebarContent,
@@ -15,16 +14,43 @@ import {
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
-import { MessageSquare, BookOpen, Users, BarChart3, User, Plug, Power, Crown, Brain, Zap } from 'lucide-react'
+import { MessageSquare, BookOpen, Users, BarChart3, User, Plug, Power, Crown, Brain, Zap, Settings } from 'lucide-react'
 import { useLocation, Link } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
 import { useConversations } from '@/hooks/useConversations'
+import { useFeatureFlags } from '@/hooks/useFeatureFlags'
 import { supabase } from '@/integrations/supabase/client'
 
 const AppSidebar = () => {
   const location = useLocation()
   const { isAdmin, isSuperAdmin, profile } = useAuth()
   const { conversations } = useConversations()
+  const { hasFeatureAccess } = useFeatureFlags()
+  
+  const [moduleAccess, setModuleAccess] = useState({
+    chat_ai: true,
+    insights: false,
+    autodev: false,
+    advanced_analytics: false
+  })
+
+  // Check feature access on mount
+  useEffect(() => {
+    const checkAccess = async () => {
+      if (!profile) return
+
+      const access = {
+        chat_ai: await hasFeatureAccess('chat_ai'),
+        insights: await hasFeatureAccess('insights'),
+        autodev: await hasFeatureAccess('autodev'),
+        advanced_analytics: await hasFeatureAccess('advanced_analytics')
+      }
+      
+      setModuleAccess(access)
+    }
+
+    checkAccess()
+  }, [profile, hasFeatureAccess])
 
   // Elementos principales para todos los usuarios
   const mainItems = [
@@ -32,7 +58,8 @@ const AppSidebar = () => {
       title: 'Chat',
       url: '/chat',
       icon: MessageSquare,
-      description: 'Asistente IA interno'
+      description: 'Asistente IA interno',
+      featureFlag: 'chat_ai'
     },
   ]
 
@@ -42,13 +69,15 @@ const AppSidebar = () => {
       title: 'Insights',
       url: '/insights',
       icon: Brain,
-      description: 'Analytics e inteligencia de producto'
+      description: 'Analytics e inteligencia de producto',
+      featureFlag: 'insights'
     },
     {
       title: 'AutoDev',
       url: '/autodev',
       icon: Zap,
-      description: 'Mejora continua automatizada'
+      description: 'Mejora continua automatizada',
+      featureFlag: 'autodev'
     },
   ]
 
@@ -58,6 +87,7 @@ const AppSidebar = () => {
       title: 'Analytics',
       url: '/analytics',
       icon: BarChart3,
+      featureFlag: 'advanced_analytics'
     },
     {
       title: 'Usuarios',
@@ -76,6 +106,15 @@ const AppSidebar = () => {
     },
   ]
 
+  // Solo super admin puede ver feature flags
+  const superAdminItems = [
+    {
+      title: 'Feature Flags',
+      url: '/feature-flags',
+      icon: Settings,
+    },
+  ]
+
   // Perfil para todos
   const profileItems = [
     {
@@ -85,11 +124,22 @@ const AppSidebar = () => {
     },
   ]
 
+  // Filter items based on feature flags
+  const filterByFeatureFlag = (items: any[]) => {
+    return items.filter(item => {
+      if (!item.featureFlag) return true
+      return moduleAccess[item.featureFlag as keyof typeof moduleAccess]
+    })
+  }
+
+  const availableMainItems = filterByFeatureFlag(mainItems)
+  const availableCerebroModules = filterByFeatureFlag(cerebroModules)
+  const availableAdminItems = filterByFeatureFlag(adminItems)
+
   return (
     <Sidebar className="border-r border-gray-200 bg-white">
       <SidebarHeader className="p-6 border-b border-gray-100">
         <div className="flex items-center space-x-3">
-          {/* Logo mejorado con gradiente */}
           <div className="relative">
             <div className="w-12 h-12 bg-gradient-to-br from-purple-600 via-purple-700 to-indigo-800 rounded-2xl flex items-center justify-center shadow-lg">
               <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center backdrop-blur-sm">
@@ -100,7 +150,6 @@ const AppSidebar = () => {
                 </svg>
               </div>
             </div>
-            {/* Indicador de status en línea */}
             <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white shadow-sm"></div>
           </div>
           <div className="flex-1">
@@ -121,62 +170,68 @@ const AppSidebar = () => {
       
       <SidebarContent className="px-4 py-2">
         {/* Sección Principal */}
-        <SidebarGroup>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {mainItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton 
-                    asChild 
-                    isActive={location.pathname === item.url || location.pathname.startsWith('/chat/')}
-                    className="group transition-all duration-200 hover:bg-purple-50 data-[active=true]:bg-gradient-to-r data-[active=true]:from-purple-100 data-[active=true]:to-indigo-100 data-[active=true]:text-purple-700 data-[active=true]:font-medium rounded-xl px-3 py-2.5"
-                  >
-                    <Link to={item.url} className="flex items-center w-full">
-                      <item.icon className="w-5 h-5 mr-3 group-hover:scale-110 transition-transform" />
-                      <div className="flex-1">
-                        <span className="font-medium">{item.title}</span>
-                        <p className="text-xs text-gray-500">{item.description}</p>
-                      </div>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {availableMainItems.length > 0 && (
+          <SidebarGroup>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {availableMainItems.map((item) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton 
+                      asChild 
+                      isActive={location.pathname === item.url || location.pathname.startsWith('/chat/')}
+                      className="group transition-all duration-200 hover:bg-purple-50 data-[active=true]:bg-gradient-to-r data-[active=true]:from-purple-100 data-[active=true]:to-indigo-100 data-[active=true]:text-purple-700 data-[active=true]:font-medium rounded-xl px-3 py-2.5"
+                    >
+                      <Link to={item.url} className="flex items-center w-full">
+                        <item.icon className="w-5 h-5 mr-3 group-hover:scale-110 transition-transform" />
+                        <div className="flex-1">
+                          <span className="font-medium">{item.title}</span>
+                          <p className="text-xs text-gray-500">{item.description}</p>
+                        </div>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
 
         {/* Módulos de Cerebro */}
-        <Separator className="my-4" />
-        <SidebarGroup>
-          <SidebarGroupLabel className="text-xs font-semibold text-purple-600 uppercase tracking-wider px-3 flex items-center">
-            <Brain className="w-3 h-3 mr-2" />
-            Módulos Cerebro
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {cerebroModules.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton 
-                    asChild 
-                    isActive={location.pathname === item.url}
-                    className="group transition-all duration-200 hover:bg-purple-50 data-[active=true]:bg-gradient-to-r data-[active=true]:from-purple-100 data-[active=true]:to-indigo-100 data-[active=true]:text-purple-700 data-[active=true]:font-medium rounded-xl px-3 py-2.5"
-                  >
-                    <Link to={item.url} className="flex items-center w-full">
-                      <item.icon className="w-5 h-5 mr-3 group-hover:scale-110 transition-transform" />
-                      <div className="flex-1">
-                        <span className="font-medium">{item.title}</span>
-                        <p className="text-xs text-gray-500">{item.description}</p>
-                      </div>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {availableCerebroModules.length > 0 && (
+          <>
+            <Separator className="my-4" />
+            <SidebarGroup>
+              <SidebarGroupLabel className="text-xs font-semibold text-purple-600 uppercase tracking-wider px-3 flex items-center">
+                <Brain className="w-3 h-3 mr-2" />
+                Módulos Cerebro
+              </SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {availableCerebroModules.map((item) => (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton 
+                        asChild 
+                        isActive={location.pathname === item.url}
+                        className="group transition-all duration-200 hover:bg-purple-50 data-[active=true]:bg-gradient-to-r data-[active=true]:from-purple-100 data-[active=true]:to-indigo-100 data-[active=true]:text-purple-700 data-[active=true]:font-medium rounded-xl px-3 py-2.5"
+                      >
+                        <Link to={item.url} className="flex items-center w-full">
+                          <item.icon className="w-5 h-5 mr-3 group-hover:scale-110 transition-transform" />
+                          <div className="flex-1">
+                            <span className="font-medium">{item.title}</span>
+                            <p className="text-xs text-gray-500">{item.description}</p>
+                          </div>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          </>
+        )}
 
         {/* Conversaciones Recientes */}
-        {conversations.length > 0 && (
+        {conversations.length > 0 && moduleAccess.chat_ai && (
           <>
             <Separator className="my-4" />
             <SidebarGroup>
@@ -206,7 +261,7 @@ const AppSidebar = () => {
         )}
 
         {/* Sección Administrativa */}
-        {isAdmin && (
+        {isAdmin && availableAdminItems.length > 0 && (
           <>
             <Separator className="my-4" />
             <SidebarGroup>
@@ -216,12 +271,43 @@ const AppSidebar = () => {
               </SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
-                  {adminItems.map((item) => (
+                  {availableAdminItems.map((item) => (
                     <SidebarMenuItem key={item.title}>
                       <SidebarMenuButton 
                         asChild 
                         isActive={location.pathname === item.url}
                         className="group transition-all duration-200 hover:bg-purple-50 data-[active=true]:bg-gradient-to-r data-[active=true]:from-purple-100 data-[active=true]:to-indigo-100 data-[active=true]:text-purple-700 data-[active=true]:font-medium rounded-xl px-3 py-2.5"
+                      >
+                        <Link to={item.url} className="flex items-center w-full">
+                          <item.icon className="w-5 h-5 mr-3 group-hover:scale-110 transition-transform" />
+                          <span className="font-medium">{item.title}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          </>
+        )}
+
+        {/* Super Admin Features */}
+        {isSuperAdmin && (
+          <>
+            <Separator className="my-4" />
+            <SidebarGroup>
+              <SidebarGroupLabel className="text-xs font-semibold text-red-600 uppercase tracking-wider px-3 flex items-center">
+                <Settings className="w-3 h-3 mr-2" />
+                Super Admin
+              </SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {superAdminItems.map((item) => (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton 
+                        asChild 
+                        isActive={location.pathname === item.url}
+                        className="group transition-all duration-200 hover:bg-red-50 data-[active=true]:bg-gradient-to-r data-[active=true]:from-red-100 data-[active=true]:to-red-100 data-[active=true]:text-red-700 data-[active=true]:font-medium rounded-xl px-3 py-2.5"
                       >
                         <Link to={item.url} className="flex items-center w-full">
                           <item.icon className="w-5 h-5 mr-3 group-hover:scale-110 transition-transform" />
@@ -262,7 +348,6 @@ const AppSidebar = () => {
       </SidebarContent>
       
       <SidebarFooter className="p-4 border-t border-gray-100 bg-gray-50/50">
-        {/* Información del usuario */}
         <div className="mb-3 p-3 bg-white rounded-xl border border-gray-100 shadow-sm">
           <div className="flex items-center space-x-3">
             <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-full flex items-center justify-center text-white font-medium text-sm">
@@ -277,7 +362,6 @@ const AppSidebar = () => {
           </div>
         </div>
 
-        {/* Botón de cerrar sesión mejorado */}
         <Button 
           variant="ghost" 
           size="sm" 
@@ -291,7 +375,6 @@ const AppSidebar = () => {
           <span className="font-medium">Cerrar Sesión</span>
         </Button>
         
-        {/* Versión */}
         <div className="text-center pt-2">
           <p className="text-xs text-gray-400">v2.0.0 - Retorna AI</p>
         </div>
