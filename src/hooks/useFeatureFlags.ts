@@ -10,39 +10,21 @@ interface FeatureFlag {
   is_global: boolean
 }
 
-interface TenantFeatureFlag {
-  id: string
-  tenant_id: string
-  feature_flag_id: string
-  is_enabled: boolean
-  config: Record<string, any>
-}
-
-interface UserFeaturePermission {
-  id: string
-  user_id: string
-  feature_flag_id: string
-  tenant_id: string
-  is_enabled: boolean
-}
-
 export const useFeatureFlags = () => {
   const { user, profile } = useAuth()
   const [loading, setLoading] = useState(true)
   const [featureFlags, setFeatureFlags] = useState<FeatureFlag[]>([])
-  const [tenantFlags, setTenantFlags] = useState<TenantFeatureFlag[]>([])
-  const [userPermissions, setUserPermissions] = useState<UserFeaturePermission[]>([])
 
-  // Simple feature access check - just return true for super admin for now
-  const hasFeatureAccess = async (featureName: string): Promise<boolean> => {
-    if (!user) return false
+  // Simple feature access check
+  const hasFeatureAccess = (featureName: string): boolean => {
+    if (!user || !profile) return false
     
     // Super admin or eduardo@retorna.app always has access
     if (profile?.is_super_admin || profile?.email === 'eduardo@retorna.app') {
       return true
     }
 
-    // For now, enable basic features for all users to test
+    // For now, enable basic features for all users
     if (['chat_ai'].includes(featureName)) {
       return true
     }
@@ -67,10 +49,12 @@ export const useFeatureFlags = () => {
       setFeatureFlags(data || [])
     } catch (error) {
       console.error('Error loading feature flags:', error)
+    } finally {
+      setLoading(false)
     }
   }
 
-  // Simplified toggle functions
+  // Simplified toggle functions (no await in return)
   const toggleTenantFeature = async (tenantId: string, featureId: string, enabled: boolean) => {
     try {
       const { error } = await supabase
@@ -113,18 +97,18 @@ export const useFeatureFlags = () => {
   }
 
   useEffect(() => {
-    if (user) {
-      loadFeatureFlags().finally(() => setLoading(false))
+    if (profile) {
+      loadFeatureFlags()
     } else {
       setLoading(false)
     }
-  }, [user, profile])
+  }, [profile?.is_super_admin, profile?.email])
 
   return {
     loading,
     featureFlags,
-    tenantFlags,
-    userPermissions,
+    tenantFlags: [],
+    userPermissions: [],
     hasFeatureAccess,
     toggleTenantFeature,
     toggleUserPermission,

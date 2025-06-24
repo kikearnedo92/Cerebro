@@ -1,7 +1,6 @@
+
 import * as React from 'react'
-import { useState, useEffect } from 'react'
 import {
-  Bot,
   MessageSquare,
   Users,
   BarChart3,
@@ -10,12 +9,10 @@ import {
   ChevronUp,
   User2,
   LogOut,
-  Shield,
-  Zap,
-  Brain,
-  Code,
   TrendingUp,
-  ToggleLeft
+  Code,
+  ToggleLeft,
+  Brain
 } from 'lucide-react'
 
 import {
@@ -55,61 +52,31 @@ const AppSidebar = () => {
     }
   }
 
-  // Simplified navigation - for now enable based on user role
+  // Check permissions based on user role
+  const isSuperAdmin = profile?.is_super_admin || profile?.email === 'eduardo@retorna.app'
+  const isAdmin = profile?.role_system === 'admin' || profile?.role_system === 'super_admin' || isSuperAdmin
+
+  // Main navigation items
   const navigationItems = [
     {
       title: 'Chat',
       url: '/chat',
       icon: MessageSquare,
-      enabled: true // Always enabled for now
+      enabled: true
     },
     {
       title: 'Insights',
       url: '/insights',
       icon: TrendingUp,
-      enabled: profile?.is_super_admin || profile?.email === 'eduardo@retorna.app'
+      enabled: isSuperAdmin
     },
     {
       title: 'AutoDev',
       url: '/autodev',
       icon: Code,
-      enabled: profile?.is_super_admin || profile?.email === 'eduardo@retorna.app'
+      enabled: isSuperAdmin
     }
   ]
-
-  const adminItems = [
-    {
-      title: 'Base de Conocimiento',
-      url: '/knowledge',
-      icon: BookOpen,
-    },
-    {
-      title: 'Usuarios',
-      url: '/users',
-      icon: Users,
-    },
-    {
-      title: 'Analytics',
-      url: '/analytics',
-      icon: BarChart3,
-    },
-    {
-      title: 'Integraciones',
-      url: '/integrations',
-      icon: Settings,
-    }
-  ]
-
-  const superAdminItems = [
-    {
-      title: 'Feature Flags',
-      url: '/feature-flags',
-      icon: ToggleLeft,
-    }
-  ]
-
-  const isSuperAdmin = profile?.is_super_admin || profile?.email === 'eduardo@retorna.app'
-  const isAdmin = profile?.role_system === 'admin' || profile?.role_system === 'super_admin' || isSuperAdmin
 
   return (
     <Sidebar variant="inset">
