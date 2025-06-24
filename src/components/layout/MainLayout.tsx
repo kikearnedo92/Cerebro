@@ -32,6 +32,8 @@ const MainLayout = ({ children }: MainLayoutProps) => {
         return 'Integraciones'
       case '/feature-flags':
         return 'Feature Flags'
+      case '/admin/tenants':
+        return 'Gestión de Tenants'
       case '/profile':
         return 'Perfil'
       default:

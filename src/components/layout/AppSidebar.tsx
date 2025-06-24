@@ -12,7 +12,8 @@ import {
   TrendingUp,
   Code,
   ToggleLeft,
-  Brain
+  Brain,
+  Building2
 } from 'lucide-react'
 
 import {
@@ -178,6 +179,14 @@ const AppSidebar = () => {
             <SidebarGroupLabel>Super Admin</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={location.pathname === '/admin/tenants'}>
+                    <a href="/admin/tenants">
+                      <Building2 />
+                      <span>Tenants</span>
+                    </a>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={location.pathname === '/feature-flags'}>
                     <a href="/feature-flags">

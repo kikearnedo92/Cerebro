@@ -15,6 +15,7 @@ import IntegrationsPage from './pages/IntegrationsPage'
 import InsightsPage from './pages/InsightsPage'
 import AutoDevPage from './pages/AutoDevPage'
 import FeatureFlagsPage from './pages/FeatureFlagsPage'
+import TenantsPage from './pages/admin/TenantsPage'
 import LandingPage from './pages/LandingPage'
 import NotFound from './pages/NotFound'
 import MainLayout from './components/layout/MainLayout'
@@ -48,7 +49,7 @@ function App() {
         <BrowserRouter>
           <Routes>
             <Route path="/landing" element={<LandingPage />} />
-            <Route path="/" element={<Navigate to="/chat" replace />} />
+            <Route path="/" element={<Index />} />
             <Route
               path="/chat/*"
               element={
@@ -110,6 +111,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <FeatureFlagsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/tenants"
+              element={
+                <ProtectedRoute>
+                  <TenantsPage />
                 </ProtectedRoute>
               }
             />
