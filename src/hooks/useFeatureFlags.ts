@@ -97,12 +97,13 @@ export const useFeatureFlags = () => {
   }
 
   useEffect(() => {
-    if (profile) {
+    // Only load once when user and profile are available
+    if (user && profile) {
       loadFeatureFlags()
     } else {
       setLoading(false)
     }
-  }, [profile?.is_super_admin, profile?.email])
+  }, [user?.id, profile?.id]) // Only depend on IDs to prevent loops
 
   return {
     loading,
