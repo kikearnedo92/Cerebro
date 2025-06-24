@@ -52,11 +52,11 @@ const AppSidebar = () => {
     }
   }
 
-  // Check permissions based on user role
+  // Simple permission checks without complex logic
   const isSuperAdmin = profile?.is_super_admin || profile?.email === 'eduardo@retorna.app'
   const isAdmin = profile?.role_system === 'admin' || profile?.role_system === 'super_admin' || isSuperAdmin
 
-  // Main navigation items
+  // Simplified navigation items
   const navigationItems = [
     {
       title: 'Chat',
@@ -66,7 +66,7 @@ const AppSidebar = () => {
     },
     {
       title: 'Insights',
-      url: '/insights',
+      url: '/insights', 
       icon: TrendingUp,
       enabled: isSuperAdmin
     },
