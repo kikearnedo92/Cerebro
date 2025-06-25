@@ -274,6 +274,39 @@ export type Database = {
         }
         Relationships: []
       }
+      feature_flags_enhanced: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          display_name: string
+          id: string
+          is_global: boolean | null
+          module: string
+          name: string
+          requires_commercial: boolean | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          display_name: string
+          id?: string
+          is_global?: boolean | null
+          module: string
+          name: string
+          requires_commercial?: boolean | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          display_name?: string
+          id?: string
+          is_global?: boolean | null
+          module?: string
+          name?: string
+          requires_commercial?: boolean | null
+        }
+        Relationships: []
+      }
       improvement_suggestions: {
         Row: {
           category: string
@@ -483,6 +516,42 @@ export type Database = {
         }
         Relationships: []
       }
+      products: {
+        Row: {
+          branding: Json | null
+          created_at: string | null
+          description: string | null
+          display_name: string
+          features: string[] | null
+          id: string
+          is_commercial: boolean | null
+          name: string
+          updated_at: string | null
+        }
+        Insert: {
+          branding?: Json | null
+          created_at?: string | null
+          description?: string | null
+          display_name: string
+          features?: string[] | null
+          id?: string
+          is_commercial?: boolean | null
+          name: string
+          updated_at?: string | null
+        }
+        Update: {
+          branding?: Json | null
+          created_at?: string | null
+          description?: string | null
+          display_name?: string
+          features?: string[] | null
+          id?: string
+          is_commercial?: boolean | null
+          name?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           area: string
@@ -590,6 +659,48 @@ export type Database = {
           },
         ]
       }
+      tenant_feature_flags_enhanced: {
+        Row: {
+          created_at: string | null
+          feature_flag_id: string
+          granted_by: string | null
+          id: string
+          is_enabled: boolean | null
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          feature_flag_id: string
+          granted_by?: string | null
+          id?: string
+          is_enabled?: boolean | null
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string | null
+          feature_flag_id?: string
+          granted_by?: string | null
+          id?: string
+          is_enabled?: boolean | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_feature_flags_enhanced_feature_flag_id_fkey"
+            columns: ["feature_flag_id"]
+            isOneToOne: false
+            referencedRelation: "feature_flags_enhanced"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tenant_feature_flags_enhanced_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tenants: {
         Row: {
           admin_email: string | null
@@ -604,6 +715,7 @@ export type Database = {
           max_users: number | null
           name: string
           plan: string | null
+          product_id: string | null
           settings: Json | null
           subdomain: string
           subscription_status: string | null
@@ -623,6 +735,7 @@ export type Database = {
           max_users?: number | null
           name: string
           plan?: string | null
+          product_id?: string | null
           settings?: Json | null
           subdomain: string
           subscription_status?: string | null
@@ -642,13 +755,22 @@ export type Database = {
           max_users?: number | null
           name?: string
           plan?: string | null
+          product_id?: string | null
           settings?: Json | null
           subdomain?: string
           subscription_status?: string | null
           trial_ends_at?: string | null
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "tenants_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       uploaded_files: {
         Row: {

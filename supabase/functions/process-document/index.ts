@@ -1,240 +1,321 @@
-
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.50.0';
-
-const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const openAIApiKey = Deno.env.get('OPENAI_API_KEY')!;
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
-
-// Function to chunk text into smaller pieces
-function chunkText(text: string, chunkSize: number = 1000, overlap: number = 200): string[] {
-  const chunks: string[] = [];
-  let start = 0;
-  
-  while (start < text.length) {
-    const end = Math.min(start + chunkSize, text.length);
-    chunks.push(text.slice(start, end));
-    start = end - overlap;
-    
-    if (start >= text.length) break;
-  }
-  
-  return chunks;
 }
 
-// Function to create embeddings using OpenAI
-async function createEmbedding(text: string): Promise<number[]> {
-  const response = await fetch('https://api.openai.com/v1/embeddings', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${openAIApiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'text-embedding-ada-002',
-      input: text.replace(/\n/g, ' ').trim(),
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`OpenAI API error: ${response.statusText}`);
-  }
-
-  const data = await response.json();
-  return data.data[0].embedding;
+interface ProcessDocumentRequest {
+  fileUrl: string
+  fileName: string
+  fileType: string
+  userId: string
+  project?: string
+  tags?: string[]
 }
 
-// Function to extract text from different file types using OpenAI
-async function extractTextWithOpenAI(fileContent: Uint8Array, fileName: string): Promise<string> {
-  try {
-    // Convert file to base64
-    const base64Content = btoa(String.fromCharCode(...fileContent));
-    
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openAIApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [
-          {
-            role: 'system',
-            content: 'Eres un experto en extracción de texto. Extrae TODO el texto legible del documento proporcionado. Devuelve solo el texto extraído, sin comentarios adicionales. Si el documento contiene tablas, convierte los datos tabulares a texto estructurado. Mantén la estructura y formato original tanto como sea posible.'
-          },
-          {
-            role: 'user',
-            content: `Extrae todo el texto del siguiente archivo: ${fileName}\n\nContenido del archivo (base64): ${base64Content.substring(0, 100000)}` // Limit to ~100KB for safety
-          }
-        ],
-        max_tokens: 4000,
-        temperature: 0.1,
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`OpenAI text extraction failed: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    return data.choices[0].message.content;
-  } catch (error) {
-    console.error('OpenAI extraction failed:', error);
-    throw error;
-  }
-}
-
-// Simple text extraction for supported formats
-async function extractTextSimple(fileContent: Uint8Array, fileName: string): Promise<string> {
-  const text = new TextDecoder().decode(fileContent);
-  
-  if (fileName.toLowerCase().endsWith('.txt')) {
-    return text;
-  } else if (fileName.toLowerCase().endsWith('.csv')) {
-    return `Datos CSV:\n${text}`;
-  } else if (fileName.toLowerCase().endsWith('.json')) {
-    try {
-      const jsonData = JSON.parse(text);
-      return `Datos JSON:\n${JSON.stringify(jsonData, null, 2)}`;
-    } catch {
-      return `Datos JSON (raw):\n${text}`;
-    }
-  }
-  
-  return text;
-}
+const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    const { fileUrl, fileName, title, project, tags, userId } = await req.json();
-    
-    console.log('📄 Processing document:', fileName);
-    
-    // Initialize Supabase client with service role key for admin access
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-    
-    // Download file from storage
-    const { data: fileData, error: downloadError } = await supabase.storage
-      .from('retorna-files')
-      .download(fileUrl);
+    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+    const { fileUrl, fileName, fileType, userId, project = 'default', tags = [] }: ProcessDocumentRequest = await req.json()
 
-    if (downloadError) {
-      throw new Error(`Failed to download file: ${downloadError.message}`);
+    console.log(`Processing document: ${fileName} (${fileType})`)
+
+    // Download the file
+    const fileResponse = await fetch(fileUrl)
+    if (!fileResponse.ok) {
+      throw new Error(`Failed to download file: ${fileResponse.statusText}`)
     }
 
-    // Convert file data to Uint8Array
-    const arrayBuffer = await fileData.arrayBuffer();
-    const fileContent = new Uint8Array(arrayBuffer);
+    const fileBuffer = await fileResponse.arrayBuffer()
+    let extractedText = ''
 
-    // Extract text based on file type
-    let extractedText = '';
-    
-    try {
-      if (fileName.toLowerCase().endsWith('.txt') || 
-          fileName.toLowerCase().endsWith('.csv') || 
-          fileName.toLowerCase().endsWith('.json')) {
-        // Simple text extraction for basic formats
-        extractedText = await extractTextSimple(fileContent, fileName);
-      } else if (fileName.toLowerCase().endsWith('.pdf') || 
-                 fileName.toLowerCase().endsWith('.docx') || 
-                 fileName.toLowerCase().endsWith('.doc')) {
-        // Use OpenAI for complex document parsing
-        console.log('🤖 Using OpenAI for text extraction...');
-        extractedText = await extractTextWithOpenAI(fileContent, fileName);
-      } else {
-        // Fallback for unknown formats
-        extractedText = `Documento: ${fileName}\nTítulo: ${title}\nProyecto: ${project}\n\n[Formato no soportado directamente - contenido disponible como archivo adjunto]`;
+    // Enhanced PDF processing
+    if (fileType === 'application/pdf' || fileName.toLowerCase().endsWith('.pdf')) {
+      console.log('Processing PDF document...')
+      
+      try {
+        // Try multiple PDF processing approaches
+        extractedText = await processPDFDocument(fileBuffer)
+      } catch (pdfError) {
+        console.error('PDF processing failed:', pdfError)
+        // Fallback: extract any available metadata or return basic info
+        extractedText = `PDF Document: ${fileName}\n\nNote: Content extraction failed. Please ensure the PDF is not password-protected and contains readable text.`
       }
-    } catch (extractionError) {
-      console.error('Text extraction failed, using fallback:', extractionError);
-      extractedText = `Documento: ${fileName}\nTítulo: ${title}\nProyecto: ${project}\n\n[Error en extracción automática - contenido requerirá procesamiento manual]`;
+    } 
+    // Enhanced text file processing
+    else if (fileType.startsWith('text/') || fileName.match(/\.(txt|md|csv)$/i)) {
+      console.log('Processing text document...')
+      const decoder = new TextDecoder('utf-8')
+      extractedText = decoder.decode(fileBuffer)
+    }
+    // Enhanced Word document processing
+    else if (fileType.includes('word') || fileName.match(/\.(doc|docx)$/i)) {
+      console.log('Processing Word document...')
+      try {
+        extractedText = await processWordDocument(fileBuffer)
+      } catch (wordError) {
+        console.error('Word processing failed:', wordError)
+        extractedText = `Word Document: ${fileName}\n\nNote: Content extraction failed. Please convert to PDF or text format for better processing.`
+      }
+    }
+    else {
+      throw new Error(`Unsupported file type: ${fileType}`)
     }
 
-    console.log('✅ Text extracted, length:', extractedText.length);
+    // Enhanced text preprocessing
+    const processedContent = preprocessText(extractedText)
+    
+    if (processedContent.length < 10) {
+      throw new Error('Extracted content is too short or empty')
+    }
 
-    // Save main document to knowledge base
-    const { data: newItem, error: insertError } = await supabase
+    // Create chunks for better search and retrieval
+    const chunks = createTextChunks(processedContent, 1000, 200) // 1000 char chunks with 200 char overlap
+
+    // Store in knowledge base
+    const { data: kbEntry, error: kbError } = await supabase
       .from('knowledge_base')
       .insert({
-        title: title,
-        content: extractedText,
+        title: fileName,
+        content: processedContent,
         project: project,
         tags: tags,
         file_url: fileUrl,
+        file_type: fileType,
+        source: 'upload',
         created_by: userId,
+        user_id: userId,
         active: true
       })
       .select()
-      .single();
+      .single()
 
-    if (insertError) {
-      throw new Error(`Failed to save to knowledge base: ${insertError.message}`);
+    if (kbError) {
+      throw new Error(`Failed to save to knowledge base: ${kbError.message}`)
     }
 
-    // Create chunks and embeddings for vector search
-    if (extractedText.length > 100) { // Only create embeddings for substantial content
-      console.log('🔄 Creating chunks and embeddings...');
-      
-      const chunks = chunkText(extractedText, 800, 100);
-      const chunkPromises = chunks.map(async (chunk, index) => {
-        try {
-          const embedding = await createEmbedding(chunk);
-          
-          return supabase
-            .from('document_chunks')
-            .insert({
-              document_id: newItem.id,
-              chunk_text: chunk,
-              chunk_index: index,
-              embedding: `[${embedding.join(',')}]`, // Convert array to PostgreSQL vector format
-              metadata: {
-                source: fileName,
-                project: project,
-                chunk_length: chunk.length
-              }
-            });
-        } catch (error) {
-          console.error(`Failed to create embedding for chunk ${index}:`, error);
-          return null;
-        }
-      });
+    // Store chunks for better search
+    if (chunks.length > 1) {
+      const chunkPromises = chunks.map((chunk, index) => 
+        supabase.from('document_chunks').insert({
+          document_id: kbEntry.id,
+          chunk_text: chunk,
+          chunk_index: index,
+          metadata: {
+            file_name: fileName,
+            chunk_size: chunk.length,
+            total_chunks: chunks.length
+          }
+        })
+      )
 
-      // Execute all chunk insertions
-      const chunkResults = await Promise.allSettled(chunkPromises);
-      const successfulChunks = chunkResults.filter(result => 
-        result.status === 'fulfilled' && result.value !== null
-      ).length;
-      
-      console.log(`✅ Created ${successfulChunks}/${chunks.length} chunks with embeddings`);
+      await Promise.all(chunkPromises)
     }
 
-    console.log('✅ Document processed and saved to knowledge base');
+    console.log(`Document processed successfully: ${fileName}`)
+    console.log(`Extracted ${processedContent.length} characters in ${chunks.length} chunks`)
 
-    return new Response(JSON.stringify({ 
-      success: true,
-      item: newItem,
-      extractedLength: extractedText.length,
-      hasEmbeddings: extractedText.length > 100
-    }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: 'Document processed successfully',
+        documentId: kbEntry.id,
+        contentLength: processedContent.length,
+        chunksCreated: chunks.length,
+        preview: processedContent.substring(0, 200) + '...'
+      }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200,
+      }
+    )
+
   } catch (error) {
-    console.error('Error in process-document function:', error);
-    return new Response(JSON.stringify({ 
-      error: error.message 
-    }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    console.error('Document processing error:', error)
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: error.message,
+        details: 'Check the document format and try again. Supported formats: PDF, TXT, MD, DOC, DOCX'
+      }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400,
+      }
+    )
   }
-});
+})
+
+// Enhanced PDF processing with multiple fallback methods
+async function processPDFDocument(buffer: ArrayBuffer): Promise<string> {
+  // Method 1: Try to extract text using a simple PDF parser
+  try {
+    const text = await extractPDFTextSimple(buffer)
+    if (text && text.length > 50) {
+      return text
+    }
+  } catch (e) {
+    console.log('Simple PDF extraction failed, trying alternative methods...')
+  }
+
+  // Method 2: Try to extract text using binary pattern matching
+  try {
+    const text = await extractPDFTextBinary(buffer)
+    if (text && text.length > 20) {
+      return text
+    }
+  } catch (e) {
+    console.log('Binary PDF extraction failed...')
+  }
+
+  throw new Error('Unable to extract text from PDF using available methods')
+}
+
+// Simple PDF text extraction
+async function extractPDFTextSimple(buffer: ArrayBuffer): Promise<string> {
+  const uint8Array = new Uint8Array(buffer)
+  const text = new TextDecoder('utf-8', { fatal: false }).decode(uint8Array)
+  
+  // Look for text content between stream objects
+  const textRegex = /BT\s*(.*?)\s*ET/gs
+  const matches = text.match(textRegex)
+  
+  if (matches) {
+    let extractedText = matches
+      .join(' ')
+      .replace(/BT|ET|Tf|TJ|Tj|TD|Td|'|"/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+    
+    // Clean up the extracted text
+    extractedText = extractedText
+      .replace(/[^\x20-\x7E\n\r\t]/g, ' ') // Remove non-printable characters
+      .replace(/\s+/g, ' ')
+      .trim()
+    
+    return extractedText
+  }
+  
+  throw new Error('No text content found in PDF')
+}
+
+// Binary pattern matching for PDF text extraction
+async function extractPDFTextBinary(buffer: ArrayBuffer): Promise<string> {
+  const uint8Array = new Uint8Array(buffer)
+  let extractedText = ''
+  
+  // Convert to string and look for readable text patterns
+  const text = new TextDecoder('latin1').decode(uint8Array)
+  
+  // Find text between parentheses (common PDF text encoding)
+  const parenthesesRegex = /\((.*?)\)/g
+  let match
+  const textFragments = []
+  
+  while ((match = parenthesesRegex.exec(text)) !== null) {
+    const fragment = match[1]
+    // Filter out likely non-text content
+    if (fragment.length > 2 && /[a-zA-Z\s]/.test(fragment)) {
+      textFragments.push(fragment)
+    }
+  }
+  
+  if (textFragments.length > 0) {
+    extractedText = textFragments.join(' ')
+      .replace(/\\n/g, '\n')
+      .replace(/\\t/g, '\t')
+      .replace(/\\r/g, '\r')
+      .replace(/\s+/g, ' ')
+      .trim()
+  }
+  
+  if (extractedText.length < 20) {
+    throw new Error('Insufficient text extracted from PDF')
+  }
+  
+  return extractedText
+}
+
+// Enhanced Word document processing
+async function processWordDocument(buffer: ArrayBuffer): Promise<string> {
+  // For DOCX files, we can try to extract from the XML structure
+  try {
+    const uint8Array = new Uint8Array(buffer)
+    const text = new TextDecoder('utf-8', { fatal: false }).decode(uint8Array)
+    
+    // Look for XML text content (DOCX is a ZIP with XML files)
+    const xmlTextRegex = /<w:t[^>]*>(.*?)<\/w:t>/gs
+    const matches = text.match(xmlTextRegex)
+    
+    if (matches) {
+      const extractedText = matches
+        .map(match => match.replace(/<w:t[^>]*>|<\/w:t>/g, ''))
+        .join(' ')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&amp;/g, '&')
+        .replace(/\s+/g, ' ')
+        .trim()
+      
+      return extractedText
+    }
+  } catch (e) {
+    console.error('DOCX XML extraction failed:', e)
+  }
+  
+  throw new Error('Unable to extract text from Word document')
+}
+
+// Enhanced text preprocessing
+function preprocessText(text: string): string {
+  return text
+    // Normalize whitespace
+    .replace(/\s+/g, ' ')
+    // Remove excessive newlines
+    .replace(/\n{3,}/g, '\n\n')
+    // Clean up special characters
+    .replace(/[^\x00-\x7F]/g, (char) => {
+      // Keep common special characters, replace others with space
+      return /[áéíóúñüç]/i.test(char) ? char : ' '
+    })
+    // Remove control characters except newlines and tabs
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
+    .trim()
+}
+
+// Create overlapping text chunks for better search
+function createTextChunks(text: string, chunkSize: number = 1000, overlap: number = 200): string[] {
+  if (text.length <= chunkSize) {
+    return [text]
+  }
+
+  const chunks: string[] = []
+  let start = 0
+
+  while (start < text.length) {
+    const end = Math.min(start + chunkSize, text.length)
+    let chunk = text.slice(start, end)
+
+    // Try to break at word boundaries
+    if (end < text.length) {
+      const lastSpace = chunk.lastIndexOf(' ')
+      if (lastSpace > chunkSize * 0.8) { // Only break if we don't lose too much content
+        chunk = chunk.slice(0, lastSpace)
+      }
+    }
+
+    chunks.push(chunk.trim())
+    start += chunkSize - overlap
+  }
+
+  return chunks.filter(chunk => chunk.length > 50) // Filter out very small chunks
+}

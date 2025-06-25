@@ -1,4 +1,3 @@
-
 import * as React from 'react'
 import {
   MessageSquare,
@@ -38,9 +37,11 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useAuth } from '@/hooks/useAuth'
 import { useNavigate, useLocation } from 'react-router-dom'
+import { useEnhancedFeatureFlags } from '@/hooks/useEnhancedFeatureFlags'
 
 const AppSidebar = () => {
   const { user, profile, signOut } = useAuth()
+  const { hasFeatureAccess, hasModuleAccess, currentProduct } = useEnhancedFeatureFlags()
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -53,29 +54,29 @@ const AppSidebar = () => {
     }
   }
 
-  // Simple permission checks without complex logic
+  // Use enhanced feature flags instead of simple permission checks
   const isSuperAdmin = profile?.is_super_admin || profile?.email === 'eduardo@retorna.app'
   const isAdmin = profile?.role_system === 'admin' || profile?.role_system === 'super_admin' || isSuperAdmin
 
-  // Simplified navigation items
+  // Enhanced navigation items using feature flags
   const navigationItems = [
     {
       title: 'Chat',
       url: '/chat',
       icon: MessageSquare,
-      enabled: true
+      enabled: hasFeatureAccess('memory_chat')
     },
     {
       title: 'Insights',
       url: '/insights', 
       icon: TrendingUp,
-      enabled: isSuperAdmin
+      enabled: hasFeatureAccess('insights_analytics')
     },
     {
       title: 'AutoDev',
       url: '/autodev',
       icon: Code,
-      enabled: isSuperAdmin
+      enabled: hasFeatureAccess('build_code')
     }
   ]
 
@@ -89,8 +90,12 @@ const AppSidebar = () => {
                 <div className="flex items-center gap-2">
                   <Brain className="size-4" />
                   <div className="grid flex-1 text-left text-sm leading-tight">
-                    <span className="truncate font-semibold text-white">CEREBRO</span>
-                    <span className="truncate text-xs text-purple-100">Retorna AI</span>
+                    <span className="truncate font-semibold text-white">
+                      {currentProduct?.display_name || 'CEREBRO'}
+                    </span>
+                    <span className="truncate text-xs text-purple-100">
+                      {currentProduct?.is_commercial ? 'Commercial AI' : 'Retorna AI'}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -130,36 +135,42 @@ const AppSidebar = () => {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {/* Admin Navigation */}
-        {isAdmin && (
+        {/* Admin Navigation - now controlled by feature flags */}
+        {hasModuleAccess('admin') && (
           <SidebarGroup>
             <SidebarGroupLabel>Administración</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={location.pathname === '/knowledge'}>
-                    <a href="/knowledge">
-                      <BookOpen />
-                      <span>Base de Conocimiento</span>
-                    </a>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={location.pathname === '/users'}>
-                    <a href="/users">
-                      <Users />
-                      <span>Usuarios</span>
-                    </a>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={location.pathname === '/analytics'}>
-                    <a href="/analytics">
-                      <BarChart3 />
-                      <span>Analytics</span>
-                    </a>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
+                {hasFeatureAccess('memory_knowledge') && (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={location.pathname === '/knowledge'}>
+                      <a href="/knowledge">
+                        <BookOpen />
+                        <span>Base de Conocimiento</span>
+                      </a>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )}
+                {hasFeatureAccess('admin_users') && (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={location.pathname === '/users'}>
+                      <a href="/users">
+                        <Users />
+                        <span>Usuarios</span>
+                      </a>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )}
+                {hasFeatureAccess('admin_analytics') && (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={location.pathname === '/analytics'}>
+                      <a href="/analytics">
+                        <BarChart3 />
+                        <span>Analytics</span>
+                      </a>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )}
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={location.pathname === '/integrations'}>
                     <a href="/integrations">
@@ -173,20 +184,22 @@ const AppSidebar = () => {
           </SidebarGroup>
         )}
 
-        {/* Super Admin Navigation */}
+        {/* Super Admin Navigation - enhanced with feature flags */}
         {isSuperAdmin && (
           <SidebarGroup>
             <SidebarGroupLabel>Super Admin</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={location.pathname === '/admin/tenants'}>
-                    <a href="/admin/tenants">
-                      <Building2 />
-                      <span>Tenants</span>
-                    </a>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
+                {hasFeatureAccess('admin_tenants') && (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={location.pathname === '/admin/tenants'}>
+                      <a href="/admin/tenants">
+                        <Building2 />
+                        <span>Tenants</span>
+                      </a>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )}
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={location.pathname === '/feature-flags'}>
                     <a href="/feature-flags">

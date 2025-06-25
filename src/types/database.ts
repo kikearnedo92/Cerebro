@@ -161,3 +161,35 @@ export interface ImprovementSuggestion {
   created_at: string
   updated_at: string
 }
+
+export interface Product {
+  id: string
+  name: string
+  display_name: string
+  description?: string
+  features: string[]
+  branding?: any
+  is_commercial: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface FeatureFlagEnhanced {
+  id: string
+  name: string
+  display_name: string
+  description?: string
+  module: string
+  is_global: boolean
+  requires_commercial: boolean
+  created_at: string
+}
+
+export interface TenantFeatureFlagEnhanced {
+  id: string
+  tenant_id: string
+  feature_flag_id: string
+  is_enabled: boolean
+  granted_by?: string
+  created_at: string
+}
