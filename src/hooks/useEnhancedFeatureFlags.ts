@@ -87,7 +87,7 @@ export const useEnhancedFeatureFlags = () => {
 
         if (tenantFlags) {
           const enabled = tenantFlags
-            .map(tf => tf.feature_flags_enhanced?.name)
+            .map(tf => (tf as any).feature_flags_enhanced?.name)
             .filter(Boolean) as string[]
           setEnabledFeatures(enabled)
         }

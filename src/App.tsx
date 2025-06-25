@@ -1,140 +1,91 @@
-
-import { Toaster } from '@/components/ui/toaster'
-import { Toaster as Sonner } from '@/components/ui/sonner'
-import { TooltipProvider } from '@/components/ui/tooltip'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { useAuth } from '@/hooks/useAuth'
-import Index from './pages/Index'
+import React, { useEffect, useState } from 'react'
+import {
+  BrowserRouter as Router,
+  Route,
+  Routes,
+  useNavigate,
+} from 'react-router-dom'
+import { useAuth } from './hooks/useAuth'
+import { MainLayout } from './components/layout/MainLayout'
+import LandingPage from './pages/LandingPage'
 import ChatPage from './pages/ChatPage'
+import InsightsPage from './pages/InsightsPage'
+import KnowledgePage from './pages/KnowledgePage'
 import UsersPage from './pages/UsersPage'
 import AnalyticsPage from './pages/AnalyticsPage'
-import KnowledgePage from './pages/KnowledgePage'
-import ProfilePage from './pages/ProfilePage'
 import IntegrationsPage from './pages/IntegrationsPage'
-import InsightsPage from './pages/InsightsPage'
-import AutoDevPage from './pages/AutoDevPage'
-import FeatureFlagsPage from './pages/FeatureFlagsPage'
+import ProfilePage from './pages/ProfilePage'
 import TenantsPage from './pages/admin/TenantsPage'
-import LandingPage from './pages/LandingPage'
+import FeatureFlagsPage from './pages/admin/FeatureFlagsPage'
+import KnowledgeBasePage from './pages/admin/KnowledgeBasePage'
 import NotFound from './pages/NotFound'
-import MainLayout from './components/layout/MainLayout'
 
-const queryClient = new QueryClient()
+import LaunchPage from './pages/LaunchPage'
+import BuildPage from './pages/BuildPage'
 
-const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { user, loading } = useAuth()
-  
+function AppRouter() {
+  const { session, loading } = useAuth()
+  const navigate = useNavigate()
+  const [redirecting, setRedirecting] = useState(false)
+
+  useEffect(() => {
+    if (!loading) {
+      if (session && location.pathname === '/landing') {
+        navigate('/chat')
+      } else if (!session && location.pathname !== '/landing') {
+        navigate('/landing')
+      }
+    }
+  }, [session, loading, navigate])
+
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+      <div className="flex items-center justify-center h-screen">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-purple-600"></div>
       </div>
     )
   }
-  
-  if (!user) {
-    return <Navigate to="/landing" replace />
-  }
-  
-  return <MainLayout>{children}</MainLayout>
+
+  return (
+    
+      
+        <Routes>
+          {/* Public routes */}
+          <Route path="/landing" element={<LandingPage />} />
+          
+          {/* Private routes */}
+          <Route path="/" element={<MainLayout />}>
+            <Route index element={<ChatPage />} />
+            <Route path="/chat" element={<ChatPage />} />
+            <Route path="/insights" element={<InsightsPage />} />
+            <Route path="/launch" element={<LaunchPage />} />
+            <Route path="/autodev" element={<BuildPage />} />
+            <Route path="/knowledge" element={<KnowledgePage />} />
+            <Route path="/users" element={<UsersPage />} />
+            <Route path="/analytics" element={<AnalyticsPage />} />
+            <Route path="/integrations" element={<IntegrationsPage />} />
+            <Route path="/profile" element={<ProfilePage />} />
+            <Route path="/admin/tenants" element={<TenantsPage />} />
+            <Route path="/feature-flags" element={<FeatureFlagsPage />} />
+            
+            {/* Admin routes */}
+            <Route path="/admin/knowledge" element={<KnowledgeBasePage />} />
+            <Route path="/admin/users" element={<UsersPage />} />
+            <Route path="/admin/analytics" element={<AnalyticsPage />} />
+          </Route>
+          
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      
+    
+  )
 }
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/landing" element={<LandingPage />} />
-            <Route path="/" element={<Index />} />
-            <Route
-              path="/chat/*"
-              element={
-                <ProtectedRoute>
-                  <ChatPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/insights"
-              element={
-                <ProtectedRoute>
-                  <InsightsPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/autodev"
-              element={
-                <ProtectedRoute>
-                  <AutoDevPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/users"
-              element={
-                <ProtectedRoute>
-                  <UsersPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/analytics"
-              element={
-                <ProtectedRoute>
-                  <AnalyticsPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/knowledge"
-              element={
-                <ProtectedRoute>
-                  <KnowledgePage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/integrations"
-              element={
-                <ProtectedRoute>
-                  <IntegrationsPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/feature-flags"
-              element={
-                <ProtectedRoute>
-                  <FeatureFlagsPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/admin/tenants"
-              element={
-                <ProtectedRoute>
-                  <TenantsPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/profile"
-              element={
-                <ProtectedRoute>
-                  <ProfilePage />
-                </ProtectedRoute>
-              }
-            />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
-    </QueryClientProvider>
+    <Router>
+      <AppRouter />
+    </Router>
   )
 }
 
