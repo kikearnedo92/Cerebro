@@ -52,7 +52,7 @@ export const useEnhancedFeatureFlags = () => {
         .eq('id', profile.tenant_id || 'default')
         .single()
 
-      if (tenantData?.products) {
+      if (tenantData?.products && !Array.isArray(tenantData.products)) {
         setCurrentProduct(tenantData.products as Product)
       } else {
         // Default to Cerebro for existing users

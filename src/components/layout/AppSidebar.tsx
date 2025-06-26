@@ -1,3 +1,4 @@
+
 import * as React from 'react'
 import {
   MessageSquare,
@@ -12,7 +13,9 @@ import {
   Code,
   ToggleLeft,
   Brain,
-  Building2
+  Building2,
+  Bot,
+  Rocket
 } from 'lucide-react'
 
 import {
@@ -73,10 +76,22 @@ const AppSidebar = () => {
       enabled: hasFeatureAccess('insights_analytics')
     },
     {
+      title: 'Launch',
+      url: '/launch',
+      icon: Rocket,
+      enabled: hasFeatureAccess('launch_voice')
+    },
+    {
       title: 'AutoDev',
       url: '/autodev',
       icon: Code,
       enabled: hasFeatureAccess('build_code')
+    },
+    {
+      title: 'Automation',
+      url: '/automation',
+      icon: Bot,
+      enabled: hasFeatureAccess('automation_n8n')
     }
   ]
 
