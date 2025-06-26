@@ -1,91 +1,53 @@
 
 import React, { useEffect, useState } from 'react'
-import {
-  BrowserRouter as Router,
-  Route,
-  Routes,
-  useNavigate,
-} from 'react-router-dom'
 import { useAuth } from './hooks/useAuth'
-import MainLayout from './components/layout/MainLayout'
-import LandingPage from './pages/LandingPage'
-import ChatPage from './pages/ChatPage'
-import InsightsPage from './pages/InsightsPage'
-import KnowledgePage from './pages/KnowledgePage'
-import UsersPage from './pages/UsersPage'
-import AnalyticsPage from './pages/AnalyticsPage'
-import IntegrationsPage from './pages/IntegrationsPage'
-import ProfilePage from './pages/ProfilePage'
-import TenantsPage from './pages/admin/TenantsPage'
-import FeatureFlagsPage from './pages/FeatureFlagsPage'
-import KnowledgeBasePage from './pages/admin/KnowledgeBasePage'
-import NotFound from './pages/NotFound'
+import CerebroApp from './apps/CerebroApp'
+import NucleoApp from './apps/NucleoApp'
+import AppSelector from './components/AppSelector'
 
-import LaunchPage from './pages/LaunchPage'
-import BuildPage from './pages/BuildPage'
-import AutomationPage from './pages/AutomationPage'
-
-function AppRouter() {
+function App() {
   const { session, loading } = useAuth()
-  const navigate = useNavigate()
-  const [redirecting, setRedirecting] = useState(false)
+  const [currentApp, setCurrentApp] = useState<'cerebro' | 'nucleo' | null>(null)
 
   useEffect(() => {
-    if (!loading) {
-      if (session && location.pathname === '/landing') {
-        navigate('/chat')
-      } else if (!session && location.pathname !== '/landing') {
-        navigate('/landing')
-      }
+    // Determine which app to show based on URL path
+    const path = window.location.pathname
+    if (path.startsWith('/cerebro')) {
+      setCurrentApp('cerebro')
+    } else if (path.startsWith('/nucleo')) {
+      setCurrentApp('nucleo')
+    } else {
+      // Default routing logic
+      setCurrentApp(null)
     }
-  }, [session, loading, navigate])
+  }, [])
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-purple-600"></div>
+      <div className="flex items-center justify-center h-screen bg-gradient-to-br from-purple-50 to-blue-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
+          <p className="text-gray-600 font-medium">Inicializando plataforma...</p>
+        </div>
       </div>
     )
   }
 
-  return (
-    <Routes>
-      {/* Public routes */}
-      <Route path="/landing" element={<LandingPage />} />
-      
-      {/* Private routes */}
-      <Route path="/" element={<MainLayout />}>
-        <Route index element={<ChatPage />} />
-        <Route path="/chat" element={<ChatPage />} />
-        <Route path="/insights" element={<InsightsPage />} />
-        <Route path="/launch" element={<LaunchPage />} />
-        <Route path="/autodev" element={<BuildPage />} />
-        <Route path="/automation" element={<AutomationPage />} />
-        <Route path="/knowledge" element={<KnowledgePage />} />
-        <Route path="/users" element={<UsersPage />} />
-        <Route path="/analytics" element={<AnalyticsPage />} />
-        <Route path="/integrations" element={<IntegrationsPage />} />
-        <Route path="/profile" element={<ProfilePage />} />
-        <Route path="/admin/tenants" element={<TenantsPage />} />
-        <Route path="/feature-flags" element={<FeatureFlagsPage />} />
-        
-        {/* Admin routes */}
-        <Route path="/admin/knowledge" element={<KnowledgeBasePage />} />
-        <Route path="/admin/users" element={<UsersPage />} />
-        <Route path="/admin/analytics" element={<AnalyticsPage />} />
-      </Route>
-      
-      <Route path="*" element={<NotFound />} />
-    </Routes>
-  )
-}
+  // If no specific app is selected, show app selector
+  if (!currentApp) {
+    return <AppSelector />
+  }
 
-function App() {
-  return (
-    <Router>
-      <AppRouter />
-    </Router>
-  )
+  // Render the appropriate app
+  if (currentApp === 'cerebro') {
+    return <CerebroApp />
+  }
+
+  if (currentApp === 'nucleo') {
+    return <NucleoApp />
+  }
+
+  return <AppSelector />
 }
 
 export default App
