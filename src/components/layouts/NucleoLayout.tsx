@@ -49,7 +49,7 @@ const NucleoLayout = () => {
             <SidebarTrigger className="-ml-1" />
             <div className="flex flex-1 items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-gradient-to-br from-blue-500 via-blue-600 to-green-500 rounded-lg flex items-center justify-center">
+                <div className="w-8 h-8 bg-gradient-to-br from-blue-500 via-blue-600 to-green-500 rounded-lg flex items-center justify-center shadow-lg">
                   <Zap className="w-4 h-4 text-white" />
                 </div>
                 <h1 className="text-lg font-semibold text-gray-900">
@@ -57,15 +57,6 @@ const NucleoLayout = () => {
                 </h1>
               </div>
               <div className="flex items-center space-x-4">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="hidden md:flex border-purple-200 text-purple-600 hover:bg-purple-50"
-                  onClick={() => window.open('/cerebro', '_blank')}
-                >
-                  <ExternalLink className="w-4 h-4 mr-2" />
-                  Ir a Cerebro
-                </Button>
                 <Badge variant="outline" className="text-xs bg-gradient-to-r from-blue-100 to-green-100 text-blue-700 border-blue-200">
                   Núcleo v2.0
                 </Badge>

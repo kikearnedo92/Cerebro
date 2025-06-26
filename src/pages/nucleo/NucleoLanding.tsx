@@ -38,13 +38,6 @@ const NucleoLanding = () => {
               <p className="text-xs text-gray-600 hidden sm:block">Commercial AI Platform</p>
             </div>
           </div>
-          <Button
-            variant="outline"
-            className="border-purple-200 text-purple-600 hover:bg-purple-50"
-            onClick={() => window.open('/cerebro', '_blank')}
-          >
-            Ver Cerebro →
-          </Button>
         </div>
       </header>
 
