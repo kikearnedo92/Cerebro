@@ -3,7 +3,7 @@ import React, { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Mic, Play, Stop, Upload, Zap, MessageSquare, TrendingUp, Target } from 'lucide-react'
+import { Mic, Play, Square, Upload, Zap, MessageSquare, TrendingUp, Target } from 'lucide-react'
 
 const LaunchPage = () => {
   const [isRecording, setIsRecording] = useState(false)
@@ -65,7 +65,7 @@ const LaunchPage = () => {
                 <h3 className="text-lg font-semibold mb-2 text-red-600">Recording...</h3>
                 <p className="text-gray-600 mb-4">Speak clearly about your business idea</p>
                 <Button variant="outline" onClick={() => setIsRecording(false)}>
-                  <Stop className="w-4 h-4 mr-2" />
+                  <Square className="w-4 h-4 mr-2" />
                   Stop Recording
                 </Button>
               </div>
