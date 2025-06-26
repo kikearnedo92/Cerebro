@@ -1,6 +1,6 @@
 
 import React from 'react'
-import { Brain, Rocket, ArrowRight, MessageSquare, TrendingUp, Code, Bot } from 'lucide-react'
+import { Brain, Zap, ArrowRight, MessageSquare, TrendingUp, Code, Bot, Rocket } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
@@ -15,7 +15,7 @@ const AppSelector = () => {
         {/* Header */}
         <div className="text-center mb-12 lg:mb-16">
           <h1 className="text-4xl lg:text-6xl font-bold text-gray-900 mb-4">
-            Retorna AI Platform
+            Núcleo AI Platform
           </h1>
           <p className="text-lg lg:text-xl text-gray-600 max-w-3xl mx-auto">
             Choose your AI experience: Internal knowledge management or complete commercial suite
@@ -57,7 +57,7 @@ const AppSelector = () => {
               </div>
 
               <Button 
-                className="w-full bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 group-hover:scale-105 transition-all"
+                className="w-full bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 group-hover:scale-105 transition-all text-base py-3"
                 size="lg"
               >
                 Acceder a Cerebro
@@ -72,13 +72,13 @@ const AppSelector = () => {
             onClick={() => navigateTo('nucleo')}
           >
             <CardHeader className="text-center pb-6">
-              <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-green-500 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform">
-                <Rocket className="w-8 h-8 text-white" />
+              <div className="w-16 h-16 bg-gradient-to-br from-blue-500 via-blue-600 to-green-500 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform shadow-lg">
+                <Zap className="w-8 h-8 text-white" />
               </div>
-              <CardTitle className="text-2xl lg:text-3xl bg-gradient-to-r from-blue-600 to-green-600 bg-clip-text text-transparent">
+              <CardTitle className="text-2xl lg:text-3xl bg-gradient-to-r from-blue-600 to-green-600 bg-clip-text text-transparent font-bold">
                 NÚCLEO
               </CardTitle>
-              <p className="text-blue-600">Commercial AI Suite</p>
+              <p className="text-blue-600 font-medium">Commercial AI Suite</p>
             </CardHeader>
             <CardContent className="space-y-6">
               <p className="text-gray-600 text-center">
@@ -96,12 +96,12 @@ const AppSelector = () => {
                 </div>
                 <div className="flex items-center gap-3 text-sm">
                   <Bot className="w-5 h-5 text-indigo-500" />
-                  <span>Automation: n8n workflow engine</span>
+                  <span>Automation: Workflow engine</span>
                 </div>
               </div>
 
               <Button 
-                className="w-full bg-gradient-to-r from-blue-600 to-green-600 hover:from-blue-700 hover:to-green-700 group-hover:scale-105 transition-all"
+                className="w-full bg-gradient-to-r from-blue-600 to-green-600 hover:from-blue-700 hover:to-green-700 group-hover:scale-105 transition-all text-base py-3"
                 size="lg"
               >
                 Acceder a Núcleo
@@ -114,7 +114,7 @@ const AppSelector = () => {
         {/* Footer */}
         <div className="text-center mt-12 lg:mt-16">
           <p className="text-gray-500 text-sm">
-            Powered by Retorna AI • Choose the right platform for your needs
+            Powered by Núcleo AI • Choose the right platform for your needs
           </p>
         </div>
       </div>

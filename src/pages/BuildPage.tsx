@@ -1,138 +1,220 @@
 
-import React from 'react'
-import ProtectedRoute from '@/components/ProtectedRoute'
+import React, { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Code, Zap, Bot, GitBranch, Database, Globe } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { Code, Terminal, Zap, GitBranch, Database, Globe } from 'lucide-react'
 
 const BuildPage = () => {
-  return (
-    <ProtectedRoute 
-      featureFlag="build_code"
-      fallbackTitle="Build - Próximamente"
-      fallbackMessage="El módulo Build estará disponible pronto en Núcleo. Incluirá generación de código automática e implementación con IA."
-    >
-      <div className="h-full p-6 space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <Zap className="w-6 h-6 text-blue-500" />
-              Build - Desarrollo Automático
-            </h1>
-            <p className="text-gray-600">
-              Generación de código e implementación automática basada en insights
-            </p>
-          </div>
-          <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-            Núcleo Exclusivo
-          </Badge>
-        </div>
+  const [activeProject, setActiveProject] = useState('web-app')
 
-        {/* Enhanced AutoDev Section */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Bot className="w-5 h-5 text-green-500" />
-              AutoDev Mejorado
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-4">
-                <h3 className="font-medium">Integración con Insights</h3>
-                <p className="text-sm text-gray-600">
-                  AutoDev ahora toma datos de Insights para generar código 
-                  optimizado basado en el comportamiento real de usuarios.
-                </p>
-                <Button disabled className="w-full">
-                  <Bot className="w-4 h-4 mr-2" />
-                  Generar desde Insights
-                </Button>
+  const projects = [
+    {
+      id: 'web-app',
+      name: 'E-commerce Platform',
+      type: 'React + Node.js',
+      status: 'In Progress',
+      completion: 75
+    },
+    {
+      id: 'mobile-app',
+      name: 'Fitness Tracker',
+      type: 'React Native',
+      status: 'Planning',
+      completion: 25
+    },
+    {
+      id: 'api-service',
+      name: 'Analytics API',
+      type: 'Python + FastAPI',
+      status: 'Testing',
+      completion: 90
+    }
+  ]
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">AutoDev</h1>
+          <p className="text-gray-600">AI-powered development and code generation</p>
+        </div>
+        <Badge variant="outline" className="bg-gradient-to-r from-blue-100 to-blue-200 text-blue-700 border-blue-300">
+          AI Development Suite
+        </Badge>
+      </div>
+
+      {/* Code Generation Interface */}
+      <Card className="border-blue-200">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Code className="w-5 h-5 text-blue-500" />
+            AI Code Generator
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-4">
+              <h3 className="font-medium">Project Requirements</h3>
+              <div className="p-4 bg-gray-50 rounded-lg min-h-32">
+                <p className="text-sm text-gray-600 mb-2">Current Specifications:</p>
+                <ul className="text-sm space-y-1">
+                  <li>• React frontend with TypeScript</li>
+                  <li>• Node.js backend with Express</li>
+                  <li>• PostgreSQL database</li>
+                  <li>• Authentication with JWT</li>
+                  <li>• RESTful API endpoints</li>
+                </ul>
               </div>
-              <div className="space-y-4">
-                <h3 className="font-medium">Implementación Automática</h3>
-                <p className="text-sm text-gray-600">
-                  Conexión directa con Lovable/Manus para implementar 
-                  automáticamente las mejoras generadas.
-                </p>
-                <div className="text-xs text-gray-500">
-                  • Análisis de código existente<br/>
-                  • Generación de mejoras optimizadas<br/>
-                  • Deploy automático con validación
+              <Button className="w-full bg-blue-500 hover:bg-blue-600">
+                <Zap className="w-4 h-4 mr-2" />
+                Generate Code
+              </Button>
+            </div>
+
+            <div className="space-y-4">
+              <h3 className="font-medium">Generated Output</h3>
+              <div className="p-4 bg-gray-900 rounded-lg min-h-32 text-green-400 font-mono text-sm">
+                <div className="mb-2">$ npm create react-app my-project --template typescript</div>
+                <div className="mb-2">$ cd my-project && npm install express jsonwebtoken</div>
+                <div className="mb-2">✓ Frontend structure created</div>
+                <div className="mb-2">✓ Backend API configured</div>
+                <div className="text-yellow-400">⚡ Generating database schema...</div>
+              </div>
+              <Button variant="outline" className="w-full">
+                <Terminal className="w-4 h-4 mr-2" />
+                Open Terminal
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Active Projects */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Active Development Projects</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4">
+            {projects.map((project) => (
+              <div 
+                key={project.id}
+                className={`p-4 border rounded-lg cursor-pointer transition-all ${
+                  activeProject === project.id 
+                    ? 'border-blue-300 bg-blue-50' 
+                    : 'border-gray-200 hover:border-gray-300'
+                }`}
+                onClick={() => setActiveProject(project.id)}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="font-medium">{project.name}</h4>
+                  <Badge 
+                    variant="outline" 
+                    className={
+                      project.status === 'In Progress' ? 'bg-blue-50 text-blue-700' :
+                      project.status === 'Testing' ? 'bg-green-50 text-green-700' :
+                      'bg-gray-50 text-gray-700'
+                    }
+                  >
+                    {project.status}
+                  </Badge>
+                </div>
+                <div className="flex items-center justify-between text-sm text-gray-600 mb-2">
+                  <span>{project.type}</span>
+                  <span>{project.completion}% complete</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div 
+                    className="bg-blue-500 h-2 rounded-full transition-all"
+                    style={{ width: `${project.completion}%` }}
+                  />
                 </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
 
-        {/* Code Generation Pipeline */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Code className="w-5 h-5 text-purple-500" />
-              Pipeline de Generación
+      {/* Development Tools */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card className="border-green-200">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <GitBranch className="w-4 h-4 text-green-500" />
+              Version Control
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="p-4 border rounded-lg">
-                <Database className="w-8 h-8 text-blue-500 mb-2" />
-                <h4 className="font-medium mb-2">Análisis de Datos</h4>
-                <p className="text-sm text-gray-600">
-                  Procesamiento de insights y métricas de usuario
-                </p>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span>Git Integration</span>
+                <Badge variant="outline" className="text-xs">Active</Badge>
               </div>
-              <div className="p-4 border rounded-lg">
-                <GitBranch className="w-8 h-8 text-orange-500 mb-2" />
-                <h4 className="font-medium mb-2">Generación IA</h4>
-                <p className="text-sm text-gray-600">
-                  Creación automática de código optimizado
-                </p>
+              <div className="flex justify-between">
+                <span>Auto Commits</span>
+                <Badge variant="outline" className="text-xs">Enabled</Badge>
               </div>
-              <div className="p-4 border rounded-lg">
-                <Globe className="w-8 h-8 text-green-500 mb-2" />
-                <h4 className="font-medium mb-2">Deploy Automático</h4>
-                <p className="text-sm text-gray-600">
-                  Implementación y validación en entorno de producción
-                </p>
+              <div className="flex justify-between">
+                <span>Branch Protection</span>
+                <Badge variant="outline" className="text-xs">Main</Badge>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* API Integrations */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Integraciones Disponibles</CardTitle>
+        <Card className="border-purple-200">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Database className="w-4 h-4 text-purple-500" />
+              Database Management
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="p-3 border rounded">
-                <h4 className="font-medium mb-1">Lovable API</h4>
-                <p className="text-sm text-gray-600">Generación y deploy de aplicaciones React</p>
-                <Badge variant="outline" className="mt-2 text-xs">Próximamente</Badge>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span>Schema Generation</span>
+                <Badge variant="outline" className="text-xs">Auto</Badge>
               </div>
-              <div className="p-3 border rounded">
-                <h4 className="font-medium mb-1">Manus Integration</h4>
-                <p className="text-sm text-gray-600">Automatización de flujos de desarrollo</p>
-                <Badge variant="outline" className="mt-2 text-xs">En desarrollo</Badge>
+              <div className="flex justify-between">
+                <span>Migrations</span>
+                <Badge variant="outline" className="text-xs">Synced</Badge>
               </div>
-              <div className="p-3 border rounded">
-                <h4 className="font-medium mb-1">GitHub Actions</h4>
-                <p className="text-sm text-gray-600">CI/CD automático y gestión de repositorios</p>
-                <Badge variant="outline" className="mt-2 text-xs">Planificado</Badge>
+              <div className="flex justify-between">
+                <span>Backup</span>
+                <Badge variant="outline" className="text-xs">Daily</Badge>
               </div>
-              <div className="p-3 border rounded">
-                <h4 className="font-medium mb-1">Vercel Deploy</h4>
-                <p className="text-sm text-gray-600">Deploy automático y gestión de dominios</p>
-                <Badge variant="outline" className="mt-2 text-xs">Planificado</Badge>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-orange-200">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Globe className="w-4 h-4 text-orange-500" />
+              Deployment
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span>Auto Deploy</span>
+                <Badge variant="outline" className="text-xs">Vercel</Badge>
+              </div>
+              <div className="flex justify-between">
+                <span>Preview URLs</span>
+                <Badge variant="outline" className="text-xs">Ready</Badge>
+              </div>
+              <div className="flex justify-between">
+                <span>CI/CD Pipeline</span>
+                <Badge variant="outline" className="text-xs">Active</Badge>
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
-    </ProtectedRoute>
+    </div>
   )
 }
 

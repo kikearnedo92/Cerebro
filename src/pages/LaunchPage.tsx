@@ -1,128 +1,209 @@
 
-import React from 'react'
-import ProtectedRoute from '@/components/ProtectedRoute'
+import React, { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Mic, Rocket, Target, Brain, Lightbulb, Users } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { Mic, Play, Stop, Upload, Zap, MessageSquare, TrendingUp, Target } from 'lucide-react'
 
 const LaunchPage = () => {
-  return (
-    <ProtectedRoute 
-      featureFlag="launch_voice"
-      fallbackTitle="Launch - Próximamente"
-      fallbackMessage="El módulo Launch estará disponible pronto en Núcleo. Incluirá onboarding por voz y generación de estrategias con IA."
-    >
-      <div className="h-full p-6 space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <Rocket className="w-6 h-6 text-orange-500" />
-              Launch - Estrategia con IA
-            </h1>
-            <p className="text-gray-600">
-              Onboarding por voz y generación automática de estrategias de negocio
-            </p>
-          </div>
-          <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
-            Núcleo Exclusivo
-          </Badge>
-        </div>
+  const [isRecording, setIsRecording] = useState(false)
+  const [hasRecording, setHasRecording] = useState(false)
 
-        {/* Voice Onboarding Section */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Mic className="w-5 h-5 text-blue-500" />
-              Onboarding por Voz
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-4">
-                <h3 className="font-medium">Configuración de Voz</h3>
-                <p className="text-sm text-gray-600">
-                  Sistema de onboarding conversacional que permite a los usuarios 
-                  describir su negocio de forma natural usando su voz.
-                </p>
-                <Button disabled className="w-full">
+  const handleStartRecording = () => {
+    setIsRecording(true)
+    // Simulate recording for demo
+    setTimeout(() => {
+      setIsRecording(false)
+      setHasRecording(true)
+    }, 3000)
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Launch</h1>
+          <p className="text-gray-600">Voice onboarding and AI strategy generation</p>
+        </div>
+        <Badge variant="outline" className="bg-gradient-to-r from-orange-100 to-orange-200 text-orange-700 border-orange-300">
+          Voice-to-Strategy Engine
+        </Badge>
+      </div>
+
+      {/* Voice Input Section */}
+      <Card className="border-orange-200">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Mic className="w-5 h-5 text-orange-500" />
+            Voice Input
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="text-center py-8">
+            <div className={`w-24 h-24 mx-auto rounded-full flex items-center justify-center mb-4 transition-all ${
+              isRecording 
+                ? 'bg-red-100 border-4 border-red-300 animate-pulse' 
+                : 'bg-orange-100 border-4 border-orange-300'
+            }`}>
+              <Mic className={`w-12 h-12 ${isRecording ? 'text-red-600' : 'text-orange-600'}`} />
+            </div>
+            
+            {!hasRecording && !isRecording && (
+              <div>
+                <h3 className="text-lg font-semibold mb-2">Tell us about your business idea</h3>
+                <p className="text-gray-600 mb-4">Describe your vision, target market, and goals</p>
+                <Button onClick={handleStartRecording} className="bg-orange-500 hover:bg-orange-600">
                   <Mic className="w-4 h-4 mr-2" />
-                  Iniciar Conversación de Voz
+                  Start Recording
                 </Button>
               </div>
-              <div className="space-y-4">
-                <h3 className="font-medium">Procesamiento IA</h3>
-                <p className="text-sm text-gray-600">
-                  Conversión automática de audio a texto y análisis inteligente 
-                  para extraer información clave del negocio.
-                </p>
-                <div className="text-xs text-gray-500">
-                  • Transcripción con Whisper AI<br/>
-                  • Análisis de contexto empresarial<br/>
-                  • Extracción de objetivos y metas
+            )}
+
+            {isRecording && (
+              <div>
+                <h3 className="text-lg font-semibold mb-2 text-red-600">Recording...</h3>
+                <p className="text-gray-600 mb-4">Speak clearly about your business idea</p>
+                <Button variant="outline" onClick={() => setIsRecording(false)}>
+                  <Stop className="w-4 h-4 mr-2" />
+                  Stop Recording
+                </Button>
+              </div>
+            )}
+
+            {hasRecording && !isRecording && (
+              <div>
+                <h3 className="text-lg font-semibold mb-2 text-green-600">Recording Complete!</h3>
+                <p className="text-gray-600 mb-4">Processing your voice input...</p>
+                <div className="flex gap-2 justify-center">
+                  <Button variant="outline" onClick={() => setHasRecording(false)}>
+                    Record Again
+                  </Button>
+                  <Button className="bg-orange-500 hover:bg-orange-600">
+                    <Zap className="w-4 h-4 mr-2" />
+                    Generate Strategy
+                  </Button>
                 </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            )}
+          </div>
 
-        {/* Strategy Generation Section */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Target className="w-5 h-5 text-green-500" />
-              Generación de Estrategia
+          <div className="border-t pt-4">
+            <div className="flex items-center justify-between text-sm text-gray-500">
+              <span>Powered by Whisper AI</span>
+              <span>Supports 99+ languages</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Strategy Generation Pipeline */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card className="border-blue-200">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <MessageSquare className="w-4 h-4 text-blue-500" />
+              Voice Processing
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="p-4 border rounded-lg">
-                <Brain className="w-8 h-8 text-purple-500 mb-2" />
-                <h4 className="font-medium mb-2">Análisis de Mercado</h4>
-                <p className="text-sm text-gray-600">
-                  IA analiza tendencias del mercado y competencia relevante
-                </p>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span>Transcription</span>
+                <Badge variant="outline" className="text-xs">Whisper AI</Badge>
               </div>
-              <div className="p-4 border rounded-lg">
-                <Lightbulb className="w-8 h-8 text-yellow-500 mb-2" />
-                <h4 className="font-medium mb-2">Estrategias Personalizadas</h4>
-                <p className="text-sm text-gray-600">
-                  Generación de estrategias específicas basadas en el contexto
-                </p>
+              <div className="flex justify-between">
+                <span>Language Detection</span>
+                <Badge variant="outline" className="text-xs">Auto</Badge>
               </div>
-              <div className="p-4 border rounded-lg">
-                <Users className="w-8 h-8 text-blue-500 mb-2" />
-                <h4 className="font-medium mb-2">Plan de Acción</h4>
-                <p className="text-sm text-gray-600">
-                  Roadmap detallado con pasos concretos para implementar
-                </p>
+              <div className="flex justify-between">
+                <span>Content Analysis</span>
+                <Badge variant="outline" className="text-xs">GPT-4</Badge>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Coming Soon Features */}
-        <Card className="border-dashed">
-          <CardHeader>
-            <CardTitle className="text-gray-600">Próximamente en Launch</CardTitle>
+        <Card className="border-green-200">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-green-500" />
+              Strategy Generation
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-500">
-              <div>
-                • Integración con Meta Business API<br/>
-                • Generación automática de campañas publicitarias<br/>
-                • Análisis de audiencias objetivo
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span>Market Analysis</span>
+                <Badge variant="outline" className="text-xs">AI Powered</Badge>
               </div>
-              <div>
-                • Conectores con Google Ads<br/>
-                • Automatización de estrategias de marketing<br/>
-                • Dashboard de métricas en tiempo real
+              <div className="flex justify-between">
+                <span>Target Audience</span>
+                <Badge variant="outline" className="text-xs">Segments</Badge>
+              </div>
+              <div className="flex justify-between">
+                <span>Campaign Ideas</span>
+                <Badge variant="outline" className="text-xs">Creative</Badge>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-purple-200">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Target className="w-4 h-4 text-purple-500" />
+              Campaign Setup
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span>Meta Ads</span>
+                <Badge variant="outline" className="text-xs">Ready</Badge>
+              </div>
+              <div className="flex justify-between">
+                <span>Google Ads</span>
+                <Badge variant="outline" className="text-xs">Ready</Badge>
+              </div>
+              <div className="flex justify-between">
+                <span>Automation</span>
+                <Badge variant="outline" className="text-xs">n8n</Badge>
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
-    </ProtectedRoute>
+
+      {/* Recent Strategies */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Recent Voice Strategies</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between p-3 border rounded-lg">
+              <div>
+                <h4 className="font-medium">E-commerce Fitness Supplements</h4>
+                <p className="text-sm text-gray-600">Generated strategy for health-conscious millennials</p>
+              </div>
+              <Badge variant="outline" className="bg-green-50 text-green-700">
+                Complete
+              </Badge>
+            </div>
+            <div className="flex items-center justify-between p-3 border rounded-lg">
+              <div>
+                <h4 className="font-medium">Local Restaurant Chain</h4>
+                <p className="text-sm text-gray-600">Multi-location dining experience campaign</p>
+              </div>
+              <Badge variant="outline" className="bg-blue-50 text-blue-700">
+                In Progress
+              </Badge>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   )
 }
 

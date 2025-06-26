@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { useAuth } from '@/hooks/useAuth'
 import { useLocation } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
-import { ExternalLink } from 'lucide-react'
+import { ExternalLink, Zap } from 'lucide-react'
 
 const NucleoLayout = () => {
   const { isSuperAdmin } = useAuth()
@@ -48,9 +48,14 @@ const NucleoLayout = () => {
           <header className="flex h-16 shrink-0 items-center gap-2 border-b bg-white/80 backdrop-blur-sm px-4">
             <SidebarTrigger className="-ml-1" />
             <div className="flex flex-1 items-center justify-between">
-              <h1 className="text-lg font-semibold text-gray-900">
-                {getPageTitle()}
-              </h1>
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-gradient-to-br from-blue-500 via-blue-600 to-green-500 rounded-lg flex items-center justify-center">
+                  <Zap className="w-4 h-4 text-white" />
+                </div>
+                <h1 className="text-lg font-semibold text-gray-900">
+                  {getPageTitle()}
+                </h1>
+              </div>
               <div className="flex items-center space-x-4">
                 <Button
                   variant="outline"
@@ -73,7 +78,7 @@ const NucleoLayout = () => {
             </div>
           </header>
           <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-            <div className="min-h-[100vh] flex-1 rounded-xl bg-white/50 backdrop-blur-sm md:min-h-min">
+            <div className="min-h-[100vh] flex-1 rounded-xl bg-white/50 backdrop-blur-sm md:min-h-min p-6">
               <Outlet />
             </div>
           </div>

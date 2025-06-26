@@ -11,7 +11,7 @@ import {
   LogOut,
   TrendingUp,
   Code,
-  Brain,
+  Zap,
   Bot,
   Rocket
 } from 'lucide-react'
@@ -91,7 +91,7 @@ const NucleoSidebar = () => {
             <SidebarMenuButton size="lg" asChild>
               <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-white/20 text-white">
                 <div className="flex items-center gap-2">
-                  <Brain className="size-4" />
+                  <Zap className="size-4" />
                   <div className="grid flex-1 text-left text-sm leading-tight">
                     <span className="truncate font-semibold text-white">
                       NÚCLEO
@@ -117,7 +117,7 @@ const NucleoSidebar = () => {
                   <SidebarMenuButton 
                     asChild
                     isActive={location.pathname.startsWith(item.url)}
-                    className="data-[active=true]:bg-blue-100 data-[active=true]:text-blue-900"
+                    className="data-[active=true]:bg-blue-100 data-[active=true]:text-blue-900 hover:bg-blue-50"
                   >
                     <a href={item.url}>
                       <item.icon />
