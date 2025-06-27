@@ -43,18 +43,19 @@ export const useChat = () => {
         body: {
           message: content,
           userId: user.id,
-          mode: chatMode // Enviar el modo actual
+          mode: chatMode
         }
       })
 
       if (error) {
-        throw new Error(error.message)
+        console.error('❌ Chat API Error:', error)
+        throw new Error(error.message || 'Error connecting to chat service')
       }
 
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: data.response,
+        content: data.response || 'Sorry, I could not process your request.',
         timestamp: new Date(),
         sources: data.sources?.length > 0 ? data.sources : undefined,
         foundRelevantContent: data.foundRelevantContent
@@ -67,13 +68,13 @@ export const useChat = () => {
       if (chatMode === 'retorna' && !data.foundRelevantContent) {
         toast({
           title: "Información",
-          description: "No se encontró contenido específico en la base de conocimiento. La respuesta se basa en el conocimiento general de CEREBRO.",
+          description: "No se encontró contenido específico en la base de conocimiento. La respuesta se basa en el conocimiento general.",
           variant: "default"
         })
       }
 
     } catch (error) {
-      console.error('Chat error:', error)
+      console.error('❌ Chat error:', error)
       
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -108,7 +109,7 @@ export const useChat = () => {
     setChatMode(newMode)
     toast({
       title: "Modo cambiado",
-      description: `Ahora usando modo ${newMode === 'retorna' ? 'Cerebro (Retorna)' : 'OpenAI General'}`
+      description: `Ahora usando modo ${newMode === 'retorna' ? 'Memory Mode' : 'OpenAI General'}`
     })
   }
 

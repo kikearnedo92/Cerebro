@@ -1,6 +1,6 @@
 
 import React from 'react'
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
 import NucleoLayout from '@/components/layouts/NucleoLayout'
 import NucleoLanding from '@/pages/nucleo/NucleoLanding'
@@ -16,7 +16,7 @@ import IntegrationsPage from '@/pages/IntegrationsPage'
 import ProfilePage from '@/pages/ProfilePage'
 import NotFound from '@/pages/NotFound'
 
-function NucleoAppRouter() {
+function NucleoApp() {
   const { session, loading } = useAuth()
 
   if (loading) {
@@ -36,30 +36,22 @@ function NucleoAppRouter() {
       <Route path="/landing" element={<NucleoLanding />} />
       
       {/* Private routes */}
-      <Route path="/" element={<NucleoLayout />}>
-        <Route index element={session ? <ChatPage /> : <Navigate to="/landing" replace />} />
-        <Route path="/chat" element={<ChatPage />} />
-        <Route path="/insights" element={<InsightsPage />} />
-        <Route path="/launch" element={<LaunchPage />} />
-        <Route path="/autodev" element={<BuildPage />} />
-        <Route path="/automation" element={<AutomationPage />} />
-        <Route path="/knowledge" element={<KnowledgePage />} />
-        <Route path="/users" element={<UsersPage />} />
-        <Route path="/analytics" element={<AnalyticsPage />} />
-        <Route path="/integrations" element={<IntegrationsPage />} />
-        <Route path="/profile" element={<ProfilePage />} />
+      <Route path="/" element={session ? <NucleoLayout /> : <Navigate to="/landing" replace />}>
+        <Route index element={<ChatPage />} />
+        <Route path="chat" element={<ChatPage />} />
+        <Route path="insights" element={<InsightsPage />} />
+        <Route path="launch" element={<LaunchPage />} />
+        <Route path="autodev" element={<BuildPage />} />
+        <Route path="automation" element={<AutomationPage />} />
+        <Route path="knowledge" element={<KnowledgePage />} />
+        <Route path="users" element={<UsersPage />} />
+        <Route path="analytics" element={<AnalyticsPage />} />
+        <Route path="integrations" element={<IntegrationsPage />} />
+        <Route path="profile" element={<ProfilePage />} />
       </Route>
       
       <Route path="*" element={<NotFound />} />
     </Routes>
-  )
-}
-
-function NucleoApp() {
-  return (
-    <Router basename="/nucleo">
-      <NucleoAppRouter />
-    </Router>
   )
 }
 

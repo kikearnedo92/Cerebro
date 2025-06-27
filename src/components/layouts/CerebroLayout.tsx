@@ -7,34 +7,35 @@ import { Badge } from '@/components/ui/badge'
 import { useAuth } from '@/hooks/useAuth'
 import { useLocation } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
-import { ExternalLink } from 'lucide-react'
+import { ExternalLink, Brain } from 'lucide-react'
 
 const CerebroLayout = () => {
   const { isSuperAdmin } = useAuth()
   const location = useLocation()
 
   const getPageTitle = () => {
-    switch (location.pathname) {
+    const path = location.pathname.replace('/cerebro', '')
+    switch (path) {
       case '/chat':
-        return 'Chat'
+        return 'Memory'
       case '/insights':
         return 'Insights'
       case '/knowledge':
-        return 'Base de Conocimiento'
+        return 'Knowledge Base'
       case '/users':
-        return 'Usuarios'
+        return 'Users'
       case '/analytics':
         return 'Analytics'
       case '/integrations':
-        return 'Integraciones'
+        return 'Integrations'
       case '/feature-flags':
         return 'Feature Flags'
       case '/admin/tenants':
-        return 'Gestión de Tenants'
+        return 'Tenants'
       case '/profile':
-        return 'Perfil'
+        return 'Profile'
       default:
-        return 'Chat'
+        return 'Memory'
     }
   }
 
@@ -46,9 +47,14 @@ const CerebroLayout = () => {
           <header className="flex h-16 shrink-0 items-center gap-2 border-b bg-white px-4">
             <SidebarTrigger className="-ml-1" />
             <div className="flex flex-1 items-center justify-between">
-              <h1 className="text-lg font-semibold text-purple-900">
-                {getPageTitle()}
-              </h1>
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-purple-700 rounded-lg flex items-center justify-center shadow-lg">
+                  <Brain className="w-4 h-4 text-white" />
+                </div>
+                <h1 className="text-lg font-semibold text-purple-900">
+                  {getPageTitle()}
+                </h1>
+              </div>
               <div className="flex items-center space-x-4">
                 <Button
                   variant="outline"
@@ -59,7 +65,7 @@ const CerebroLayout = () => {
                   <ExternalLink className="w-4 h-4 mr-2" />
                   Ir a Núcleo
                 </Button>
-                <Badge variant="outline" className="text-xs bg-purple-100 text-purple-700">
+                <Badge variant="outline" className="text-xs bg-purple-100 text-purple-700 border-purple-200">
                   Cerebro v2.0
                 </Badge>
                 {isSuperAdmin && (
@@ -71,7 +77,7 @@ const CerebroLayout = () => {
             </div>
           </header>
           <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-            <div className="min-h-[100vh] flex-1 rounded-xl bg-white/50 backdrop-blur-sm md:min-h-min">
+            <div className="min-h-[100vh] flex-1 rounded-xl bg-white/50 backdrop-blur-sm md:min-h-min p-6">
               <Outlet />
             </div>
           </div>

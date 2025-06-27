@@ -1,6 +1,6 @@
 
 import React from 'react'
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
 import CerebroLayout from '@/components/layouts/CerebroLayout'
 import CerebroLanding from '@/pages/cerebro/CerebroLanding'
@@ -15,7 +15,7 @@ import TenantsPage from '@/pages/admin/TenantsPage'
 import FeatureFlagsPage from '@/pages/FeatureFlagsPage'
 import NotFound from '@/pages/NotFound'
 
-function CerebroAppRouter() {
+function CerebroApp() {
   const { session, loading } = useAuth()
 
   if (loading) {
@@ -35,29 +35,21 @@ function CerebroAppRouter() {
       <Route path="/landing" element={<CerebroLanding />} />
       
       {/* Private routes */}
-      <Route path="/" element={<CerebroLayout />}>
-        <Route index element={session ? <ChatPage /> : <Navigate to="/landing" replace />} />
-        <Route path="/chat" element={<ChatPage />} />
-        <Route path="/insights" element={<InsightsPage />} />
-        <Route path="/knowledge" element={<KnowledgePage />} />
-        <Route path="/users" element={<UsersPage />} />
-        <Route path="/analytics" element={<AnalyticsPage />} />
-        <Route path="/integrations" element={<IntegrationsPage />} />
-        <Route path="/profile" element={<ProfilePage />} />
-        <Route path="/admin/tenants" element={<TenantsPage />} />
-        <Route path="/feature-flags" element={<FeatureFlagsPage />} />
+      <Route path="/" element={session ? <CerebroLayout /> : <Navigate to="/landing" replace />}>
+        <Route index element={<ChatPage />} />
+        <Route path="chat" element={<ChatPage />} />
+        <Route path="insights" element={<InsightsPage />} />
+        <Route path="knowledge" element={<KnowledgePage />} />
+        <Route path="users" element={<UsersPage />} />
+        <Route path="analytics" element={<AnalyticsPage />} />
+        <Route path="integrations" element={<IntegrationsPage />} />
+        <Route path="profile" element={<ProfilePage />} />
+        <Route path="admin/tenants" element={<TenantsPage />} />
+        <Route path="feature-flags" element={<FeatureFlagsPage />} />
       </Route>
       
       <Route path="*" element={<NotFound />} />
     </Routes>
-  )
-}
-
-function CerebroApp() {
-  return (
-    <Router basename="/cerebro">
-      <CerebroAppRouter />
-    </Router>
   )
 }
 

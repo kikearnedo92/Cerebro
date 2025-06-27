@@ -1,5 +1,6 @@
 
 import React, { useEffect, useState } from 'react'
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './hooks/useAuth'
 import CerebroApp from './apps/CerebroApp'
 import NucleoApp from './apps/NucleoApp'
@@ -7,20 +8,6 @@ import AppSelector from './components/AppSelector'
 
 function App() {
   const { session, loading } = useAuth()
-  const [currentApp, setCurrentApp] = useState<'cerebro' | 'nucleo' | null>(null)
-
-  useEffect(() => {
-    // Determine which app to show based on URL path
-    const path = window.location.pathname
-    if (path.startsWith('/cerebro')) {
-      setCurrentApp('cerebro')
-    } else if (path.startsWith('/nucleo')) {
-      setCurrentApp('nucleo')
-    } else {
-      // Default routing logic
-      setCurrentApp(null)
-    }
-  }, [])
 
   if (loading) {
     return (
@@ -33,21 +20,23 @@ function App() {
     )
   }
 
-  // If no specific app is selected, show app selector
-  if (!currentApp) {
-    return <AppSelector />
-  }
-
-  // Render the appropriate app
-  if (currentApp === 'cerebro') {
-    return <CerebroApp />
-  }
-
-  if (currentApp === 'nucleo') {
-    return <NucleoApp />
-  }
-
-  return <AppSelector />
+  return (
+    <Router>
+      <Routes>
+        {/* Cerebro App Routes */}
+        <Route path="/cerebro/*" element={<CerebroApp />} />
+        
+        {/* Núcleo App Routes */}
+        <Route path="/nucleo/*" element={<NucleoApp />} />
+        
+        {/* Default route - App Selector */}
+        <Route path="/" element={<AppSelector />} />
+        
+        {/* Catch all - redirect to app selector */}
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </Router>
+  )
 }
 
 export default App

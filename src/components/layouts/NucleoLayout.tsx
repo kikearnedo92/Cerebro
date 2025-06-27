@@ -6,15 +6,15 @@ import NucleoSidebar from './NucleoSidebar'
 import { Badge } from '@/components/ui/badge'
 import { useAuth } from '@/hooks/useAuth'
 import { useLocation } from 'react-router-dom'
-import { Button } from '@/components/ui/button'
-import { ExternalLink, Zap } from 'lucide-react'
+import { Zap } from 'lucide-react'
 
 const NucleoLayout = () => {
   const { isSuperAdmin } = useAuth()
   const location = useLocation()
 
   const getPageTitle = () => {
-    switch (location.pathname) {
+    const path = location.pathname.replace('/nucleo', '')
+    switch (path) {
       case '/chat':
         return 'Memory'
       case '/insights':

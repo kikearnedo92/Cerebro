@@ -10,9 +10,8 @@ import {
   User2,
   LogOut,
   TrendingUp,
-  ToggleLeft,
   Brain,
-  Building2
+  Flag
 } from 'lucide-react'
 
 import {
@@ -46,18 +45,21 @@ const CerebroSidebar = () => {
   const handleSignOut = async () => {
     try {
       await signOut()
-      navigate('/landing')
+      navigate('/cerebro/landing')
     } catch (error) {
       console.error('Error signing out:', error)
     }
   }
 
-  const isSuperAdmin = profile?.is_super_admin || profile?.email === 'eduardo@retorna.app'
-  const isAdmin = profile?.role_system === 'admin' || profile?.role_system === 'super_admin' || isSuperAdmin
+  const handleNavigation = (path: string) => {
+    navigate(`/cerebro${path}`)
+  }
+
+  const isAdmin = profile?.role_system === 'admin' || profile?.role_system === 'super_admin'
 
   const navigationItems = [
     {
-      title: 'Chat',
+      title: 'Memory',
       url: '/chat',
       icon: MessageSquare,
     },
@@ -70,7 +72,7 @@ const CerebroSidebar = () => {
 
   return (
     <Sidebar variant="inset" className="border-r-purple-200">
-      <SidebarHeader className="bg-gradient-to-r from-purple-600 to-purple-800">
+      <SidebarHeader className="bg-gradient-to-r from-purple-600 to-purple-700">
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
@@ -82,7 +84,7 @@ const CerebroSidebar = () => {
                       CEREBRO
                     </span>
                     <span className="truncate text-xs text-purple-100">
-                      Retorna AI
+                      by Retorna
                     </span>
                   </div>
                 </div>
@@ -94,20 +96,18 @@ const CerebroSidebar = () => {
 
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel className="text-purple-700">Módulos Principales</SidebarGroupLabel>
+          <SidebarGroupLabel className="text-purple-700">Core Modules</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {navigationItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton 
-                    asChild
-                    isActive={location.pathname.startsWith(item.url)}
-                    className="data-[active=true]:bg-purple-100 data-[active=true]:text-purple-900"
+                    onClick={() => handleNavigation(item.url)}
+                    isActive={location.pathname.includes(item.url)}
+                    className="data-[active=true]:bg-purple-100 data-[active=true]:text-purple-900 hover:bg-purple-50 cursor-pointer"
                   >
-                    <a href={item.url}>
-                      <item.icon />
-                      <span>{item.title}</span>
-                    </a>
+                    <item.icon />
+                    <span>{item.title}</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
@@ -117,65 +117,57 @@ const CerebroSidebar = () => {
 
         {isAdmin && (
           <SidebarGroup>
-            <SidebarGroupLabel className="text-purple-700">Administración</SidebarGroupLabel>
+            <SidebarGroupLabel className="text-purple-700">Administration</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={location.pathname === '/knowledge'}>
-                    <a href="/knowledge">
-                      <BookOpen />
-                      <span>Base de Conocimiento</span>
-                    </a>
+                  <SidebarMenuButton 
+                    onClick={() => handleNavigation('/knowledge')}
+                    isActive={location.pathname === '/cerebro/knowledge'}
+                    className="cursor-pointer"
+                  >
+                    <BookOpen />
+                    <span>Knowledge</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={location.pathname === '/users'}>
-                    <a href="/users">
-                      <Users />
-                      <span>Usuarios</span>
-                    </a>
+                  <SidebarMenuButton 
+                    onClick={() => handleNavigation('/users')}
+                    isActive={location.pathname === '/cerebro/users'}
+                    className="cursor-pointer"
+                  >
+                    <Users />
+                    <span>Users</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={location.pathname === '/analytics'}>
-                    <a href="/analytics">
-                      <BarChart3 />
-                      <span>Analytics</span>
-                    </a>
+                  <SidebarMenuButton 
+                    onClick={() => handleNavigation('/analytics')}
+                    isActive={location.pathname === '/cerebro/analytics'}
+                    className="cursor-pointer"
+                  >
+                    <BarChart3 />
+                    <span>Analytics</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={location.pathname === '/integrations'}>
-                    <a href="/integrations">
-                      <Settings />
-                      <span>Integraciones</span>
-                    </a>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
-
-        {isSuperAdmin && (
-          <SidebarGroup>
-            <SidebarGroupLabel className="text-purple-700">Super Admin</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={location.pathname === '/admin/tenants'}>
-                    <a href="/admin/tenants">
-                      <Building2 />
-                      <span>Tenants</span>
-                    </a>
+                  <SidebarMenuButton 
+                    onClick={() => handleNavigation('/integrations')}
+                    isActive={location.pathname === '/cerebro/integrations'}
+                    className="cursor-pointer"
+                  >
+                    <Settings />
+                    <span>Integrations</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={location.pathname === '/feature-flags'}>
-                    <a href="/feature-flags">
-                      <ToggleLeft />
-                      <span>Feature Flags</span>
-                    </a>
+                  <SidebarMenuButton 
+                    onClick={() => handleNavigation('/feature-flags')}
+                    isActive={location.pathname === '/cerebro/feature-flags'}
+                    className="cursor-pointer"
+                  >
+                    <Flag />
+                    <span>Feature Flags</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               </SidebarMenu>
@@ -216,13 +208,13 @@ const CerebroSidebar = () => {
                 align="end"
                 sideOffset={4}
               >
-                <DropdownMenuItem onClick={() => navigate('/profile')}>
+                <DropdownMenuItem onClick={() => handleNavigation('/profile')}>
                   <User2 className="mr-2 h-4 w-4" />
-                  Perfil
+                  Profile
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={handleSignOut}>
                   <LogOut className="mr-2 h-4 w-4" />
-                  Cerrar Sesión
+                  Sign Out
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

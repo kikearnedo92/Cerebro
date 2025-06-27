@@ -6,7 +6,9 @@ import { NucleoInsightsDashboard } from '@/components/insights/NucleoInsightsDas
 
 const InsightsPage = () => {
   const location = useLocation()
-  const isNucleo = location.pathname.includes('/nucleo') || window.location.pathname.startsWith('/nucleo')
+  const isNucleo = location.pathname.startsWith('/nucleo')
+
+  console.log('🔍 InsightsPage - Current path:', location.pathname, 'Is Núcleo:', isNucleo)
 
   return (
     <div className="container mx-auto px-4 py-6">

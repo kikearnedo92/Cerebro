@@ -47,10 +47,14 @@ const NucleoSidebar = () => {
   const handleSignOut = async () => {
     try {
       await signOut()
-      navigate('/landing')
+      navigate('/nucleo/landing')
     } catch (error) {
       console.error('Error signing out:', error)
     }
+  }
+
+  const handleNavigation = (path: string) => {
+    navigate(`/nucleo${path}`)
   }
 
   const isAdmin = profile?.role_system === 'admin' || profile?.role_system === 'super_admin'
@@ -115,14 +119,12 @@ const NucleoSidebar = () => {
               {navigationItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton 
-                    asChild
-                    isActive={location.pathname.startsWith(item.url)}
-                    className="data-[active=true]:bg-blue-100 data-[active=true]:text-blue-900 hover:bg-blue-50"
+                    onClick={() => handleNavigation(item.url)}
+                    isActive={location.pathname.includes(item.url)}
+                    className="data-[active=true]:bg-blue-100 data-[active=true]:text-blue-900 hover:bg-blue-50 cursor-pointer"
                   >
-                    <a href={item.url}>
-                      <item.icon />
-                      <span>{item.title}</span>
-                    </a>
+                    <item.icon />
+                    <span>{item.title}</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
@@ -136,35 +138,43 @@ const NucleoSidebar = () => {
             <SidebarGroupContent>
               <SidebarMenu>
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={location.pathname === '/knowledge'}>
-                    <a href="/knowledge">
-                      <BookOpen />
-                      <span>Knowledge</span>
-                    </a>
+                  <SidebarMenuButton 
+                    onClick={() => handleNavigation('/knowledge')}
+                    isActive={location.pathname === '/nucleo/knowledge'}
+                    className="cursor-pointer"
+                  >
+                    <BookOpen />
+                    <span>Knowledge</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={location.pathname === '/users'}>
-                    <a href="/users">
-                      <Users />
-                      <span>Users</span>
-                    </a>
+                  <SidebarMenuButton 
+                    onClick={() => handleNavigation('/users')}
+                    isActive={location.pathname === '/nucleo/users'}
+                    className="cursor-pointer"
+                  >
+                    <Users />
+                    <span>Users</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={location.pathname === '/analytics'}>
-                    <a href="/analytics">
-                      <BarChart3 />
-                      <span>Analytics</span>
-                    </a>
+                  <SidebarMenuButton 
+                    onClick={() => handleNavigation('/analytics')}
+                    isActive={location.pathname === '/nucleo/analytics'}
+                    className="cursor-pointer"
+                  >
+                    <BarChart3 />
+                    <span>Analytics</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={location.pathname === '/integrations'}>
-                    <a href="/integrations">
-                      <Settings />
-                      <span>Integrations</span>
-                    </a>
+                  <SidebarMenuButton 
+                    onClick={() => handleNavigation('/integrations')}
+                    isActive={location.pathname === '/nucleo/integrations'}
+                    className="cursor-pointer"
+                  >
+                    <Settings />
+                    <span>Integrations</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               </SidebarMenu>
@@ -205,7 +215,7 @@ const NucleoSidebar = () => {
                 align="end"
                 sideOffset={4}
               >
-                <DropdownMenuItem onClick={() => navigate('/profile')}>
+                <DropdownMenuItem onClick={() => handleNavigation('/profile')}>
                   <User2 className="mr-2 h-4 w-4" />
                   Profile
                 </DropdownMenuItem>
