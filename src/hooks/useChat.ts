@@ -11,18 +11,20 @@ export interface Message {
   timestamp: Date
   sources?: string[]
   isError?: boolean
-  foundRelevantContent?: boolean
 }
 
-export type ChatMode = 'retorna' | 'openai'
+export type ChatMode = 'knowledge' | 'general'
 
 export const useChat = () => {
   const [messages, setMessages] = useState<Message[]>([])
   const [loading, setLoading] = useState(false)
-  const [chatMode, setChatMode] = useState<ChatMode>('retorna')
+  const [chatMode, setChatMode] = useState<ChatMode>('knowledge')
   const { user } = useAuth()
 
-  const sendMessage = async (content: string) => {
+  // For backward compatibility with ConversationalChatInterface
+  const useKnowledgeBase = chatMode === 'knowledge'
+
+  const sendMessage = async (content: string, imageData?: string) => {
     if (!content.trim() || loading || !user) return
 
     const userMessage: Message = {
@@ -36,50 +38,47 @@ export const useChat = () => {
     setLoading(true)
 
     try {
-      console.log(`💬 Sending message to ${chatMode.toUpperCase()} mode:`, content)
+      console.log('🚀 Sending message to CEREBRO chat:', content)
 
-      // Call the enhanced chat-ai edge function
       const { data, error } = await supabase.functions.invoke('chat-ai', {
         body: {
           message: content,
-          userId: user.id,
-          mode: chatMode
+          useKnowledgeBase: useKnowledgeBase,
+          imageData
         }
       })
 
       if (error) {
-        console.error('❌ Chat API Error:', error)
-        throw new Error(error.message || 'Error connecting to chat service')
+        console.error('❌ CEREBRO Chat API Error:', error)
+        throw new Error(error.message || 'Error conectando con CEREBRO')
       }
 
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: data.response || 'Sorry, I could not process your request.',
+        content: data.response || 'Lo siento, no pude procesar tu solicitud.',
         timestamp: new Date(),
-        sources: data.sources?.length > 0 ? data.sources : undefined,
-        foundRelevantContent: data.foundRelevantContent
+        sources: data.sources
       }
 
       setMessages(prev => [...prev, assistantMessage])
-      console.log(`✅ ${chatMode.toUpperCase()} response received`)
+      console.log('✅ CEREBRO response received')
 
-      // Show info if no relevant content was found in Retorna mode
-      if (chatMode === 'retorna' && !data.foundRelevantContent) {
+      if (useKnowledgeBase && data.sources && data.sources.length > 0) {
         toast({
-          title: "Información",
-          description: "No se encontró contenido específico en la base de conocimiento. La respuesta se basa en el conocimiento general.",
-          variant: "default"
+          title: "Base de conocimiento consultada",
+          description: `Se consultaron ${data.sources.length} documentos`,
+          duration: 3000
         })
       }
 
     } catch (error) {
-      console.error('❌ Chat error:', error)
+      console.error('❌ CEREBRO chat error:', error)
       
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: `❌ Error: ${error instanceof Error ? error.message : 'Error desconocido'}\n\nPor favor intenta de nuevo o contacta al administrador.`,
+        content: `❌ Error: ${error instanceof Error ? error.message : 'Error desconocido'}\n\nPor favor intenta de nuevo.`,
         timestamp: new Date(),
         isError: true
       }
@@ -88,7 +87,7 @@ export const useChat = () => {
       
       toast({
         title: "Error",
-        description: "Hubo un problema al procesar tu mensaje. Inténtalo de nuevo.",
+        description: "Hubo un problema procesando tu mensaje.",
         variant: "destructive"
       })
     } finally {
@@ -100,25 +99,30 @@ export const useChat = () => {
     setMessages([])
     toast({
       title: "Nueva conversación",
-      description: "La conversación ha sido reiniciada"
+      description: "Conversación reiniciada"
     })
   }
 
   const toggleChatMode = () => {
-    const newMode = chatMode === 'retorna' ? 'openai' : 'retorna'
+    const newMode = chatMode === 'knowledge' ? 'general' : 'knowledge'
     setChatMode(newMode)
     toast({
       title: "Modo cambiado",
-      description: `Ahora usando modo ${newMode === 'retorna' ? 'Memory Mode' : 'OpenAI General'}`
+      description: `${newMode === 'knowledge' ? 'Usando base de conocimiento' : 'Modo general OpenAI'}`
     })
   }
+
+  // For backward compatibility
+  const toggleKnowledgeBase = toggleChatMode
 
   return {
     messages,
     loading,
     chatMode,
+    useKnowledgeBase,
     sendMessage,
     clearMessages,
-    toggleChatMode
+    toggleChatMode,
+    toggleKnowledgeBase
   }
 }
