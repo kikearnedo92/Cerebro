@@ -26,7 +26,7 @@ function NucleoApp() {
       <div className="flex items-center justify-center h-screen bg-gradient-to-br from-blue-50 to-green-50">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-blue-600 font-medium">Cargando Núcleo...</p>
+          <p className="text-blue-600 font-medium">Cargando NÚCLEO...</p>
         </div>
       </div>
     )
@@ -40,7 +40,7 @@ function NucleoApp() {
       {/* Protected routes - check for session */}
       {session ? (
         <Route path="/" element={<NucleoLayout />}>
-          <Route index element={<ChatPage />} />
+          <Route index element={<Navigate to="/nucleo/chat" replace />} />
           <Route path="chat" element={<ChatPage />} />
           <Route path="insights" element={<InsightsPage />} />
           <Route path="launch" element={<LaunchPage />} />
