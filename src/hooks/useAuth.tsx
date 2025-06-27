@@ -15,6 +15,14 @@ export const useAuth = (): AuthContextType => {
   const isAdmin = profile?.role_system === 'admin' || profile?.role_system === 'super_admin'
   const isSuperAdmin = profile?.is_super_admin || profile?.email === 'eduardo@retorna.app'
 
+  // Determine current app based on URL
+  const getCurrentApp = () => {
+    const path = window.location.pathname
+    if (path.startsWith('/cerebro')) return 'cerebro'
+    if (path.startsWith('/nucleo')) return 'nucleo'
+    return null
+  }
+
   useEffect(() => {
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
