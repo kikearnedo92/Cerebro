@@ -2,360 +2,324 @@
 import React, { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Input } from '@/components/ui/input'
+import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
-import { Code, GitBranch, Bot, Zap, Play, Download, MessageSquare, CheckCircle, Clock, AlertCircle } from 'lucide-react'
+import { Github, MessageSquare, CheckCircle, Clock, AlertCircle, Code, Bot, Zap } from 'lucide-react'
+import { toast } from '@/hooks/use-toast'
 
 export const AutoDevDashboard = () => {
-  const [currentProject, setCurrentProject] = useState('e-commerce-app')
+  const [githubUrl, setGithubUrl] = useState('')
+  const [isConnected, setIsConnected] = useState(false)
+  const [activeChat, setActiveChat] = useState(false)
+  const [message, setMessage] = useState('')
 
-  const projects = [
-    {
-      id: 'e-commerce-app',
-      name: 'E-commerce App',
-      status: 'In Progress',
-      progress: 75,
-      description: 'Modern e-commerce platform with AI recommendations',
-      tech: ['React', 'TypeScript', 'Supabase', 'Stripe']
-    },
-    {
-      id: 'analytics-dashboard',
-      name: 'Analytics Dashboard',
-      status: 'Completed',
-      progress: 100,
-      description: 'Real-time analytics dashboard for business metrics',
-      tech: ['Next.js', 'D3.js', 'PostgreSQL']
-    },
-    {
-      id: 'mobile-app',
-      name: 'Mobile App',
-      status: 'Planning',
-      progress: 15,
-      description: 'Cross-platform mobile app with React Native',
-      tech: ['React Native', 'Expo', 'Firebase']
+  const handleGithubConnect = async () => {
+    if (!githubUrl.trim()) {
+      toast({
+        title: "Error",
+        description: "Ingresa la URL de tu repositorio GitHub",
+        variant: "destructive"
+      })
+      return
     }
-  ]
 
-  const tasks = [
+    setIsConnected(true)
+    toast({
+      title: "✅ Repositorio conectado",
+      description: "Tu AI Developer ya tiene acceso a tu código"
+    })
+  }
+
+  const handleSendMessage = () => {
+    if (!message.trim()) return
+    
+    setMessage('')
+    toast({
+      title: "💬 Mensaje enviado a Claude",
+      description: "Tu AI Developer está analizando la solicitud..."
+    })
+  }
+
+  const developmentTasks = [
     {
       id: 1,
-      title: 'Implement user authentication system',
-      status: 'completed',
-      priority: 'high',
-      estimatedTime: '2 hours',
-      actualTime: '1.5 hours'
+      title: "Optimizar performance del chat",
+      status: "in_progress",
+      aiRecommendation: "Implementar lazy loading y memoización",
+      priority: "high"
     },
     {
       id: 2,
-      title: 'Create product catalog component',
-      status: 'in-progress',
-      priority: 'high',
-      estimatedTime: '3 hours',
-      actualTime: null
+      title: "Agregar validación de formularios",
+      status: "pending_review",
+      aiRecommendation: "Usar Zod para validación type-safe",
+      priority: "medium"
     },
     {
       id: 3,
-      title: 'Set up payment processing',
-      status: 'pending',
-      priority: 'medium',
-      estimatedTime: '4 hours',
-      actualTime: null
-    },
-    {
-      id: 4,
-      title: 'Add search and filtering',
-      status: 'pending',
-      priority: 'low',
-      estimatedTime: '2.5 hours',
-      actualTime: null
+      title: "Mejorar responsive design",
+      status: "completed",
+      aiRecommendation: "Aplicar breakpoints Tailwind optimizados",
+      priority: "low"
     }
   ]
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'completed':
+        return <CheckCircle className="w-4 h-4 text-green-500" />
+      case 'in_progress':
+        return <Clock className="w-4 h-4 text-blue-500" />
+      default:
+        return <AlertCircle className="w-4 h-4 text-yellow-500" />
+    }
+  }
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'completed':
+        return 'bg-green-100 text-green-700'
+      case 'in_progress':
+        return 'bg-blue-100 text-blue-700'
+      default:
+        return 'bg-yellow-100 text-yellow-700'
+    }
+  }
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">AutoDev</h1>
-          <p className="text-gray-600">AI-powered development and code generation</p>
-        </div>
-        <Badge variant="outline" className="bg-gradient-to-r from-blue-100 to-purple-100 text-blue-700 border-blue-200">
-          AI Development Engine
-        </Badge>
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">AutoDev</h1>
+        <p className="text-gray-600">AI-powered development with Claude + Lovable integration</p>
       </div>
 
-      {/* Project Overview */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {projects.map((project) => (
-          <Card 
-            key={project.id}
-            className={`cursor-pointer transition-all ${
-              currentProject === project.id ? 'ring-2 ring-blue-500' : 'hover:shadow-md'
-            }`}
-            onClick={() => setCurrentProject(project.id)}
-          >
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base">{project.name}</CardTitle>
-                <Badge 
-                  variant={project.status === 'Completed' ? 'default' : 'outline'}
-                  className={
-                    project.status === 'Completed' 
-                      ? 'bg-green-100 text-green-800' 
-                      : project.status === 'In Progress'
-                      ? 'bg-blue-100 text-blue-800'
-                      : 'bg-gray-100 text-gray-800'
-                  }
-                >
-                  {project.status}
-                </Badge>
-              </div>
+      {/* GitHub Connection */}
+      {!isConnected ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Github className="w-5 h-5" />
+              Conecta tu repositorio
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-gray-600">
+              Conecta tu repositorio GitHub para que tu AI Developer pueda analizar y mejorar tu código automáticamente.
+            </p>
+            <div className="flex gap-2">
+              <Input
+                placeholder="https://github.com/tu-usuario/tu-repo"
+                value={githubUrl}
+                onChange={(e) => setGithubUrl(e.target.value)}
+                className="flex-1"
+              />
+              <Button onClick={handleGithubConnect}>
+                <Github className="w-4 h-4 mr-2" />
+                Conectar
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        /* Connected State */
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* AI Developer Chat */}
+          <Card className="lg:row-span-2">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Bot className="w-5 h-5 text-blue-500" />
+                Habla con tu AI Developer
+              </CardTitle>
             </CardHeader>
-            <CardContent>
-              <p className="text-sm text-gray-600 mb-3">{project.description}</p>
-              <div className="mb-3">
-                <div className="flex justify-between text-sm mb-1">
-                  <span>Progress</span>
-                  <span>{project.progress}%</span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div 
-                    className="bg-blue-600 h-2 rounded-full transition-all"
-                    style={{ width: `${project.progress}%` }}
-                  ></div>
-                </div>
+            <CardContent className="space-y-4">
+              <div className="bg-gray-50 rounded-lg p-4 min-h-[300px]">
+                {!activeChat ? (
+                  <div className="text-center text-gray-500 mt-20">
+                    <MessageSquare className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+                    <p>Cuéntame qué necesitas desarrollar o mejorar</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="bg-white p-3 rounded border">
+                      <p className="text-sm"><strong>Tú:</strong> {message}</p>
+                    </div>
+                    <div className="bg-blue-50 p-3 rounded border border-blue-200">
+                      <p className="text-sm"><strong>Claude:</strong> Perfecto, voy a analizar tu código y crear una propuesta de mejora. Dame un momento...</p>
+                    </div>
+                  </div>
+                )}
               </div>
-              <div className="flex flex-wrap gap-1">
-                {project.tech.map((tech) => (
-                  <Badge key={tech} variant="outline" className="text-xs">
-                    {tech}
-                  </Badge>
-                ))}
+              <div className="flex gap-2">
+                <Textarea
+                  placeholder="Ej: Necesito optimizar el performance del chat, agregar autenticación, mejorar el diseño..."
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  className="flex-1"
+                  rows={2}
+                />
+                <Button onClick={() => {
+                  handleSendMessage()
+                  setActiveChat(true)
+                }}>
+                  <MessageSquare className="w-4 h-4" />
+                </Button>
               </div>
             </CardContent>
           </Card>
-        ))}
-      </div>
 
-      {/* Main Dashboard */}
-      <Tabs defaultValue="code-gen" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="code-gen">Code Generation</TabsTrigger>
-          <TabsTrigger value="tasks">Task Management</TabsTrigger>
-          <TabsTrigger value="claude-chat">Claude Integration</TabsTrigger>
-          <TabsTrigger value="deployment">Deployment</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="code-gen" className="space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Code className="w-5 h-5 text-blue-500" />
-                  Code Generator
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Component Name</label>
-                  <Input placeholder="e.g., ProductCard, UserProfile" />
-                </div>
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Description</label>
-                  <Textarea 
-                    placeholder="Describe what this component should do..."
-                    rows={3}
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Framework</label>
-                  <select className="w-full p-2 border rounded-md">
-                    <option>React + TypeScript</option>
-                    <option>Vue.js</option>
-                    <option>Angular</option>
-                    <option>Svelte</option>
-                  </select>
-                </div>
-                <Button className="w-full bg-blue-600 hover:bg-blue-700">
-                  <Zap className="w-4 h-4 mr-2" />
-                  Generate Code
-                </Button>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Bot className="w-5 h-5 text-purple-500" />
-                  Quick Actions
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <Button variant="outline" className="w-full justify-start">
-                  <GitBranch className="w-4 h-4 mr-2" />
-                  Create New Feature Branch
-                </Button>
-                <Button variant="outline" className="w-full justify-start">
-                  <Code className="w-4 h-4 mr-2" />
-                  Generate API Endpoints
-                </Button>
-                <Button variant="outline" className="w-full justify-start">
-                  <Play className="w-4 h-4 mr-2" />
-                  Run Tests
-                </Button>
-                <Button variant="outline" className="w-full justify-start">
-                  <Download className="w-4 h-4 mr-2" />
-                  Export Project
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="tasks" className="space-y-4">
+          {/* Repository Status */}
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center justify-between">
-                <span className="flex items-center gap-2">
-                  <CheckCircle className="w-5 h-5 text-green-500" />
-                  Development Tasks
-                </span>
-                <Button size="sm">Add Task</Button>
+              <CardTitle className="flex items-center gap-2">
+                <Github className="w-5 h-5 text-green-500" />
+                Repositorio conectado
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {tasks.map((task) => (
-                  <div key={task.id} className="flex items-center justify-between p-3 border rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-3 h-3 rounded-full ${
-                        task.status === 'completed' ? 'bg-green-500' :
-                        task.status === 'in-progress' ? 'bg-blue-500' :
-                        'bg-gray-300'
-                      }`}></div>
-                      <div>
-                        <div className="font-medium">{task.title}</div>
-                        <div className="text-sm text-gray-600">
-                          Est: {task.estimatedTime}
-                          {task.actualTime && ` • Actual: ${task.actualTime}`}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Badge 
-                        variant="outline"
-                        className={
-                          task.priority === 'high' ? 'border-red-200 text-red-700' :
-                          task.priority === 'medium' ? 'border-yellow-200 text-yellow-700' :
-                          'border-gray-200 text-gray-700'
-                        }
-                      >
-                        {task.priority}
-                      </Badge>
-                      {task.status === 'completed' && <CheckCircle className="w-4 h-4 text-green-500" />}
-                      {task.status === 'in-progress' && <Clock className="w-4 h-4 text-blue-500" />}
-                      {task.status === 'pending' && <AlertCircle className="w-4 h-4 text-gray-400" />}
-                    </div>
-                  </div>
-                ))}
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-green-500" />
+                  <span className="text-sm font-medium">Acceso completo al código</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-green-500" />
+                  <span className="text-sm font-medium">Claude AI integrado</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-green-500" />
+                  <span className="text-sm font-medium">Lovable deployment ready</span>
+                </div>
+                <div className="mt-4 p-3 bg-green-50 rounded border border-green-200">
+                  <p className="text-sm text-green-700">
+                    <strong>Repo:</strong> {githubUrl}
+                  </p>
+                </div>
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
 
-        <TabsContent value="claude-chat" className="space-y-4">
+          {/* Development Queue */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <MessageSquare className="w-5 h-5 text-indigo-500" />
-                Claude AI Development Assistant
+                <Code className="w-5 h-5 text-purple-500" />
+                Cola de desarrollo
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="bg-gray-50 border rounded-lg p-4 h-64 overflow-y-auto mb-4">
-                <div className="space-y-3">
-                  <div className="bg-white p-3 rounded-lg">
-                    <div className="text-sm font-medium text-blue-600 mb-1">Claude</div>
-                    <div className="text-sm">Hello! I'm here to help with your development tasks. What would you like to build today?</div>
-                  </div>
-                  <div className="bg-blue-600 text-white p-3 rounded-lg ml-8">
-                    <div className="text-sm font-medium mb-1">You</div>
-                    <div className="text-sm">I need a user authentication component with email/password login</div>
-                  </div>
-                  <div className="bg-white p-3 rounded-lg">
-                    <div className="text-sm font-medium text-blue-600 mb-1">Claude</div>
-                    <div className="text-sm">I'll create a secure authentication component for you. Let me generate the code and send it to Lovable for implementation.</div>
-                  </div>
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium">Tareas activas</span>
+                  <Badge variant="outline">{developmentTasks.length}</Badge>
                 </div>
-              </div>
-              <div className="flex gap-2">
-                <Input placeholder="Ask Claude to help with development..." className="flex-1" />
-                <Button>Send</Button>
+                <div className="space-y-2">
+                  {developmentTasks.slice(0, 3).map((task) => (
+                    <div key={task.id} className="flex items-center gap-2 p-2 bg-gray-50 rounded">
+                      {getStatusIcon(task.status)}
+                      <span className="text-xs truncate flex-1">{task.title}</span>
+                      <Badge className={`text-xs ${getStatusColor(task.status)}`}>
+                        {task.status}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
+        </div>
+      )}
 
-        <TabsContent value="deployment" className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <GitBranch className="w-5 h-5 text-green-500" />
-                  Git Integration
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <span>Current Branch</span>
-                  <Badge variant="outline">main</Badge>
+      {/* Development Tasks */}
+      {isConnected && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Tareas de desarrollo</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {developmentTasks.map((task) => (
+                <div key={task.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        {getStatusIcon(task.status)}
+                        <h3 className="font-medium">{task.title}</h3>
+                        <Badge className={`text-xs ${getStatusColor(task.status)}`}>
+                          {task.status}
+                        </Badge>
+                        <Badge variant="outline" className="text-xs">
+                          {task.priority}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-gray-600 mb-3">
+                        <strong>AI Recommendation:</strong> {task.aiRecommendation}
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      {task.status === 'pending_review' && (
+                        <>
+                          <Button size="sm" variant="outline">
+                            Ver cambios
+                          </Button>
+                          <Button size="sm">
+                            Aprobar
+                          </Button>
+                        </>
+                      )}
+                      {task.status === 'in_progress' && (
+                        <Button size="sm" variant="outline">
+                          Ver progreso
+                        </Button>
+                      )}
+                    </div>
+                  </div>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span>Last Commit</span>
-                  <span className="text-sm text-gray-600">2 hours ago</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span>Status</span>
-                  <Badge className="bg-green-100 text-green-800">Up to date</Badge>
-                </div>
-                <Button variant="outline" className="w-full">
-                  <GitBranch className="w-4 h-4 mr-2" />
-                  Create Pull Request
-                </Button>
-              </CardContent>
-            </Card>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Zap className="w-5 h-5 text-blue-500" />
-                  Deployment Status
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <span>Production</span>
-                  <Badge className="bg-green-100 text-green-800">Live</Badge>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span>Staging</span>
-                  <Badge className="bg-blue-100 text-blue-800">Building</Badge>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span>Last Deploy</span>
-                  <span className="text-sm text-gray-600">1 hour ago</span>
-                </div>
-                <Button className="w-full bg-blue-600 hover:bg-blue-700">
-                  <Play className="w-4 h-4 mr-2" />
-                  Deploy to Production
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-      </Tabs>
+      {/* Quick Actions */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <Zap className="w-8 h-8 text-yellow-500" />
+              <div>
+                <h3 className="font-medium">Performance Scan</h3>
+                <p className="text-sm text-gray-600">Analizar y optimizar código</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <Bot className="w-8 h-8 text-blue-500" />
+              <div>
+                <h3 className="font-medium">Security Review</h3>
+                <p className="text-sm text-gray-600">Detectar vulnerabilidades</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <Code className="w-8 h-8 text-green-500" />
+              <div>
+                <h3 className="font-medium">Code Quality</h3>
+                <p className="text-sm text-gray-600">Mejorar legibilidad</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   )
 }
