@@ -18,6 +18,8 @@ import NotFound from '@/pages/NotFound'
 function CerebroApp() {
   const { session, loading } = useAuth()
 
+  console.log('🧠 CerebroApp - Session:', !!session, 'Loading:', loading)
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen bg-purple-50">
@@ -34,19 +36,24 @@ function CerebroApp() {
       {/* Public routes */}
       <Route path="/landing" element={<CerebroLanding />} />
       
-      {/* Private routes */}
-      <Route path="/" element={session ? <CerebroLayout /> : <Navigate to="/landing" replace />}>
-        <Route index element={<ChatPage />} />
-        <Route path="chat" element={<ChatPage />} />
-        <Route path="insights" element={<InsightsPage />} />
-        <Route path="knowledge" element={<KnowledgePage />} />
-        <Route path="users" element={<UsersPage />} />
-        <Route path="analytics" element={<AnalyticsPage />} />
-        <Route path="integrations" element={<IntegrationsPage />} />
-        <Route path="profile" element={<ProfilePage />} />
-        <Route path="admin/tenants" element={<TenantsPage />} />
-        <Route path="feature-flags" element={<FeatureFlagsPage />} />
-      </Route>
+      {/* Protected routes - check for session */}
+      {session ? (
+        <Route path="/" element={<CerebroLayout />}>
+          <Route index element={<ChatPage />} />
+          <Route path="chat" element={<ChatPage />} />
+          <Route path="insights" element={<InsightsPage />} />
+          <Route path="knowledge" element={<KnowledgePage />} />
+          <Route path="users" element={<UsersPage />} />
+          <Route path="analytics" element={<AnalyticsPage />} />
+          <Route path="integrations" element={<IntegrationsPage />} />
+          <Route path="profile" element={<ProfilePage />} />
+          <Route path="admin/tenants" element={<TenantsPage />} />
+          <Route path="feature-flags" element={<FeatureFlagsPage />} />
+        </Route>
+      ) : (
+        /* Redirect unauthenticated users to landing */
+        <Route path="/*" element={<Navigate to="/cerebro/landing" replace />} />
+      )}
       
       <Route path="*" element={<NotFound />} />
     </Routes>

@@ -9,11 +9,13 @@ const AppSelector = () => {
   const navigate = useNavigate()
 
   const handleCerebroClick = () => {
-    navigate('/cerebro/landing')
+    console.log('🔄 Navigating to Cerebro...')
+    navigate('/cerebro')
   }
 
   const handleNucleoClick = () => {
-    navigate('/nucleo/landing')
+    console.log('🔄 Navigating to Núcleo...')
+    navigate('/nucleo')
   }
 
   return (
@@ -30,7 +32,7 @@ const AppSelector = () => {
 
         <div className="grid md:grid-cols-2 gap-8 max-w-6xl mx-auto">
           {/* Cerebro - Internal */}
-          <Card className="group hover:shadow-2xl transition-all duration-300 cursor-pointer border-purple-200 hover:border-purple-400" onClick={handleCerebroClick}>
+          <Card className="group hover:shadow-2xl transition-all duration-300 cursor-pointer border-purple-200 hover:border-purple-400">
             <CardContent className="p-8">
               <div className="text-center space-y-6">
                 <div className="w-20 h-20 mx-auto bg-gradient-to-br from-purple-500 to-purple-700 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
@@ -61,7 +63,10 @@ const AppSelector = () => {
                   </div>
                 </div>
 
-                <Button className="w-full bg-purple-600 hover:bg-purple-700 text-white group">
+                <Button 
+                  onClick={handleCerebroClick}
+                  className="w-full bg-purple-600 hover:bg-purple-700 text-white group"
+                >
                   Access Cerebro
                   <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
                 </Button>
@@ -70,7 +75,7 @@ const AppSelector = () => {
           </Card>
 
           {/* Núcleo - Commercial */}
-          <Card className="group hover:shadow-2xl transition-all duration-300 cursor-pointer border-blue-200 hover:border-blue-400" onClick={handleNucleoClick}>
+          <Card className="group hover:shadow-2xl transition-all duration-300 cursor-pointer border-blue-200 hover:border-blue-400">
             <CardContent className="p-8">
               <div className="text-center space-y-6">
                 <div className="w-20 h-20 mx-auto bg-gradient-to-br from-blue-500 via-blue-600 to-green-500 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
@@ -105,7 +110,10 @@ const AppSelector = () => {
                   </div>
                 </div>
 
-                <Button className="w-full bg-gradient-to-r from-blue-600 to-green-600 hover:from-blue-700 hover:to-green-700 text-white group">
+                <Button 
+                  onClick={handleNucleoClick}
+                  className="w-full bg-gradient-to-r from-blue-600 to-green-600 hover:from-blue-700 hover:to-green-700 text-white group"
+                >
                   Launch Núcleo
                   <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
                 </Button>
