@@ -11,6 +11,7 @@ export interface Message {
   timestamp: Date
   sources?: string[]
   isError?: boolean
+  documentsFound?: number
 }
 
 export type ChatMode = 'knowledge' | 'general'
@@ -58,18 +59,28 @@ export const useChat = () => {
         role: 'assistant',
         content: data.response || 'Lo siento, no pude procesar tu solicitud.',
         timestamp: new Date(),
-        sources: data.sources
+        sources: data.sources,
+        documentsFound: data.documentsFound || 0
       }
 
       setMessages(prev => [...prev, assistantMessage])
       console.log('✅ CEREBRO response received')
 
-      if (useKnowledgeBase && data.sources && data.sources.length > 0) {
-        toast({
-          title: "Base de conocimiento consultada",
-          description: `Se consultaron ${data.sources.length} documentos`,
-          duration: 3000
-        })
+      if (useKnowledgeBase) {
+        if (data.documentsFound > 0) {
+          toast({
+            title: "Base de conocimiento consultada",
+            description: `Se consultaron ${data.documentsFound} documentos${data.sources ? `: ${data.sources.slice(0, 2).join(', ')}${data.sources.length > 2 ? '...' : ''}` : ''}`,
+            duration: 4000
+          })
+        } else {
+          toast({
+            title: "Sin documentos específicos",
+            description: "No se encontraron documentos relevantes. Respuesta basada en conocimiento general.",
+            variant: "destructive",
+            duration: 4000
+          })
+        }
       }
 
     } catch (error) {
@@ -108,7 +119,7 @@ export const useChat = () => {
     setChatMode(newMode)
     toast({
       title: "Modo cambiado",
-      description: `${newMode === 'knowledge' ? 'Usando base de conocimiento' : 'Modo general OpenAI'}`
+      description: `${newMode === 'knowledge' ? 'Usando base de conocimiento empresarial' : 'Modo general OpenAI'}`
     })
   }
 

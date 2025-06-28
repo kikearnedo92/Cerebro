@@ -6,7 +6,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
-import { Send, Brain, User, Sparkles, Loader2, BookOpen } from 'lucide-react'
+import { Send, Brain, User, Sparkles, Loader2, BookOpen, FileText, AlertCircle } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useChat } from '@/hooks/useChat'
 import ImageUpload from '@/components/ui/ImageUpload'
@@ -153,13 +153,38 @@ const ConversationalChatInterface = () => {
                       <div className="prose max-w-none">
                         {formatMessage(message.content)}
                       </div>
-                      {message.sources && message.sources.length > 0 && (
-                        <div className="mt-2">
-                          <Badge variant="outline" className="text-xs">
-                            Fuentes: {message.sources.join(', ')}
-                          </Badge>
+                      
+                      {/* Mostrar información de documentos consultados */}
+                      {message.role === 'assistant' && useKnowledgeBase && (
+                        <div className="mt-3 pt-3 border-t border-gray-200">
+                          {message.documentsFound && message.documentsFound > 0 ? (
+                            <div className="flex items-center gap-2 text-sm text-gray-600">
+                              <FileText className="w-4 h-4" />
+                              <span>{message.documentsFound} documentos consultados</span>
+                              {message.sources && message.sources.length > 0 && (
+                                <div className="flex flex-wrap gap-1 ml-2">
+                                  {message.sources.slice(0, 3).map((source, index) => (
+                                    <Badge key={index} variant="outline" className="text-xs">
+                                      {source.length > 30 ? `${source.substring(0, 30)}...` : source}
+                                    </Badge>
+                                  ))}
+                                  {message.sources.length > 3 && (
+                                    <Badge variant="outline" className="text-xs">
+                                      +{message.sources.length - 3} más
+                                    </Badge>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2 text-sm text-amber-600">
+                              <AlertCircle className="w-4 h-4" />
+                              <span>Sin documentos específicos encontrados</span>
+                            </div>
+                          )}
                         </div>
                       )}
+                      
                       <div className={`text-xs mt-2 ${message.role === 'user' ? 'text-purple-100' : 'text-gray-500'}`}>
                         {message.timestamp.toLocaleTimeString()}
                       </div>
@@ -182,7 +207,12 @@ const ConversationalChatInterface = () => {
                   <CardContent className="p-4">
                     <div className="flex items-center space-x-2">
                       <Loader2 className="w-4 h-4 animate-spin text-purple-600" />
-                      <span className="text-gray-600">Consultando base de conocimiento...</span>
+                      <span className="text-gray-600">
+                        {useKnowledgeBase 
+                          ? 'Consultando base de conocimiento CEREBRO...' 
+                          : 'CEREBRO está procesando tu consulta...'
+                        }
+                      </span>
                     </div>
                   </CardContent>
                 </Card>

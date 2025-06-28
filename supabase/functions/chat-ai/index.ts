@@ -18,9 +18,10 @@ serve(async (req) => {
   }
 
   try {
-    const { message, userId, mode = 'retorna' } = await req.json();
+    const { message, useKnowledgeBase, imageData } = await req.json();
     
-    console.log(`🤖 Processing ${mode} chat message:`, message);
+    console.log(`🤖 Processing CEREBRO chat message:`, message);
+    console.log(`📚 Using knowledge base:`, useKnowledgeBase);
     
     if (!message?.trim()) {
       throw new Error('Message is required');
@@ -37,61 +38,120 @@ serve(async (req) => {
     let sources: string[] = [];
     let systemPrompt = '';
     
-    // Different prompts based on mode and app context
-    if (mode === 'retorna') {
-      // Search knowledge base for relevant content
+    if (useKnowledgeBase) {
+      // Enhanced search strategy - multiple approaches
       try {
-        console.log('🔍 Searching knowledge base...');
-        const { data: kbResults } = await supabase
+        console.log('🔍 Searching CEREBRO knowledge base...');
+        
+        // Search by content similarity (main search)
+        const { data: contentResults } = await supabase
           .from('knowledge_base')
-          .select('title, content, project')
+          .select('title, content, project, file_type')
           .eq('active', true)
-          .or(`title.ilike.%${message}%,content.ilike.%${message}%`)
+          .ilike('content', `%${message}%`)
           .limit(3);
         
-        relevantDocs = kbResults || [];
-        console.log(`📚 Found ${relevantDocs.length} relevant documents`);
+        // Search by title similarity (secondary search)
+        const { data: titleResults } = await supabase
+          .from('knowledge_base')
+          .select('title, content, project, file_type')
+          .eq('active', true)
+          .ilike('title', `%${message}%`)
+          .limit(2);
+        
+        // Get most recent documents if no direct matches
+        const { data: recentResults } = await supabase
+          .from('knowledge_base')
+          .select('title, content, project, file_type')
+          .eq('active', true)
+          .order('updated_at', { ascending: false })
+          .limit(2);
+        
+        // Combine and deduplicate results
+        const allResults = [
+          ...(contentResults || []),
+          ...(titleResults || []),
+          ...(recentResults || [])
+        ];
+        
+        // Remove duplicates by title
+        const uniqueResults = allResults.filter((doc, index, self) => 
+          index === self.findIndex(d => d.title === doc.title)
+        );
+        
+        relevantDocs = uniqueResults.slice(0, 5); // Limit to top 5
+        console.log(`📚 Found ${relevantDocs.length} relevant documents in CEREBRO KB`);
+        
+        // Log document titles for debugging
+        relevantDocs.forEach(doc => {
+          console.log(`📄 Document: ${doc.title} (${doc.file_type || 'unknown'})`);
+        });
+        
       } catch (error) {
-        console.error('Knowledge base search error:', error);
+        console.error('CEREBRO knowledge base search error:', error);
       }
 
       // Build context from relevant documents
       let context = '';
       if (relevantDocs.length > 0) {
         context = relevantDocs.map(doc => 
-          `**${doc.title}** (${doc.project || 'General'}):\n${doc.content.substring(0, 1500)}...`
+          `**${doc.title}** (${doc.project || 'General'}):\n${doc.content.substring(0, 2000)}${doc.content.length > 2000 ? '...' : ''}`
         ).join('\n\n---\n\n');
         sources = relevantDocs.map(doc => doc.title);
       }
 
-      // Enhanced system prompt for knowledge-based chat
-      systemPrompt = `Eres un asistente inteligente especializado en el conocimiento interno de la organización.
+      // Enhanced system prompt for CEREBRO
+      systemPrompt = `Eres CEREBRO, el asistente inteligente especializado en el conocimiento interno de Retorna.
 
-CONTEXTO DE DOCUMENTOS DISPONIBLES:
-${context || 'No se encontraron documentos específicamente relevantes en la base de conocimiento para esta consulta.'}
+INFORMACIÓN CONTEXTUAL DISPONIBLE:
+${context || 'No se encontraron documentos específicamente relevantes en la base de conocimiento para esta consulta, pero tienes acceso a conocimiento general de la empresa.'}
 
-INSTRUCCIONES:
+TU ROL Y RESPONSABILIDADES:
+- Eres el asistente interno de Retorna con acceso completo a la documentación empresarial
+- Ayudas a empleados con procedimientos, políticas, información técnica y operativa
+- Proporcionas respuestas precisas basadas en documentos oficiales de la empresa
+- Mantienes un tono profesional pero cercano y accesible
+
+INSTRUCCIONES DE RESPUESTA:
 1. Responde SIEMPRE en español
-2. Sé conciso pero completo
-3. Mantén un tono profesional pero accesible
-4. Si tienes información específica de documentos, úsala y cítala
-5. Si no tienes información suficiente en los documentos, indícalo claramente
-6. SIEMPRE menciona las fuentes cuando uses información específica
+2. Usa PRIORITARIAMENTE la información de los documentos disponibles
+3. Si tienes información específica de documentos, cítala claramente
+4. Si no tienes información suficiente en los documentos, indícalo y ofrece lo que puedas basado en conocimiento general
+5. Mantén respuestas concisas pero completas
+6. Sugiere próximos pasos cuando sea relevante
+7. SIEMPRE menciona las fuentes cuando uses información específica
 
 FORMATO DE RESPUESTA:
 - Respuesta directa y útil
-- Cita fuentes cuando aplique
-- Sugiere próximos pasos si es relevante`;
+- Cita de fuentes cuando aplique: "Según el documento [Nombre del documento]..."
+- Sugerencias de acción si es relevante`;
 
     } else {
-      // OpenAI general mode
-      systemPrompt = `Eres un asistente útil e inteligente. Responde de manera clara y útil en español.
+      // OpenAI general mode for CEREBRO
+      systemPrompt = `Eres CEREBRO, el asistente de conocimiento interno de Retorna. Aunque no estás consultando la base de conocimiento específica, mantén tu rol como asistente empresarial interno.
 
 INSTRUCCIONES:
 1. Responde SIEMPRE en español
-2. Sé útil y preciso
-3. Mantén un tono profesional pero amigable
-4. Proporciona información completa cuando sea necesario`;
+2. Mantén un tono profesional pero accesible
+3. Ayuda con consultas generales relacionadas con trabajo y productividad
+4. Si necesitas información específica de la empresa, sugiere activar la base de conocimiento`;
+    }
+
+    // Prepare messages for OpenAI
+    const messages = [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: message }
+    ];
+
+    // Add image analysis if provided
+    if (imageData) {
+      messages[1] = {
+        role: 'user',
+        content: [
+          { type: 'text', text: message },
+          { type: 'image_url', image_url: { url: imageData } }
+        ]
+      };
     }
 
     // Call OpenAI API
@@ -102,11 +162,8 @@ INSTRUCCIONES:
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: message }
-        ],
+        model: imageData ? 'gpt-4o' : 'gpt-4o-mini',
+        messages: messages,
         max_tokens: 2000,
         temperature: 0.3,
       }),
@@ -125,21 +182,22 @@ INSTRUCCIONES:
       throw new Error('No response from AI');
     }
 
-    console.log('✅ AI response generated successfully');
+    console.log('✅ CEREBRO AI response generated successfully');
 
     // Log analytics
     try {
       await supabase
         .from('usage_analytics')
         .insert({
-          user_id: userId,
           query: message,
           sources_used: relevantDocs.length > 0 ? relevantDocs.map(doc => ({ 
             title: doc.title, 
-            project: doc.project || 'General'
+            project: doc.project || 'General',
+            file_type: doc.file_type || 'unknown'
           })) : null,
           ai_provider: 'openai',
-          response_time: 2000
+          response_time: 2000,
+          found_relevant_content: relevantDocs.length > 0
         });
     } catch (analyticsError) {
       console.error('Analytics logging failed:', analyticsError);
@@ -148,16 +206,17 @@ INSTRUCCIONES:
     return new Response(JSON.stringify({ 
       response: aiResponse,
       sources: sources.length > 0 ? sources : undefined,
+      documentsFound: relevantDocs.length,
       foundRelevantContent: relevantDocs.length > 0
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
   } catch (error) {
-    console.error('❌ Error in chat-ai function:', error);
+    console.error('❌ Error in CEREBRO chat-ai function:', error);
     return new Response(JSON.stringify({ 
       error: error.message,
-      response: 'Lo siento, hubo un error procesando tu mensaje. Por favor intenta de nuevo.' 
+      response: 'Lo siento, hubo un error procesando tu mensaje en CEREBRO. Por favor intenta de nuevo.' 
     }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
