@@ -25,6 +25,14 @@ export const RetornaInsightsDashboard = () => {
     syncAmplitudeEvents 
   } = useAmplitudeAnalytics()
 
+  const handleRefetch = () => {
+    refetch(selectedPeriod)
+  }
+
+  const handleSyncAmplitude = async () => {
+    await syncAmplitudeEvents()
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -41,7 +49,7 @@ export const RetornaInsightsDashboard = () => {
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
           <p className="text-red-600 mb-4">Error al cargar datos de Amplitude</p>
-          <Button onClick={refetch} variant="outline">Reintentar</Button>
+          <Button onClick={handleRefetch} variant="outline">Reintentar</Button>
         </div>
       </div>
     )
@@ -191,14 +199,14 @@ export const RetornaInsightsDashboard = () => {
         </div>
         <div className="flex gap-2">
           <Button 
-            onClick={syncAmplitudeEvents} 
+            onClick={handleSyncAmplitude} 
             variant="outline" 
             size="sm"
             disabled={loading}
           >
             Sincronizar Amplitude
           </Button>
-          <Button onClick={refetch} variant="outline" size="sm">
+          <Button onClick={handleRefetch} variant="outline" size="sm">
             Actualizar
           </Button>
         </div>
