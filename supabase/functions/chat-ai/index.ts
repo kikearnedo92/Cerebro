@@ -39,64 +39,82 @@ serve(async (req) => {
     let systemPrompt = '';
     
     if (useKnowledgeBase) {
-      // Enhanced search strategy - multiple approaches
       try {
         console.log('🔍 Searching CEREBRO knowledge base...');
         
-        // Search by content similarity (main search)
-        const { data: contentResults } = await supabase
+        // Improved search strategy - search in multiple ways
+        const searchTerms = message.toLowerCase().split(' ').filter(term => term.length > 2);
+        const searchQuery = searchTerms.join(' | ');
+        
+        console.log('🔍 Search terms:', searchTerms);
+        
+        // Search by content (primary)
+        const { data: contentResults, error: contentError } = await supabase
           .from('knowledge_base')
-          .select('title, content, project, file_type')
+          .select('id, title, content, project, file_type, created_at')
           .eq('active', true)
-          .ilike('content', `%${message}%`)
+          .textSearch('content', searchQuery)
+          .limit(5);
+        
+        if (contentError) {
+          console.error('Content search error:', contentError);
+        }
+        
+        // Search by title
+        const { data: titleResults, error: titleError } = await supabase
+          .from('knowledge_base')
+          .select('id, title, content, project, file_type, created_at')
+          .eq('active', true)
+          .textSearch('title', searchQuery)
           .limit(3);
         
-        // Search by title similarity (secondary search)
-        const { data: titleResults } = await supabase
-          .from('knowledge_base')
-          .select('title, content, project, file_type')
-          .eq('active', true)
-          .ilike('title', `%${message}%`)
-          .limit(2);
+        if (titleError) {
+          console.error('Title search error:', titleError);
+        }
         
-        // Get most recent documents if no direct matches
-        const { data: recentResults } = await supabase
+        // Fallback: get all active documents if no specific matches
+        const { data: allDocs, error: allDocsError } = await supabase
           .from('knowledge_base')
-          .select('title, content, project, file_type')
+          .select('id, title, content, project, file_type, created_at')
           .eq('active', true)
-          .order('updated_at', { ascending: false })
-          .limit(2);
+          .order('created_at', { ascending: false })
+          .limit(10);
         
-        // Combine and deduplicate results
+        if (allDocsError) {
+          console.error('All docs search error:', allDocsError);
+        }
+        
+        // Combine results and remove duplicates
         const allResults = [
           ...(contentResults || []),
           ...(titleResults || []),
-          ...(recentResults || [])
+          ...(allDocs || [])
         ];
         
-        // Remove duplicates by title
+        // Remove duplicates by id
         const uniqueResults = allResults.filter((doc, index, self) => 
-          index === self.findIndex(d => d.title === doc.title)
+          index === self.findIndex(d => d.id === doc.id)
         );
         
-        relevantDocs = uniqueResults.slice(0, 5); // Limit to top 5
+        relevantDocs = uniqueResults.slice(0, 8); // Limit to top 8
         console.log(`📚 Found ${relevantDocs.length} relevant documents in CEREBRO KB`);
         
-        // Log document titles for debugging
-        relevantDocs.forEach(doc => {
-          console.log(`📄 Document: ${doc.title} (${doc.file_type || 'unknown'})`);
+        // Log document details for debugging
+        relevantDocs.forEach((doc, index) => {
+          console.log(`📄 Doc ${index + 1}: ${doc.title} (${doc.file_type || 'unknown'}) - ${doc.content?.length || 0} chars`);
         });
         
       } catch (error) {
         console.error('CEREBRO knowledge base search error:', error);
       }
 
-      // Build context from relevant documents
+      // Build enhanced context from relevant documents
       let context = '';
       if (relevantDocs.length > 0) {
-        context = relevantDocs.map(doc => 
-          `**${doc.title}** (${doc.project || 'General'}):\n${doc.content.substring(0, 2000)}${doc.content.length > 2000 ? '...' : ''}`
-        ).join('\n\n---\n\n');
+        context = relevantDocs.map((doc, index) => 
+          `**DOCUMENTO ${index + 1}: ${doc.title}** (${doc.project || 'General'} - ${doc.file_type || 'documento'}):\n${doc.content?.substring(0, 3000) || 'Sin contenido'}${doc.content?.length > 3000 ? '\n[... contenido truncado]' : ''}`
+        ).join('\n\n' + '='.repeat(50) + '\n\n');
+        
         sources = relevantDocs.map(doc => doc.title);
       }
 
@@ -106,6 +124,10 @@ serve(async (req) => {
 INFORMACIÓN CONTEXTUAL DISPONIBLE:
 ${context || 'No se encontraron documentos específicamente relevantes en la base de conocimiento para esta consulta, pero tienes acceso a conocimiento general de la empresa.'}
 
+ESTADÍSTICAS DE BÚSQUEDA:
+- Total de documentos encontrados: ${relevantDocs.length}
+- Fuentes consultadas: ${sources.length > 0 ? sources.join(', ') : 'Ninguna específica'}
+
 TU ROL Y RESPONSABILIDADES:
 - Eres el asistente interno de Retorna con acceso completo a la documentación empresarial
 - Ayudas a empleados con procedimientos, políticas, información técnica y operativa
@@ -114,17 +136,20 @@ TU ROL Y RESPONSABILIDADES:
 
 INSTRUCCIONES DE RESPUESTA:
 1. Responde SIEMPRE en español
-2. Usa PRIORITARIAMENTE la información de los documentos disponibles
-3. Si tienes información específica de documentos, cítala claramente
-4. Si no tienes información suficiente en los documentos, indícalo y ofrece lo que puedas basado en conocimiento general
+2. Usa PRIORITARIAMENTE la información de los documentos disponibles arriba
+3. Si tienes información específica de documentos, cítala claramente mencionando el nombre del documento
+4. Si no tienes información suficiente en los documentos, indícalo claramente
 5. Mantén respuestas concisas pero completas
 6. Sugiere próximos pasos cuando sea relevante
-7. SIEMPRE menciona las fuentes cuando uses información específica
+7. SIEMPRE menciona las fuentes específicas cuando uses información de los documentos
 
 FORMATO DE RESPUESTA:
-- Respuesta directa y útil
-- Cita de fuentes cuando aplique: "Según el documento [Nombre del documento]..."
-- Sugerencias de acción si es relevante`;
+- Respuesta directa y útil basada en los documentos
+- Cita de fuentes: "Según el documento [Nombre del documento]..."
+- Si consultaste múltiples documentos, menciona cuántos
+- Sugerencias de acción si es relevante
+
+IMPORTANTE: Si encontraste ${relevantDocs.length} documentos, úsalos activamente en tu respuesta.`;
 
     } else {
       // OpenAI general mode for CEREBRO
@@ -164,8 +189,8 @@ INSTRUCCIONES:
       body: JSON.stringify({
         model: imageData ? 'gpt-4o' : 'gpt-4o-mini',
         messages: messages,
-        max_tokens: 2000,
-        temperature: 0.3,
+        max_tokens: 2500,
+        temperature: 0.2,
       }),
     });
 
@@ -183,6 +208,7 @@ INSTRUCCIONES:
     }
 
     console.log('✅ CEREBRO AI response generated successfully');
+    console.log(`📊 Response used ${relevantDocs.length} documents`);
 
     // Log analytics
     try {
