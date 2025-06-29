@@ -11,19 +11,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-interface NotionPage {
-  id: string;
-  properties: any;
-  parent: any;
-  children?: NotionBlock[];
-}
-
-interface NotionBlock {
-  id: string;
-  type: string;
-  [key: string]: any;
-}
-
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -32,10 +19,10 @@ serve(async (req) => {
   try {
     const { action, notion_token, database_id } = await req.json();
     
-    console.log(`🔗 Notion action: ${action}`);
+    console.log(`🔄 Notion sync action: ${action}`);
     
-    if (!notion_token) {
-      throw new Error('Notion token is required');
+    if (!notion_token || !database_id) {
+      throw new Error('Notion token and database ID are required');
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -43,200 +30,157 @@ serve(async (req) => {
     if (action === 'test') {
       console.log('🧪 Testing Notion connection...');
       
-      // Test connection with database or page
-      let notionUrl = '';
-      let isDatabase = false;
-      
-      // Handle different URL formats - extract ID from URL or use direct ID
-      let pageId = database_id;
+      // Extract actual database ID from URL if needed
+      let cleanDatabaseId = database_id;
       if (database_id.includes('notion.so')) {
-        // Extract ID from URL - handle both formats with and without hyphens
-        const urlMatch = database_id.match(/([a-f0-9]{32}|[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/);
-        if (urlMatch) {
-          pageId = urlMatch[1].replace(/-/g, ''); // Remove hyphens for API calls
+        // Extract ID from URL: https://www.notion.so/myworkspace/database-name-32digithexstring
+        const urlParts = database_id.split('/');
+        const lastPart = urlParts[urlParts.length - 1];
+        
+        // Handle both formats: with and without hyphens
+        if (lastPart.includes('-')) {
+          // Format: database-name-32digithex
+          const parts = lastPart.split('-');
+          cleanDatabaseId = parts[parts.length - 1];
+        } else {
+          // Direct 32-digit hex
+          cleanDatabaseId = lastPart;
+        }
+        
+        // Add hyphens to make it UUID format if it's 32 hex digits
+        if (cleanDatabaseId.length === 32 && /^[0-9a-f]+$/i.test(cleanDatabaseId)) {
+          cleanDatabaseId = [
+            cleanDatabaseId.slice(0, 8),
+            cleanDatabaseId.slice(8, 12),
+            cleanDatabaseId.slice(12, 16),
+            cleanDatabaseId.slice(16, 20),
+            cleanDatabaseId.slice(20, 32)
+          ].join('-');
         }
       }
       
-      console.log(`🔍 Testing with page ID: ${pageId}`);
+      console.log(`🔍 Clean database ID: ${cleanDatabaseId}`);
       
-      // Try as database first
-      try {
-        notionUrl = `https://api.notion.com/v1/databases/${pageId}`;
-        const response = await fetch(notionUrl, {
-          headers: {
-            'Authorization': `Bearer ${notion_token}`,
-            'Notion-Version': '2022-06-28',
-            'Content-Type': 'application/json'
-          }
-        });
-        
-        if (response.ok) {
-          isDatabase = true;
-          console.log('✅ Connected as database');
-        } else {
-          throw new Error('Not a database');
+      // Test Notion API connection
+      const testResponse = await fetch(`https://api.notion.com/v1/databases/${cleanDatabaseId}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${notion_token}`,
+          'Notion-Version': '2022-06-28',
+          'Content-Type': 'application/json'
         }
-      } catch (dbError) {
-        // Try as page
-        console.log('🔄 Trying as page...');
-        notionUrl = `https://api.notion.com/v1/pages/${pageId}`;
-        const response = await fetch(notionUrl, {
-          headers: {
-            'Authorization': `Bearer ${notion_token}`,
-            'Notion-Version': '2022-06-28',
-            'Content-Type': 'application/json'
-          }
-        });
-        
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(`Notion API error: ${response.status} - ${errorData.message || 'Invalid page or database ID'}`);
-        }
-        
-        console.log('✅ Connected as page');
+      });
+
+      if (!testResponse.ok) {
+        const errorData = await testResponse.json().catch(() => null);
+        console.error('Notion API test failed:', errorData);
+        throw new Error(`Notion API error: ${testResponse.status} - ${errorData?.message || testResponse.statusText}`);
       }
 
+      const databaseInfo = await testResponse.json();
+      console.log('✅ Notion connection successful:', databaseInfo.title?.[0]?.plain_text || 'Database');
+      
       return new Response(JSON.stringify({ 
         success: true, 
-        type: isDatabase ? 'database' : 'page',
-        pageId 
+        database_title: databaseInfo.title?.[0]?.plain_text || 'Database',
+        clean_database_id: cleanDatabaseId
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
     if (action === 'sync') {
-      console.log('🔄 Starting Notion sync...');
+      console.log('📥 Starting Notion sync...');
       
-      // Extract page ID from URL or use direct ID
-      let pageId = database_id;
+      // Extract and clean database ID
+      let cleanDatabaseId = database_id;
       if (database_id.includes('notion.so')) {
-        const urlMatch = database_id.match(/([a-f0-9]{32}|[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/);
-        if (urlMatch) {
-          pageId = urlMatch[1].replace(/-/g, '');
-        }
-      }
-      
-      console.log(`📄 Syncing page ID: ${pageId}`);
-      
-      let documents = [];
-      
-      // Try to sync as database first
-      try {
-        const dbResponse = await fetch(`https://api.notion.com/v1/databases/${pageId}/query`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${notion_token}`,
-            'Notion-Version': '2022-06-28',
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({})
-        });
+        const urlParts = database_id.split('/');
+        const lastPart = urlParts[urlParts.length - 1];
         
-        if (dbResponse.ok) {
-          const dbData = await dbResponse.json();
-          console.log(`📊 Found ${dbData.results?.length || 0} pages in database`);
-          
-          for (const page of dbData.results || []) {
-            const pageContent = await extractPageContent(page.id, notion_token);
-            if (pageContent.title && pageContent.content) {
-              documents.push({
-                title: pageContent.title,
-                content: pageContent.content,
-                project: 'Notion Database',
-                file_type: 'notion_page',
-                source_url: `https://notion.so/${page.id}`,
-                notion_page_id: page.id
-              });
-            }
-          }
+        if (lastPart.includes('-')) {
+          const parts = lastPart.split('-');
+          cleanDatabaseId = parts[parts.length - 1];
         } else {
-          throw new Error('Not a database, trying as page...');
+          cleanDatabaseId = lastPart;
         }
-      } catch (dbError) {
-        console.log('🔄 Not a database, processing as single page...');
         
-        // Process as single page
-        const pageContent = await extractPageContent(pageId, notion_token);
-        if (pageContent.title && pageContent.content) {
-          documents.push({
-            title: pageContent.title,
-            content: pageContent.content,
-            project: 'Notion Page',
-            file_type: 'notion_page',
-            source_url: database_id,
-            notion_page_id: pageId
-          });
+        if (cleanDatabaseId.length === 32 && /^[0-9a-f]+$/i.test(cleanDatabaseId)) {
+          cleanDatabaseId = [
+            cleanDatabaseId.slice(0, 8),
+            cleanDatabaseId.slice(8, 12),
+            cleanDatabaseId.slice(12, 16),
+            cleanDatabaseId.slice(16, 20),
+            cleanDatabaseId.slice(20, 32)
+          ].join('-');
         }
       }
       
-      console.log(`📝 Extracted ${documents.length} documents`);
+      // Fetch pages from database
+      const pagesResponse = await fetch(`https://api.notion.com/v1/databases/${cleanDatabaseId}/query`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${notion_token}`,
+          'Notion-Version': '2022-06-28',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          page_size: 50
+        })
+      });
+
+      if (!pagesResponse.ok) {
+        const errorData = await pagesResponse.json().catch(() => null);
+        throw new Error(`Failed to fetch pages: ${errorData?.message || pagesResponse.statusText}`);
+      }
+
+      const pagesData = await pagesResponse.json();
+      console.log(`📄 Found ${pagesData.results?.length || 0} pages in database`);
       
-      // Save documents to knowledge base
-      let documentsProcessed = 0;
+      let processedCount = 0;
       
-      for (const doc of documents) {
+      for (const page of pagesData.results || []) {
         try {
-          // Check if document already exists
-          const { data: existing } = await supabase
-            .from('knowledge_base')
-            .select('id')
-            .eq('notion_page_id', doc.notion_page_id)
-            .single();
+          console.log(`🔄 Processing page: ${page.id}`);
           
-          if (existing) {
-            // Update existing document
-            const { error: updateError } = await supabase
-              .from('knowledge_base')
-              .update({
-                title: doc.title,
-                content: doc.content,
-                project: doc.project,
-                file_type: doc.file_type,
-                source_url: doc.source_url,
-                updated_at: new Date().toISOString(),
-                active: true
-              })
-              .eq('id', existing.id);
-              
-            if (updateError) {
-              console.error('Update error:', updateError);
-            } else {
-              documentsProcessed++;
-              console.log(`📝 Updated: ${doc.title}`);
-            }
-          } else {
-            // Insert new document
+          // Get page content
+          const pageContent = await fetchNotionPageContent(notion_token, page.id);
+          
+          if (pageContent.content.trim()) {
+            // Store in knowledge base
             const { error: insertError } = await supabase
               .from('knowledge_base')
-              .insert({
-                title: doc.title,
-                content: doc.content,
-                project: doc.project,
-                file_type: doc.file_type,
-                source_url: doc.source_url,
-                notion_page_id: doc.notion_page_id,
+              .upsert({
+                external_id: page.id,
+                title: pageContent.title,
+                content: pageContent.content,
+                source: 'notion',
+                file_type: 'notion_page',
+                project: 'notion',
+                created_by: (await supabase.auth.getUser()).data.user?.id,
                 active: true
+              }, {
+                onConflict: 'external_id'
               });
-              
+
             if (insertError) {
-              console.error('Insert error:', insertError);
+              console.error('Error storing page:', insertError);
             } else {
-              documentsProcessed++;
-              console.log(`📝 Inserted: ${doc.title}`);
+              processedCount++;
+              console.log(`✅ Stored page: ${pageContent.title}`);
             }
           }
-        } catch (docError) {
-          console.error(`Error processing document ${doc.title}:`, docError);
+        } catch (pageError) {
+          console.error(`Error processing page ${page.id}:`, pageError);
         }
       }
       
-      console.log(`✅ Processed ${documentsProcessed} documents successfully`);
+      console.log(`🎉 Sync completed! Processed ${processedCount} pages`);
       
       return new Response(JSON.stringify({ 
         success: true, 
-        documents_processed: documentsProcessed,
-        total_found: documents.length
+        documents_processed: processedCount,
+        message: `Successfully synced ${processedCount} documents from Notion`
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
@@ -247,7 +191,7 @@ serve(async (req) => {
   } catch (error) {
     console.error('❌ Notion sync error:', error);
     return new Response(JSON.stringify({ 
-      error: error.message || 'Sync failed'
+      error: error.message || 'Notion sync failed'
     }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -255,155 +199,146 @@ serve(async (req) => {
   }
 });
 
-async function extractPageContent(pageId: string, notionToken: string): Promise<{ title: string; content: string }> {
-  try {
-    // Get page details
-    const pageResponse = await fetch(`https://api.notion.com/v1/pages/${pageId}`, {
-      headers: {
-        'Authorization': `Bearer ${notionToken}`,
-        'Notion-Version': '2022-06-28'
-      }
-    });
-    
-    if (!pageResponse.ok) {
-      throw new Error(`Failed to fetch page: ${pageResponse.status}`);
+async function fetchNotionPageContent(token: string, pageId: string) {
+  console.log(`📖 Fetching content for page: ${pageId}`);
+  
+  // Get page properties first
+  const pageResponse = await fetch(`https://api.notion.com/v1/pages/${pageId}`, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Notion-Version': '2022-06-28'
     }
-    
-    const pageData = await pageResponse.json();
-    
-    // Extract title from properties
-    let title = 'Untitled';
-    if (pageData.properties) {
-      for (const [key, value] of Object.entries(pageData.properties)) {
-        if (value.type === 'title' && value.title?.length > 0) {
-          title = value.title.map(t => t.plain_text).join('');
-          break;
-        }
+  });
+  
+  const pageData = await pageResponse.json();
+  
+  // Extract title from properties
+  let title = 'Untitled';
+  if (pageData.properties) {
+    for (const [key, prop] of Object.entries(pageData.properties)) {
+      if (prop.type === 'title' && prop.title?.[0]?.plain_text) {
+        title = prop.title[0].plain_text;
+        break;
       }
     }
-    
-    // Get page blocks (content)
-    const blocksResponse = await fetch(`https://api.notion.com/v1/blocks/${pageId}/children`, {
-      headers: {
-        'Authorization': `Bearer ${notionToken}`,
-        'Notion-Version': '2022-06-28'
-      }
-    });
-    
-    if (!blocksResponse.ok) {
-      console.warn(`Failed to fetch blocks for page ${pageId}: ${blocksResponse.status}`);
-      return { title, content: '' };
-    }
-    
-    const blocksData = await blocksResponse.json();
-    
-    // Extract text content from blocks
-    let content = '';
-    
-    for (const block of blocksData.results || []) {
-      const blockText = await extractBlockText(block, notionToken);
-      if (blockText) {
-        content += blockText + '\n\n';
-      }
-    }
-    
-    console.log(`📄 Extracted page: ${title} (${content.length} characters)`);
-    
-    return { title, content: content.trim() };
-    
-  } catch (error) {
-    console.error(`Error extracting page content for ${pageId}:`, error);
-    return { title: '', content: '' };
   }
+  
+  // Get page blocks (content)
+  const blocksResponse = await fetch(`https://api.notion.com/v1/blocks/${pageId}/children?page_size=100`, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Notion-Version': '2022-06-28'
+    }
+  });
+  
+  const blocksData = await blocksResponse.json();
+  
+  let content = '';
+  
+  for (const block of blocksData.results || []) {
+    const blockText = await extractTextFromBlock(block, token);
+    if (blockText) {
+      content += blockText + '\n\n';
+    }
+  }
+  
+  return {
+    title,
+    content: content.trim()
+  };
 }
 
-async function extractBlockText(block: NotionBlock, notionToken: string): Promise<string> {
+async function extractTextFromBlock(block: any, token: string): Promise<string> {
+  let text = '';
+  
   try {
-    let text = '';
-    
     switch (block.type) {
       case 'paragraph':
-        text = block.paragraph?.rich_text?.map(t => t.plain_text).join('') || '';
+        text = extractRichText(block.paragraph?.rich_text || []);
         break;
-        
       case 'heading_1':
-        text = `# ${block.heading_1?.rich_text?.map(t => t.plain_text).join('') || ''}`;
+        text = '# ' + extractRichText(block.heading_1?.rich_text || []);
         break;
-        
       case 'heading_2':
-        text = `## ${block.heading_2?.rich_text?.map(t => t.plain_text).join('') || ''}`;
+        text = '## ' + extractRichText(block.heading_2?.rich_text || []);
         break;
-        
       case 'heading_3':
-        text = `### ${block.heading_3?.rich_text?.map(t => t.plain_text).join('') || ''}`;
+        text = '### ' + extractRichText(block.heading_3?.rich_text || []);
         break;
-        
       case 'bulleted_list_item':
-        text = `• ${block.bulleted_list_item?.rich_text?.map(t => t.plain_text).join('') || ''}`;
+        text = '• ' + extractRichText(block.bulleted_list_item?.rich_text || []);
         break;
-        
       case 'numbered_list_item':
-        text = `1. ${block.numbered_list_item?.rich_text?.map(t => t.plain_text).join('') || ''}`;
+        text = '1. ' + extractRichText(block.numbered_list_item?.rich_text || []);
         break;
-        
       case 'to_do':
-        const checked = block.to_do?.checked ? '✓' : '☐';
-        text = `${checked} ${block.to_do?.rich_text?.map(t => t.plain_text).join('') || ''}`;
+        const checked = block.to_do?.checked ? '[x]' : '[ ]';
+        text = `${checked} ${extractRichText(block.to_do?.rich_text || [])}`;
         break;
-        
       case 'quote':
-        text = `> ${block.quote?.rich_text?.map(t => t.plain_text).join('') || ''}`;
+        text = '> ' + extractRichText(block.quote?.rich_text || []);
         break;
-        
       case 'code':
-        text = `\`\`\`${block.code?.language || ''}\n${block.code?.rich_text?.map(t => t.plain_text).join('') || ''}\n\`\`\``;
+        text = '```\n' + extractRichText(block.code?.rich_text || []) + '\n```';
         break;
-        
       case 'image':
-        const imageUrl = block.image?.file?.url || block.image?.external?.url;
-        if (imageUrl) {
-          // Try to extract text from image using OpenAI vision if available
-          text = `[IMAGEN: ${imageUrl}]`;
-          // TODO: Implement image analysis using OpenAI Vision API
+        if (block.image?.file?.url) {
+          // For images, we add a description
+          text = `[IMAGEN: ${block.image?.caption?.[0]?.plain_text || 'Imagen de Notion'}]`;
+          
+          // Try to get image description if there's a caption
+          if (block.image.caption && block.image.caption.length > 0) {
+            text += `\nDescripción de imagen: ${extractRichText(block.image.caption)}`;
+          }
         }
         break;
-        
       case 'divider':
         text = '---';
         break;
-        
-      default:
-        // Handle other block types
-        if (block[block.type]?.rich_text) {
-          text = block[block.type].rich_text.map(t => t.plain_text).join('');
-        }
+      case 'table':
+        text = '[TABLA - contenido estructurado]';
         break;
+      default:
+        // For other block types, try to extract any rich_text
+        if (block[block.type]?.rich_text) {
+          text = extractRichText(block[block.type].rich_text);
+        }
     }
     
-    // Handle nested blocks
+    // Handle child blocks recursively
     if (block.has_children) {
-      const childrenResponse = await fetch(`https://api.notion.com/v1/blocks/${block.id}/children`, {
-        headers: {
-          'Authorization': `Bearer ${notionToken}`,
-          'Notion-Version': '2022-06-28'
-        }
-      });
-      
-      if (childrenResponse.ok) {
-        const childrenData = await childrenResponse.json();
-        for (const child of childrenData.results || []) {
-          const childText = await extractBlockText(child, notionToken);
-          if (childText) {
-            text += '\n  ' + childText;
+      try {
+        const childrenResponse = await fetch(`https://api.notion.com/v1/blocks/${block.id}/children`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Notion-Version': '2022-06-28'
+          }
+        });
+        
+        if (childrenResponse.ok) {
+          const childrenData = await childrenResponse.json();
+          for (const child of childrenData.results || []) {
+            const childText = await extractTextFromBlock(child, token);
+            if (childText) {
+              text += '\n  ' + childText; // Indent child content
+            }
           }
         }
+      } catch (childError) {
+        console.error('Error fetching child blocks:', childError);
       }
     }
     
-    return text;
-    
   } catch (error) {
-    console.error('Error extracting block text:', error);
-    return '';
+    console.error('Error extracting text from block:', error);
   }
+  
+  return text;
+}
+
+function extractRichText(richText: any[]): string {
+  return richText
+    .map(text => text.plain_text || '')
+    .join('')
+    .trim();
 }

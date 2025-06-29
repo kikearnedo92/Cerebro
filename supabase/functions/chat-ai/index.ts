@@ -42,67 +42,64 @@ serve(async (req) => {
       try {
         console.log('🔍 Searching CEREBRO knowledge base...');
         
-        // Improved search strategy - search in multiple ways
-        const searchTerms = message.toLowerCase().split(' ').filter(term => term.length > 2);
-        const searchQuery = searchTerms.join(' | ');
-        
-        console.log('🔍 Search terms:', searchTerms);
-        
-        // Search by content (primary)
-        const { data: contentResults, error: contentError } = await supabase
-          .from('knowledge_base')
-          .select('id, title, content, project, file_type, created_at')
-          .eq('active', true)
-          .textSearch('content', searchQuery)
-          .limit(5);
-        
-        if (contentError) {
-          console.error('Content search error:', contentError);
-        }
-        
-        // Search by title
-        const { data: titleResults, error: titleError } = await supabase
-          .from('knowledge_base')
-          .select('id, title, content, project, file_type, created_at')
-          .eq('active', true)
-          .textSearch('title', searchQuery)
-          .limit(3);
-        
-        if (titleError) {
-          console.error('Title search error:', titleError);
-        }
-        
-        // Fallback: get all active documents if no specific matches
+        // Get all active documents first
         const { data: allDocs, error: allDocsError } = await supabase
           .from('knowledge_base')
           .select('id, title, content, project, file_type, created_at')
           .eq('active', true)
-          .order('created_at', { ascending: false })
-          .limit(10);
+          .order('created_at', { ascending: false });
+        
+        console.log(`📊 Total active documents found: ${allDocs?.length || 0}`);
         
         if (allDocsError) {
-          console.error('All docs search error:', allDocsError);
+          console.error('Error fetching documents:', allDocsError);
         }
         
-        // Combine results and remove duplicates
-        const allResults = [
-          ...(contentResults || []),
-          ...(titleResults || []),
-          ...(allDocs || [])
-        ];
-        
-        // Remove duplicates by id
-        const uniqueResults = allResults.filter((doc, index, self) => 
-          index === self.findIndex(d => d.id === doc.id)
-        );
-        
-        relevantDocs = uniqueResults.slice(0, 8); // Limit to top 8
-        console.log(`📚 Found ${relevantDocs.length} relevant documents in CEREBRO KB`);
-        
-        // Log document details for debugging
-        relevantDocs.forEach((doc, index) => {
-          console.log(`📄 Doc ${index + 1}: ${doc.title} (${doc.file_type || 'unknown'}) - ${doc.content?.length || 0} chars`);
-        });
+        if (allDocs && allDocs.length > 0) {
+          // Simple keyword matching for better results
+          const searchTerms = message.toLowerCase().split(' ')
+            .filter(term => term.length > 2)
+            .filter(term => !['que', 'como', 'para', 'por', 'con', 'una', 'del', 'las', 'los', 'the', 'and', 'for'].includes(term));
+          
+          console.log('🔍 Search terms:', searchTerms);
+          
+          // Score documents based on keyword matches
+          const scoredDocs = allDocs.map(doc => {
+            const content = (doc.content || '').toLowerCase();
+            const title = (doc.title || '').toLowerCase();
+            
+            let score = 0;
+            searchTerms.forEach(term => {
+              // Title matches are more important
+              if (title.includes(term)) score += 10;
+              // Content matches
+              if (content.includes(term)) score += 3;
+              // Partial matches
+              if (content.includes(term.substring(0, 4))) score += 1;
+            });
+            
+            return { ...doc, score };
+          });
+          
+          // Sort by score and take top results
+          relevantDocs = scoredDocs
+            .filter(doc => doc.score > 0)
+            .sort((a, b) => b.score - a.score)
+            .slice(0, 8);
+          
+          // If no scored matches, use recent documents
+          if (relevantDocs.length === 0) {
+            relevantDocs = allDocs.slice(0, 6);
+            console.log('📄 No keyword matches, using recent documents');
+          }
+          
+          console.log(`📚 Selected ${relevantDocs.length} relevant documents`);
+          
+          // Log selected documents
+          relevantDocs.forEach((doc, index) => {
+            console.log(`📄 Doc ${index + 1}: "${doc.title}" (score: ${doc.score || 'recent'}) - ${doc.content?.length || 0} chars`);
+          });
+        }
         
       } catch (error) {
         console.error('CEREBRO knowledge base search error:', error);
@@ -112,8 +109,8 @@ serve(async (req) => {
       let context = '';
       if (relevantDocs.length > 0) {
         context = relevantDocs.map((doc, index) => 
-          `**DOCUMENTO ${index + 1}: ${doc.title}** (${doc.project || 'General'} - ${doc.file_type || 'documento'}):\n${doc.content?.substring(0, 3000) || 'Sin contenido'}${doc.content?.length > 3000 ? '\n[... contenido truncado]' : ''}`
-        ).join('\n\n' + '='.repeat(50) + '\n\n');
+          `**DOCUMENTO ${index + 1}: ${doc.title}** (${doc.project || 'General'} - ${doc.file_type || 'documento'}):\n${doc.content?.substring(0, 4000) || 'Sin contenido'}${doc.content?.length > 4000 ? '\n[... contenido truncado]' : ''}`
+        ).join('\n\n' + '='.repeat(80) + '\n\n');
         
         sources = relevantDocs.map(doc => doc.title);
       }
@@ -149,7 +146,7 @@ FORMATO DE RESPUESTA:
 - Si consultaste múltiples documentos, menciona cuántos
 - Sugerencias de acción si es relevante
 
-IMPORTANTE: Si encontraste ${relevantDocs.length} documentos, úsalos activamente en tu respuesta.`;
+IMPORTANTE: Si encontraste ${relevantDocs.length} documentos, úsalos activamente en tu respuesta y menciona específicamente cuáles consultaste.`;
 
     } else {
       // OpenAI general mode for CEREBRO
@@ -189,7 +186,7 @@ INSTRUCCIONES:
       body: JSON.stringify({
         model: imageData ? 'gpt-4o' : 'gpt-4o-mini',
         messages: messages,
-        max_tokens: 2500,
+        max_tokens: 3000,
         temperature: 0.2,
       }),
     });
@@ -208,7 +205,7 @@ INSTRUCCIONES:
     }
 
     console.log('✅ CEREBRO AI response generated successfully');
-    console.log(`📊 Response used ${relevantDocs.length} documents`);
+    console.log(`📊 Response used ${relevantDocs.length} documents from knowledge base`);
 
     // Log analytics
     try {
@@ -219,7 +216,8 @@ INSTRUCCIONES:
           sources_used: relevantDocs.length > 0 ? relevantDocs.map(doc => ({ 
             title: doc.title, 
             project: doc.project || 'General',
-            file_type: doc.file_type || 'unknown'
+            file_type: doc.file_type || 'unknown',
+            score: doc.score || 0
           })) : null,
           ai_provider: 'openai',
           response_time: 2000,
@@ -233,7 +231,11 @@ INSTRUCCIONES:
       response: aiResponse,
       sources: sources.length > 0 ? sources : undefined,
       documentsFound: relevantDocs.length,
-      foundRelevantContent: relevantDocs.length > 0
+      foundRelevantContent: relevantDocs.length > 0,
+      searchStats: {
+        totalDocuments: relevantDocs.length,
+        usedKnowledgeBase: useKnowledgeBase
+      }
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

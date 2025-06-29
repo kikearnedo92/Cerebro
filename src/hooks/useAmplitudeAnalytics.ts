@@ -5,7 +5,7 @@ import { toast } from '@/hooks/use-toast'
 
 export interface AmplitudeUserJourney {
   user_id: string
-  stage: 'registration' | 'kyc_start' | 'kyc_complete' | 'first_transfer' | 'repeat_user'
+  stage: 'registration' | 'kyc_start' | 'kyc_document_upload' | 'kyc_complete' | 'first_transfer' | 'repeat_user'
   timestamp: string
   time_in_stage: number // minutes
   completion_rate: number
@@ -24,6 +24,25 @@ export interface AmplitudeInsight {
   created_at: string
 }
 
+export interface OnboardingAnalysis {
+  stage_metrics: {
+    [stage: string]: {
+      average_time_minutes: number
+      completion_rate: number
+      friction_incidents: number
+      drop_off_count: number
+      user_count: number
+      friction_rate: number
+    }
+  }
+  problematic_stages: Array<{
+    stage: string
+    issues: string[]
+    metrics: any
+  }>
+  overall_onboarding_health: 'good' | 'needs_attention' | 'critical'
+}
+
 export interface AmplitudeDashboardData {
   userJourneys: AmplitudeUserJourney[]
   insights: AmplitudeInsight[]
@@ -35,12 +54,18 @@ export interface AmplitudeDashboardData {
   averageTimeInStages: {
     kyc_completion: number
     first_transfer: number
+    document_upload: number
+    registration: number
   }
   churnPredictions: {
     high_risk_users: number
     predicted_churn_rate: number
     top_churn_reasons: string[]
+    total_analyzed_users: number
+    churn_prevention_actions: string[]
   }
+  onboardingAnalysis: OnboardingAnalysis
+  usabilityScore: number
 }
 
 export const useAmplitudeAnalytics = () => {
@@ -51,9 +76,10 @@ export const useAmplitudeAnalytics = () => {
   const fetchAmplitudeData = async () => {
     try {
       setLoading(true)
-      console.log('📊 Fetching Amplitude analytics data...')
+      setError(null)
+      console.log('📊 Fetching comprehensive Amplitude analytics data...')
 
-      // Call our edge function to get Amplitude insights
+      // Call our enhanced edge function to get Amplitude insights
       const { data: amplitudeData, error: amplitudeError } = await supabase.functions.invoke('amplitude-analytics', {
         body: {
           action: 'fetch_insights',
@@ -65,15 +91,23 @@ export const useAmplitudeAnalytics = () => {
         throw new Error(amplitudeError.message)
       }
 
+      if (!amplitudeData) {
+        throw new Error('No data received from Amplitude')
+      }
+
       setData(amplitudeData)
-      console.log('✅ Amplitude data loaded successfully')
+      console.log('✅ Amplitude analytics data loaded successfully')
+      console.log(`📈 Usability Score: ${amplitudeData.usabilityScore}/100`)
+      console.log(`🚨 High Risk Users: ${amplitudeData.churnPredictions.high_risk_users}`)
+      console.log(`⚡ Insights Generated: ${amplitudeData.insights.length}`)
       
     } catch (err) {
       console.error('❌ Error fetching Amplitude data:', err)
-      setError(err instanceof Error ? err.message : 'Error desconocido')
+      const errorMessage = err instanceof Error ? err.message : 'Error desconocido'
+      setError(errorMessage)
       toast({
-        title: "Error",
-        description: "No se pudieron cargar los datos de Amplitude",
+        title: "Error de Amplitude",
+        description: `No se pudieron cargar los datos de análisis: ${errorMessage}`,
         variant: "destructive"
       })
     } finally {
@@ -95,7 +129,7 @@ export const useAmplitudeAnalytics = () => {
 
       toast({
         title: "Sincronización completa",
-        description: "Los eventos de Amplitude han sido sincronizados"
+        description: "Los eventos de Amplitude han sido sincronizados exitosamente"
       })
 
       // Refresh data after sync
@@ -130,6 +164,25 @@ export const useAmplitudeAnalytics = () => {
     }
   }
 
+  const getInsightsByType = (type: 'friction' | 'churn_prediction' | 'onboarding_optimization') => {
+    return data?.insights.filter(insight => insight.insight_type === type) || []
+  }
+
+  const getHighestImpactInsights = (limit: number = 5) => {
+    return data?.insights
+      .sort((a, b) => b.impact_score - a.impact_score)
+      .slice(0, limit) || []
+  }
+
+  const getOnboardingHealthStatus = () => {
+    return data?.onboardingAnalysis.overall_onboarding_health || 'good'
+  }
+
+  const getMostProblematicStage = () => {
+    const problematic = data?.onboardingAnalysis.problematic_stages || []
+    return problematic.length > 0 ? problematic[0] : null
+  }
+
   useEffect(() => {
     fetchAmplitudeData()
   }, [])
@@ -140,6 +193,10 @@ export const useAmplitudeAnalytics = () => {
     error,
     refetch: fetchAmplitudeData,
     syncAmplitudeEvents,
-    analyzeUserJourney
+    analyzeUserJourney,
+    getInsightsByType,
+    getHighestImpactInsights,
+    getOnboardingHealthStatus,
+    getMostProblematicStage
   }
 }
