@@ -43,6 +43,49 @@ export interface OnboardingAnalysis {
   overall_onboarding_health: 'good' | 'needs_attention' | 'critical'
 }
 
+export interface ActivationMetrics {
+  activation_rate: number
+  power_users: number
+  core_users: number
+  casual_users: number
+  dormant_users: number
+  avg_time_to_activation: number
+  monthly_trends: Array<{
+    month: string
+    activation_rate: number
+    new_users: number
+    activated_users: number
+  }>
+}
+
+export interface RetentionMetrics {
+  cohort_retention: Array<{
+    cohort_month: string
+    users_count: number
+    retention_rates: {
+      month_1: number
+      month_3: number
+      month_6: number
+      month_12: number
+    }
+  }>
+  churn_predictions: Array<{
+    user_id: string
+    risk_level: 'high' | 'medium' | 'low'
+    days_since_last_transaction: number
+    total_transactions: number
+    predicted_churn_date: string
+    intervention_recommended: string
+    user_value: number
+  }>
+  inactive_users: {
+    total: number
+    over_3_months: number
+    over_6_months: number
+    over_12_months: number
+  }
+}
+
 export interface AmplitudeDashboardData {
   userJourneys: AmplitudeUserJourney[]
   insights: AmplitudeInsight[]
@@ -65,7 +108,12 @@ export interface AmplitudeDashboardData {
     churn_prevention_actions: string[]
   }
   onboardingAnalysis: OnboardingAnalysis
+  activationMetrics: ActivationMetrics
+  retentionMetrics: RetentionMetrics
   usabilityScore: number
+  totalActiveUsers: number
+  monthlyActiveUsers: number
+  newUsersLastMonth: number
 }
 
 export const useAmplitudeAnalytics = () => {
@@ -73,17 +121,17 @@ export const useAmplitudeAnalytics = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const fetchAmplitudeData = async () => {
+  const fetchAmplitudeData = async (timeframe: string = '30d') => {
     try {
       setLoading(true)
       setError(null)
-      console.log('📊 Fetching comprehensive Amplitude analytics data...')
+      console.log('📊 Fetching comprehensive Amplitude analytics data for:', timeframe)
 
       // Call our enhanced edge function to get Amplitude insights
       const { data: amplitudeData, error: amplitudeError } = await supabase.functions.invoke('amplitude-analytics', {
         body: {
           action: 'fetch_insights',
-          timeframe: '30d'
+          timeframe: timeframe
         }
       })
 
@@ -97,9 +145,10 @@ export const useAmplitudeAnalytics = () => {
 
       setData(amplitudeData)
       console.log('✅ Amplitude analytics data loaded successfully')
-      console.log(`📈 Usability Score: ${amplitudeData.usabilityScore}/100`)
-      console.log(`🚨 High Risk Users: ${amplitudeData.churnPredictions.high_risk_users}`)
-      console.log(`⚡ Insights Generated: ${amplitudeData.insights.length}`)
+      console.log(`📈 Total Active Users: ${amplitudeData.totalActiveUsers?.toLocaleString() || 'N/A'}`)
+      console.log(`🎯 Usability Score: ${amplitudeData.usabilityScore}/100`)
+      console.log(`🚨 High Risk Users: ${amplitudeData.churnPredictions?.high_risk_users || 0}`)
+      console.log(`⚡ Insights Generated: ${amplitudeData.insights?.length || 0}`)
       
     } catch (err) {
       console.error('❌ Error fetching Amplitude data:', err)
@@ -183,6 +232,18 @@ export const useAmplitudeAnalytics = () => {
     return problematic.length > 0 ? problematic[0] : null
   }
 
+  const getActivationRate = () => {
+    return data?.activationMetrics?.activation_rate || 0
+  }
+
+  const getRetentionByPeriod = (period: 'month_1' | 'month_3' | 'month_6' | 'month_12') => {
+    const cohorts = data?.retentionMetrics?.cohort_retention || []
+    if (cohorts.length === 0) return 0
+    
+    const avgRetention = cohorts.reduce((sum, cohort) => sum + cohort.retention_rates[period], 0) / cohorts.length
+    return Math.round(avgRetention)
+  }
+
   useEffect(() => {
     fetchAmplitudeData()
   }, [])
@@ -197,6 +258,8 @@ export const useAmplitudeAnalytics = () => {
     getInsightsByType,
     getHighestImpactInsights,
     getOnboardingHealthStatus,
-    getMostProblematicStage
+    getMostProblematicStage,
+    getActivationRate,
+    getRetentionByPeriod
   }
 }

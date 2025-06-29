@@ -1,21 +1,28 @@
 
-import React from 'react'
+import React, { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { TrendingUp, Users, AlertTriangle, Clock, Target, DollarSign, Smartphone, Globe } from 'lucide-react'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Globe, TrendingUp, Users, Target } from 'lucide-react'
 import { useAmplitudeAnalytics } from '@/hooks/useAmplitudeAnalytics'
+import { OnboardingAnalytics } from './OnboardingAnalytics'
+import { ActivationAnalytics } from './ActivationAnalytics'
+import { RetentionAnalytics } from './RetentionAnalytics'
+import { TimeFilterControls } from './TimeFilterControls'
 
 export const RetornaInsightsDashboard = () => {
+  const [selectedPeriod, setSelectedPeriod] = useState('30d')
+  const [customDateRange, setCustomDateRange] = useState<{ from: Date | null; to: Date | null }>({
+    from: null,
+    to: null
+  })
+
   const { 
     data, 
     loading, 
     error, 
     refetch, 
-    syncAmplitudeEvents, 
-    getHighestImpactInsights,
-    getOnboardingHealthStatus,
-    getMostProblematicStage 
+    syncAmplitudeEvents 
   } = useAmplitudeAnalytics()
 
   if (loading) {
@@ -33,7 +40,6 @@ export const RetornaInsightsDashboard = () => {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
-          <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
           <p className="text-red-600 mb-4">Error al cargar datos de Amplitude</p>
           <Button onClick={refetch} variant="outline">Reintentar</Button>
         </div>
@@ -41,44 +47,136 @@ export const RetornaInsightsDashboard = () => {
     )
   }
 
-  const retornaMetrics = [
-    {
-      title: "Usuarios Activos Retorna",
-      value: "55,247",
-      change: "+8.4%",
-      trend: "up",
-      icon: Users,
-      description: "Usuarios activos en la app de remesas"
-    },
-    {
-      title: "Score de Usabilidad",
-      value: `${data?.usabilityScore || 78}/100`,
-      change: data?.usabilityScore >= 80 ? "+5%" : "-2%",
-      trend: data?.usabilityScore >= 80 ? "up" : "down",
-      icon: Target,
-      description: "Puntuación general de experiencia de usuario"
-    },
-    {
-      title: "Usuarios en Riesgo",
-      value: data?.churnPredictions?.high_risk_users?.toLocaleString() || "1,247",
-      change: "+12%",
-      trend: "up",
-      icon: AlertTriangle,
-      description: "Usuarios con alta probabilidad de churn"
-    },
-    {
-      title: "Tasa de Conversión KYC",
-      value: `${Math.round((data?.conversionRates?.registration_to_kyc || 0.82) * 100)}%`,
-      change: data?.conversionRates?.registration_to_kyc >= 0.8 ? "+3%" : "-5%",
-      trend: data?.conversionRates?.registration_to_kyc >= 0.8 ? "up" : "down",
-      icon: DollarSign,
-      description: "Conversión de registro a KYC completo"
-    }
-  ]
+  // Mock data for demonstration - in production this would come from Amplitude
+  const onboardingData = {
+    stages: [
+      {
+        stage: "Registro Inicial",
+        completion_rate: 92,
+        avg_time_minutes: 3.2,
+        friction_points: ["Verificación SMS lenta", "Formulario muy largo"],
+        drop_off_count: 4400,
+        users_entered: 55000
+      },
+      {
+        stage: "Verificación de Identidad",
+        completion_rate: 78,
+        avg_time_minutes: 8.5,
+        friction_points: ["Calidad de foto ID", "Proceso confuso", "Demora en validación"],
+        drop_off_count: 11110,
+        users_entered: 50600
+      },
+      {
+        stage: "Información Financiera",
+        completion_rate: 85,
+        avg_time_minutes: 5.1,
+        friction_points: ["Muchas preguntas", "Términos complejos"],
+        drop_off_count: 5934,
+        users_entered: 39490
+      },
+      {
+        stage: "Primera Transacción",
+        completion_rate: 65,
+        avg_time_minutes: 12.3,
+        friction_points: ["Tarifas no claras", "Proceso largo", "Falta de confianza"],
+        drop_off_count: 11744,
+        users_entered: 33556
+      }
+    ],
+    totalNewUsers: 55000,
+    completionRate: 42,
+    avgCompletionTime: 29.1
+  }
 
-  const highImpactInsights = getHighestImpactInsights(5)
-  const onboardingHealth = getOnboardingHealthStatus()
-  const problematicStage = getMostProblematicStage()
+  const activationData = {
+    activationRate: 23.8,
+    totalUsers: 55000,
+    activatedUsers: 13090,
+    avgTimeToActivation: 8.5,
+    segments: [
+      {
+        segment: 'power_users' as const,
+        name: 'Power Users',
+        count: 8745,
+        percentage: 15.9,
+        avg_remittances: 4.2,
+        avg_days_to_second: 5.8,
+        description: 'Más de 2 remesas en sus primeros 14 días',
+        color: '#f59e0b'
+      },
+      {
+        segment: 'core_users' as const,
+        name: 'Core Users',
+        count: 4345,
+        percentage: 7.9,
+        avg_remittances: 2.0,
+        avg_days_to_second: 11.2,
+        description: 'Exactamente 2 remesas en sus primeros 14 días',
+        color: '#10b981'
+      },
+      {
+        segment: 'casual_users' as const,
+        name: 'Casual Users',
+        count: 16500,
+        percentage: 30.0,
+        avg_remittances: 1.0,
+        avg_days_to_second: 0,
+        description: 'Solo 1 remesa en sus primeros 14 días',
+        color: '#3b82f6'
+      },
+      {
+        segment: 'dormant_users' as const,
+        name: 'Dormant Users',
+        count: 25410,
+        percentage: 46.2,
+        avg_remittances: 0.0,
+        avg_days_to_second: 0,
+        description: 'Sin remesas en sus primeros 14 días',
+        color: '#6b7280'
+      }
+    ],
+    monthlyTrend: [
+      { month: 'Enero 2024', activation_rate: 21.5, new_users: 4200, activated_users: 903 },
+      { month: 'Febrero 2024', activation_rate: 22.8, new_users: 4800, activated_users: 1094 },
+      { month: 'Marzo 2024', activation_rate: 24.1, new_users: 5100, activated_users: 1229 },
+      { month: 'Abril 2024', activation_rate: 23.3, new_users: 4900, activated_users: 1142 },
+      { month: 'Mayo 2024', activation_rate: 25.2, new_users: 5300, activated_users: 1336 },
+      { month: 'Junio 2024', activation_rate: 23.8, new_users: 4700, activated_users: 1119 }
+    ]
+  }
+
+  const retentionData = {
+    overallRetention: {
+      month_1: 78,
+      month_3: 52,
+      month_6: 34,
+      month_12: 23
+    },
+    cohortAnalysis: [
+      { cohort_month: 'Enero 2024', users_count: 4200, retention_rates: { month_1: 82, month_3: 58, month_6: 41, month_12: 0 } },
+      { cohort_month: 'Febrero 2024', users_count: 4800, retention_rates: { month_1: 79, month_3: 54, month_6: 38, month_12: 0 } },
+      { cohort_month: 'Marzo 2024', users_count: 5100, retention_rates: { month_1: 81, month_3: 56, month_6: 0, month_12: 0 } },
+      { cohort_month: 'Abril 2024', users_count: 4900, retention_rates: { month_1: 76, month_3: 49, month_6: 0, month_12: 0 } },
+      { cohort_month: 'Mayo 2024', users_count: 5300, retention_rates: { month_1: 75, month_3: 0, month_6: 0, month_12: 0 } },
+      { cohort_month: 'Junio 2024', users_count: 4700, retention_rates: { month_1: 78, month_3: 0, month_6: 0, month_12: 0 } }
+    ],
+    churnRisks: [
+      { user_id: 'u_4f8d9a2b1c', risk_level: 'high' as const, days_since_last_remittance: 45, total_remittances: 12, predicted_churn_date: '2024-07-15', intervention_recommended: 'Oferta de descuento + recordatorio personalizado', user_value: 2400 },
+      { user_id: 'u_7e3a5b8f2d', risk_level: 'high' as const, days_since_last_remittance: 52, total_remittances: 8, predicted_churn_date: '2024-07-20', intervention_recommended: 'Contacto telefónico + incentivo familiar', user_value: 1800 },
+      { user_id: 'u_9c2d6e1a4b', risk_level: 'high' as const, days_since_last_remittance: 38, total_remittances: 15, predicted_churn_date: '2024-07-12', intervention_recommended: 'Email de reconquista + beneficio exclusivo', user_value: 3200 }
+    ],
+    inactiveUsers: {
+      total: 18500,
+      over_3_months: 12400,
+      over_6_months: 8900,
+      over_12_months: 4200
+    },
+    retentionInsights: [
+      { insight: 'Los usuarios que completan KYC en menos de 24h tienen 40% más retención', impact: 'high' as const, recommendation: 'Priorizar validación KYC y enviar recordatorios urgentes' },
+      { insight: 'Usuarios que reciben su primera remesa en fin de semana tienen menor retención', impact: 'medium' as const, recommendation: 'Optimizar horarios de entrega y comunicación' },
+      { insight: 'El abandono más alto ocurre entre los días 15-30 después del registro', impact: 'high' as const, recommendation: 'Implementar campaña de re-engagement en día 14' }
+    ]
+  }
 
   return (
     <div className="space-y-6">
@@ -87,8 +185,8 @@ export const RetornaInsightsDashboard = () => {
         <div className="flex items-center gap-3">
           <Globe className="w-8 h-8 text-blue-600" />
           <div>
-            <h1 className="text-2xl font-bold">Insights de Retorna</h1>
-            <p className="text-gray-600">Analítica de usuarios B2C de la app de remesas</p>
+            <h1 className="text-2xl font-bold">Insights de Retorna B2C</h1>
+            <p className="text-gray-600">Analytics de usuarios de la app de remesas - 55,000 usuarios activos</p>
           </div>
         </div>
         <div className="flex gap-2">
@@ -106,173 +204,43 @@ export const RetornaInsightsDashboard = () => {
         </div>
       </div>
 
-      {/* Metrics Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {retornaMetrics.map((metric, index) => (
-          <Card key={index}>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600">{metric.title}</p>
-                  <p className="text-2xl font-bold">{metric.value}</p>
-                  <p className={`text-sm ${
-                    metric.trend === 'up' ? 'text-green-600' : 'text-red-600'
-                  }`}>
-                    {metric.change}
-                  </p>
-                </div>
-                <metric.icon className="w-8 h-8 text-blue-400" />
-              </div>
-              <p className="text-xs text-gray-500 mt-2">{metric.description}</p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      {/* Time Filter Controls */}
+      <TimeFilterControls
+        selectedPeriod={selectedPeriod}
+        onPeriodChange={setSelectedPeriod}
+        customDateRange={customDateRange}
+        onCustomDateChange={setCustomDateRange}
+      />
 
-      {/* Onboarding Health Alert */}
-      {onboardingHealth === 'critical' && (
-        <Card className="border-red-200 bg-red-50">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-red-600" />
-              <div>
-                <h3 className="font-semibold text-red-800">Estado Crítico del Onboarding</h3>
-                <p className="text-sm text-red-700">
-                  {problematicStage ? 
-                    `Problemas detectados en: ${problematicStage.stage}. ${problematicStage.issues.join(', ')}.` :
-                    'Múltiples etapas del onboarding presentan problemas críticos.'
-                  }
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* Main Dashboard Tabs */}
+      <Tabs defaultValue="onboarding" className="space-y-6">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="onboarding" className="flex items-center gap-2">
+            <TrendingUp className="w-4 h-4" />
+            Onboarding
+          </TabsTrigger>
+          <TabsTrigger value="activation" className="flex items-center gap-2">
+            <Target className="w-4 h-4" />
+            Activación
+          </TabsTrigger>
+          <TabsTrigger value="retention" className="flex items-center gap-2">
+            <Users className="w-4 h-4" />
+            Retención
+          </TabsTrigger>
+        </TabsList>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* High Impact Insights */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="w-5 h-5" />
-              Insights de Alto Impacto
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {highImpactInsights.length > 0 ? (
-                highImpactInsights.map((insight, index) => (
-                  <div key={index} className="border rounded-lg p-3">
-                    <div className="flex items-start justify-between mb-2">
-                      <h4 className="font-medium text-sm">{insight.title}</h4>
-                      <div className="flex gap-1">
-                        <Badge 
-                          variant={insight.impact_score > 100 ? 'destructive' : insight.impact_score > 50 ? 'default' : 'secondary'}
-                          className="text-xs"
-                        >
-                          {insight.impact_score}
-                        </Badge>
-                        <Badge variant="outline" className="text-xs">
-                          {insight.affected_users} usuarios
-                        </Badge>
-                      </div>
-                    </div>
-                    <p className="text-xs text-gray-600 mb-2">{insight.description}</p>
-                    <div className="flex flex-wrap gap-1">
-                      {insight.recommended_actions.slice(0, 2).map((action, i) => (
-                        <Badge key={i} variant="outline" className="text-xs">
-                          {action}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <p className="text-gray-500 text-center py-4">No hay insights disponibles</p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+        <TabsContent value="onboarding">
+          <OnboardingAnalytics data={onboardingData} />
+        </TabsContent>
 
-        {/* Onboarding Analysis */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Análisis de Onboarding</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {data?.onboardingAnalysis?.stage_metrics ? (
-              <div className="space-y-4">
-                {Object.entries(data.onboardingAnalysis.stage_metrics).map(([stage, metrics]) => (
-                  <div key={stage} className="border rounded-lg p-3">
-                    <div className="flex items-center justify-between mb-2">
-                      <h4 className="font-medium text-sm capitalize">{stage.replace('_', ' ')}</h4>
-                      <Badge 
-                        variant={metrics.completion_rate > 0.8 ? 'default' : metrics.completion_rate > 0.6 ? 'secondary' : 'destructive'}
-                        className="text-xs"
-                      >
-                        {Math.round(metrics.completion_rate * 100)}% completado
-                      </Badge>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
-                      <div>Tiempo promedio: {metrics.average_time_minutes}min</div>
-                      <div>Usuarios: {metrics.user_count}</div>
-                      <div>Fricción: {metrics.friction_incidents}</div>
-                      <div>Abandonos: {metrics.drop_off_count}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-gray-500 text-center py-4">No hay datos de onboarding disponibles</p>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+        <TabsContent value="activation">
+          <ActivationAnalytics data={activationData} />
+        </TabsContent>
 
-      {/* Churn Predictions */}
-      {data?.churnPredictions && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Predicciones de Churn</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="text-center">
-                <p className="text-2xl font-bold text-red-600">{data.churnPredictions.high_risk_users}</p>
-                <p className="text-sm text-gray-600">Usuarios en riesgo alto</p>
-              </div>
-              <div className="text-center">
-                <p className="text-2xl font-bold text-orange-600">{Math.round(data.churnPredictions.predicted_churn_rate * 100)}%</p>
-                <p className="text-sm text-gray-600">Tasa de churn predicha</p>
-              </div>
-              <div className="text-center">
-                <p className="text-2xl font-bold text-blue-600">{data.churnPredictions.total_analyzed_users}</p>
-                <p className="text-sm text-gray-600">Usuarios analizados</p>
-              </div>
-            </div>
-            
-            <div className="mt-4">
-              <h4 className="font-medium mb-2">Principales razones de churn:</h4>
-              <div className="flex flex-wrap gap-2">
-                {data.churnPredictions.top_churn_reasons.map((reason, index) => (
-                  <Badge key={index} variant="outline" className="text-xs">
-                    {reason}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-
-            <div className="mt-4">
-              <h4 className="font-medium mb-2">Acciones de prevención recomendadas:</h4>
-              <ul className="text-sm text-gray-600 space-y-1">
-                {data.churnPredictions.churn_prevention_actions.map((action, index) => (
-                  <li key={index}>• {action}</li>
-                ))}
-              </ul>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+        <TabsContent value="retention">
+          <RetentionAnalytics data={retentionData} />
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }
