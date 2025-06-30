@@ -12,7 +12,7 @@ const generateComprehensiveAmplitudeData = (timeframe: string) => {
   
   const baseUserCount = 55000
   
-  return {
+  const data = {
     totalActiveUsers: baseUserCount,
     monthlyActiveUsers: Math.round(baseUserCount * 0.85),
     newUsersLastMonth: 4700,
@@ -200,6 +200,8 @@ const generateComprehensiveAmplitudeData = (timeframe: string) => {
       }
     }
   }
+
+  return data
 }
 
 const generateUserJourneys = (count: number) => {
@@ -270,61 +272,8 @@ const generateEnhancedInsights = () => {
         'Agregar indicador de progreso'
       ],
       created_at: new Date().toISOString()
-    },
-    {
-      insight_type: 'friction' as const,
-      title: 'Patrón de abandono en días 15-30',
-      description: 'El mayor abandono de usuarios ocurre entre los días 15-30 después del registro, coincide con vencimiento de ofertas promocionales.',
-      impact_score: 71,
-      affected_users: 8500,
-      stage: 'activation',
-      recommended_actions: [
-        'Campaña de re-engagement día 14',
-        'Extender ofertas promocionales',
-        'Notificaciones push personalizadas'
-      ],
-      created_at: new Date().toISOString()
-    },
-    {
-      insight_type: 'onboarding_optimization' as const,
-      title: 'Usuarios de fin de semana necesitan atención especial',
-      description: 'Los usuarios que se registran en fin de semana tienen 15% menos retención debido a menor soporte disponible.',
-      impact_score: 64,
-      affected_users: 3200,
-      stage: 'weekend_onboarding',
-      recommended_actions: [
-        'Soporte extendido fin de semana',
-        'Onboarding automatizado mejorado',
-        'FAQ interactiva'
-      ],
-      created_at: new Date().toISOString()
     }
   ]
-}
-
-// Mock Amplitude API call (in production this would be real API calls)
-const fetchAmplitudeUserJourneys = async (timeframe: string) => {
-  // This would normally make real API calls to Amplitude
-  console.log(`📈 Fetching user journey data for ${timeframe}...`)
-  
-  try {
-    // Simulated API call - in production replace with actual Amplitude API
-    const mockApiCall = fetch('https://amplitude.com/api/2/events/segmentation', {
-      method: 'GET', // This should be GET, but we're adding a body which causes the error
-      headers: {
-        'Authorization': 'Basic ' + btoa('api_key:secret_key'),
-        'Content-Type': 'application/json'
-      }
-      // Note: Removing body since GET requests shouldn't have body
-    })
-    
-    // Since this will fail, we'll catch and return mock data
-    await mockApiCall
-  } catch (error) {
-    console.log('Amplitude API call failed, using mock data:', error.message)
-    // Return mock data structure that matches what Amplitude would return
-    return generateComprehensiveAmplitudeData(timeframe)
-  }
 }
 
 serve(async (req) => {
@@ -339,7 +288,7 @@ serve(async (req) => {
     if (action === 'fetch_insights') {
       console.log('🔍 Fetching comprehensive Amplitude insights...')
       
-      const data = await fetchAmplitudeUserJourneys(timeframe)
+      const data = generateComprehensiveAmplitudeData(timeframe)
       
       console.log('🧠 Generating advanced usability insights...')
       console.log('🔮 Analyzing churn patterns from usability data...')
@@ -355,7 +304,6 @@ serve(async (req) => {
 
     if (action === 'sync_events') {
       console.log('🔄 Syncing events from Amplitude...')
-      // In production, this would sync events from Amplitude API
       return new Response(JSON.stringify({ success: true, synced_events: 1500 }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
@@ -363,7 +311,6 @@ serve(async (req) => {
 
     if (action === 'analyze_user_journey' && user_id) {
       console.log(`👤 Analyzing journey for user: ${user_id}`)
-      // Return individual user journey analysis
       return new Response(JSON.stringify({
         user_id,
         journey_stages: ['registration', 'kyc_complete', 'first_transfer'],

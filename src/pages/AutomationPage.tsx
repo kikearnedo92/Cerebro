@@ -3,8 +3,9 @@ import React, { useState } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { AutomationDashboard } from '@/components/automation/AutomationDashboard'
 import { ClaudeLovableIntegration } from '@/components/automation/ClaudeLovableIntegration'
+import { ClaudeDirectChat } from '@/components/automation/ClaudeDirectChat'
 import { N8nAIWorkflowBuilder } from '@/components/automation/N8nAIWorkflowBuilder'
-import { MessageSquare, Code, Brain, Zap } from 'lucide-react'
+import { MessageSquare, Code, Brain, Zap, Bot } from 'lucide-react'
 
 const AutomationPage = () => {
   return (
@@ -18,8 +19,12 @@ const AutomationPage = () => {
       </div>
 
       {/* Main Tabs */}
-      <Tabs defaultValue="claude-lovable" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
+      <Tabs defaultValue="claude-direct" className="space-y-6">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="claude-direct" className="flex items-center gap-2">
+            <Bot className="w-4 h-4" />
+            Chat con Claude
+          </TabsTrigger>
           <TabsTrigger value="claude-lovable" className="flex items-center gap-2">
             <Code className="w-4 h-4" />
             Claude ↔ Lovable
@@ -33,6 +38,10 @@ const AutomationPage = () => {
             Overview
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="claude-direct">
+          <ClaudeDirectChat />
+        </TabsContent>
 
         <TabsContent value="claude-lovable">
           <ClaudeLovableIntegration />

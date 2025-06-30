@@ -80,6 +80,12 @@ verify_jwt = false
 [functions.claude-analyze-request]
 verify_jwt = false
 
+[functions.claude-direct-chat]
+verify_jwt = false
+
+[functions.execute-lovable-action]
+verify_jwt = false
+
 [functions.lovable-generate-code]
 verify_jwt = false
 
@@ -93,4 +99,7 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.cerebro-real-analytics]
+verify_jwt = false
+
+[functions.amplitude-analytics]
 verify_jwt = false

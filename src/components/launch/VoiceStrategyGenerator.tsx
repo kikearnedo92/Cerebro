@@ -1,11 +1,10 @@
-
 import React, { useState, useRef, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
-import { mic, MicOff, Send, Brain, Target, TrendingUp, Users, DollarSign, Calendar, BarChart3 } from 'lucide-react'
+import { Mic, MicOff, Send, Brain, Target, TrendingUp, Users, DollarSign, Calendar, BarChart3 } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import { supabase } from '@/integrations/supabase/client'
 
@@ -322,7 +321,7 @@ export const VoiceStrategyGenerator = () => {
                   onClick={isRecording ? stopRecording : startRecording}
                   disabled={isProcessing}
                 >
-                  {isRecording ? <MicOff className="w-4 h-4" /> : <mic className="w-4 h-4" />}
+                  {isRecording ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
                   {isRecording ? 'Detener' : 'Grabar'}
                 </Button>
                 <div className="text-sm text-gray-600 flex items-center">
