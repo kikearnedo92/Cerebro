@@ -280,7 +280,11 @@ export const useFeatureFlags = () => {
         { event: '*', schema: 'public', table: 'user_feature_permissions' },
         (payload) => {
           console.log('🔄 User permission changed:', payload)
-          if (payload.new?.user_id === user.id || payload.old?.user_id === user.id) {
+          // Fixed: Type assertion to ensure payload has the correct structure
+          const payloadNew = payload.new as any
+          const payloadOld = payload.old as any
+          
+          if (payloadNew?.user_id === user.id || payloadOld?.user_id === user.id) {
             loadFeatureFlags()
           }
         }
