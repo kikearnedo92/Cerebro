@@ -1,485 +1,480 @@
 
-import React, { useState } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Mic, MicOff, Upload, Zap, Target, TrendingUp, DollarSign, Users, Calendar, ExternalLink } from 'lucide-react'
+import { mic, MicOff, Send, Brain, Target, TrendingUp, Users, DollarSign, Calendar, BarChart3 } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
+import { supabase } from '@/integrations/supabase/client'
+
+interface GTMStrategy {
+  targetAudience: string
+  positioning: string
+  channels: string[]
+  contentCalendar: Array<{ week: string; content: string; channel: string }>
+  pricing: { tier: string; price: string; features: string[] }[]
+  competition: { name: string; strength: string; weakness: string }[]
+  metrics: string[]
+  timeline: Array<{ phase: string; duration: string; activities: string[] }>
+}
 
 export const VoiceStrategyGenerator = () => {
   const [isRecording, setIsRecording] = useState(false)
-  const [currentStep, setCurrentStep] = useState(1)
-  const [transcription, setTranscription] = useState('')
-  const [strategy, setStrategy] = useState<any>(null)
-  const [isGenerating, setIsGenerating] = useState(false)
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [textInput, setTextInput] = useState('')
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null)
+  const [conversation, setConversation] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([])
+  const [currentQuestion, setCurrentQuestion] = useState(0)
+  const [answers, setAnswers] = useState<Record<string, string>>({})
+  const [strategy, setStrategy] = useState<GTMStrategy | null>(null)
+  const [generatingStrategy, setGeneratingStrategy] = useState(false)
+  
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const audioChunksRef = useRef<Blob[]>([])
 
-  // Form data para onboarding guiado
-  const [formData, setFormData] = useState({
-    businessType: '',
-    targetAudience: '',
-    currentRevenue: '',
-    goals: '',
-    budget: '',
-    timeline: '',
-    competitors: '',
-    uniqueValue: ''
-  })
+  const questions = [
+    "¿Cuál es tu target audience exacto? Describe demografía, comportamiento y necesidades específicas.",
+    "¿Cuál es tu modelo de monetización? ¿Cómo planeas generar ingresos?",
+    "¿Quiénes son tus 3 competidores principales y qué te diferencia de ellos?",
+    "¿Cuál es tu presupuesto de marketing mensual para los próximos 6 meses?",
+    "¿Cuáles son tus canales preferidos? (Social media, content marketing, paid ads, partnerships, etc.)",
+    "¿Cuál es tu timeline ideal para el lanzamiento y primeras métricas?"
+  ]
 
-  const handleVoiceRecording = () => {
-    if (!isRecording) {
-      setIsRecording(true)
-      toast({
-        title: "Grabando",
-        description: "Describe tu negocio, audiencia objetivo y metas..."
+  useEffect(() => {
+    if (conversation.length === 0 && questions.length > 0) {
+      setConversation([{
+        role: 'assistant',
+        content: `¡Perfecto! Voy a ayudarte a crear una estrategia GTM completa para NÚCLEO. Empecemos con la primera pregunta:\n\n${questions[0]}`
+      }])
+    }
+  }, [])
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: { 
+          sampleRate: 16000,
+          channelCount: 1,
+          echoCancellation: true,
+          noiseSuppression: true 
+        } 
       })
       
-      // Simular transcripción después de 5 segundos
-      setTimeout(() => {
-        setIsRecording(false)
-        setTranscription("Tengo una startup de fintech que ayuda a freelancers a gestionar sus finanzas. Mi audiencia objetivo son freelancers de 25-40 años que facturan entre $2000-8000 al mes. Quiero lanzar una campaña para adquirir 1000 usuarios en 3 meses con un presupuesto de $15000.")
-        setCurrentStep(2)
-        toast({
-          title: "Transcripción completada",
-          description: "Ahora vamos a generar tu estrategia personalizada"
-        })
-      }, 5000)
-    } else {
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: 'audio/webm;codecs=opus'
+      })
+      
+      mediaRecorderRef.current = mediaRecorder
+      audioChunksRef.current = []
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data)
+        }
+      }
+
+      mediaRecorder.onstop = () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
+        setAudioBlob(audioBlob)
+        processAudio(audioBlob)
+        stream.getTracks().forEach(track => track.stop())
+      }
+
+      mediaRecorder.start(1000)
+      setIsRecording(true)
+      
+      toast({
+        title: "Grabando audio",
+        description: "Habla claramente sobre tu estrategia de lanzamiento"
+      })
+    } catch (error) {
+      console.error('Error accessing microphone:', error)
+      toast({
+        title: "Error",
+        description: "No se puede acceder al micrófono. Usa la opción de texto.",
+        variant: "destructive"
+      })
+    }
+  }
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop()
       setIsRecording(false)
     }
   }
 
-  const generateStrategy = async () => {
-    setIsGenerating(true)
+  const processAudio = async (audioBlob: Blob) => {
+    setIsProcessing(true)
     
-    // Simular llamada a AI para generar estrategia
-    setTimeout(() => {
-      setStrategy({
-        summary: {
-          businessType: "Fintech para Freelancers",
-          targetUsers: "1,000 usuarios",
-          timeline: "3 meses",
-          budget: "$15,000"
-        },
-        audience: {
-          primary: "Freelancers Tech (25-35 años)",
-          secondary: "Consultores independientes (30-40 años)",
-          psychographics: "Buscan control financiero, valoran la autonomía, tech-savvy"
-        },
-        positioning: {
-          headline: "La única app financiera diseñada específicamente para freelancers",
-          value_props: [
-            "Facturación automatizada con seguimiento de pagos",
-            "Separación automática de impuestos",
-            "Dashboard de ingresos proyectados",
-            "Integración con bancos y plataformas de pago"
-          ]
-        },
-        channels: [
-          {
-            name: "LinkedIn Ads",
-            budget: "$6,000",
-            expected_users: 400,
-            cpa: "$15",
-            timeline: "Mes 1-3"
-          },
-          {
-            name: "Google Ads (Search)",
-            budget: "$4,500",
-            expected_users: 300,
-            cpa: "$15",
-            timeline: "Mes 1-3"
-          },
-          {
-            name: "Facebook/Instagram",
-            budget: "$3,000",
-            expected_users: 200,
-            cpa: "$15",
-            timeline: "Mes 2-3"
-          },
-          {
-            name: "Content Marketing",
-            budget: "$1,500",
-            expected_users: 100,
-            cpa: "$15",
-            timeline: "Mes 1-3"
-          }
-        ],
-        campaigns: [
-          {
-            platform: "LinkedIn",
-            campaign_name: "Freelancer Financial Control",
-            ad_copy: "¿Cansado de perder el control de tus finanzas como freelancer? Descubre la app que automatiza tu gestión financiera.",
-            targeting: "Freelancers, Consultants, Age 25-40, Income $50k+",
-            budget_daily: "$67",
-            duration: "90 días"
-          }
-        ],
-        metrics: {
-          target_cpa: "$15",
-          expected_conversion_rate: "2.5%",
-          lifetime_value: "$120",
-          payback_period: "8 meses"
+    try {
+      const reader = new FileReader()
+      reader.readAsDataURL(audioBlob)
+      
+      reader.onloadend = async () => {
+        const base64Audio = reader.result?.toString().split(',')[1]
+        
+        const { data, error } = await supabase.functions.invoke('voice-to-text', {
+          body: { audio: base64Audio }
+        })
+
+        if (error) {
+          throw new Error(error.message)
         }
-      })
-      setIsGenerating(false)
-      setCurrentStep(3)
+
+        const transcription = data.text
+        setTextInput(transcription)
+        
+        toast({
+          title: "Audio procesado",
+          description: "Transcripción completada. Puedes editarla antes de enviar."
+        })
+      }
+    } catch (error) {
+      console.error('Error processing audio:', error)
       toast({
-        title: "Estrategia generada",
-        description: "Tu plan de lanzamiento personalizado está listo"
+        title: "Error",
+        description: "Error procesando el audio. Intenta con texto.",
+        variant: "destructive"
       })
-    }, 3000)
+    } finally {
+      setIsProcessing(false)
+    }
   }
 
-  const createCampaigns = () => {
-    toast({
-      title: "Campañas en preparación",
-      description: "Se están configurando las campañas automáticamente..."
-    })
+  const handleSendMessage = async () => {
+    if (!textInput.trim()) return
+
+    const userMessage = textInput.trim()
+    setConversation(prev => [...prev, { role: 'user', content: userMessage }])
     
-    setTimeout(() => {
-      toast({
-        title: "Campañas creadas",
-        description: "3 campañas configuradas y listas para lanzar"
+    // Store answer
+    const questionKey = `question_${currentQuestion}`
+    setAnswers(prev => ({ ...prev, [questionKey]: userMessage }))
+    
+    setTextInput('')
+    setIsProcessing(true)
+
+    try {
+      // Generate AI response
+      const { data, error } = await supabase.functions.invoke('launch-strategy-ai', {
+        body: {
+          userMessage,
+          currentQuestion,
+          answers: { ...answers, [questionKey]: userMessage },
+          totalQuestions: questions.length
+        }
       })
-      setCurrentStep(4)
-    }, 2000)
+
+      if (error) throw error
+
+      const assistantResponse = data.response
+      setConversation(prev => [...prev, { role: 'assistant', content: assistantResponse }])
+
+      // Move to next question or generate strategy
+      if (currentQuestion < questions.length - 1) {
+        setCurrentQuestion(prev => prev + 1)
+        setTimeout(() => {
+          setConversation(prev => [...prev, {
+            role: 'assistant',
+            content: `Perfecto. Siguiente pregunta:\n\n${questions[currentQuestion + 1]}`
+          }])
+        }, 1000)
+      } else {
+        // All questions answered, generate strategy
+        generateGTMStrategy()
+      }
+
+    } catch (error) {
+      console.error('Error sending message:', error)
+      toast({
+        title: "Error",
+        description: "Error procesando tu respuesta. Intenta de nuevo.",
+        variant: "destructive"
+      })
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  const generateGTMStrategy = async () => {
+    setGeneratingStrategy(true)
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-gtm-strategy', {
+        body: { answers }
+      })
+
+      if (error) throw error
+
+      setStrategy(data.strategy)
+      
+      setConversation(prev => [...prev, {
+        role: 'assistant',
+        content: "¡Excelente! He generado tu estrategia GTM completa basada en tus respuestas. Revisa todos los detalles abajo y dime si quieres ajustar algo específico."
+      }])
+
+      toast({
+        title: "¡Estrategia generada!",
+        description: "Tu plan GTM completo está listo para ejecutar"
+      })
+
+    } catch (error) {
+      console.error('Error generating strategy:', error)
+      toast({
+        title: "Error",
+        description: "Error generando la estrategia. Intenta de nuevo.",
+        variant: "destructive"
+      })
+    } finally {
+      setGeneratingStrategy(false)
+    }
+  }
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleSendMessage()
+    }
   }
 
   return (
     <div className="space-y-6">
-      {/* Progress Bar */}
+      {/* Header */}
       <Card>
-        <CardContent className="p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold">Launch Strategy Generator</h2>
-            <Badge variant="outline">
-              Paso {currentStep} de 4
+        <CardHeader>
+          <CardTitle className="flex items-center gap-3">
+            <Brain className="w-6 h-6 text-purple-600" />
+            Launch Strategy Generator
+            <Badge variant="outline" className="bg-green-50 text-green-700">
+              AI-Powered GTM
             </Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div className="text-center">
+              <div className="text-2xl font-bold text-purple-600">{currentQuestion + 1}</div>
+              <div className="text-sm text-gray-600">Pregunta Actual</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-blue-600">{questions.length}</div>
+              <div className="text-sm text-gray-600">Total Preguntas</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-green-600">
+                {Math.round((currentQuestion / questions.length) * 100)}%
+              </div>
+              <div className="text-sm text-gray-600">Progreso</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-orange-600">
+                {strategy ? '✓' : '○'}
+              </div>
+              <div className="text-sm text-gray-600">Estrategia Lista</div>
+            </div>
           </div>
-          <Progress value={(currentStep / 4) * 100} className="w-full" />
-          <div className="flex justify-between text-sm text-gray-600 mt-2">
-            <span>Voice Input</span>
-            <span>AI Analysis</span>
-            <span>Strategy</span>
-            <span>Deploy</span>
-          </div>
+          <Progress value={(currentQuestion / questions.length) * 100} className="mb-4" />
         </CardContent>
       </Card>
 
-      {currentStep === 1 && (
-        <Card>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Chat Interface */}
+        <Card className="lg:row-span-2">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Mic className="w-5 h-5" />
-              Describe tu negocio y objetivos
-            </CardTitle>
+            <CardTitle>Conversación Estratégica</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="text-center py-8">
-              <Button
-                size="lg"
-                onClick={handleVoiceRecording}
-                className={`w-32 h-32 rounded-full ${
-                  isRecording 
-                    ? 'bg-red-500 hover:bg-red-600 animate-pulse' 
-                    : 'bg-gradient-to-r from-blue-600 to-green-600 hover:from-blue-700 hover:to-green-700'
-                }`}
-              >
-                {isRecording ? (
-                  <MicOff className="w-8 h-8" />
-                ) : (
-                  <Mic className="w-8 h-8" />
-                )}
-              </Button>
-              <p className="mt-4 text-gray-600">
-                {isRecording 
-                  ? "Grabando... Describe tu negocio, audiencia y metas"
-                  : "Haz clic para grabar tu estrategia de negocio"
-                }
-              </p>
-            </div>
-
-            <div className="grid md:grid-cols-2 gap-4 text-sm text-gray-600">
-              <div className="bg-blue-50 p-4 rounded-lg">
-                <h4 className="font-medium mb-2">💼 Sobre tu negocio:</h4>
-                <ul className="space-y-1">
-                  <li>• ¿Qué problema resuelves?</li>
-                  <li>• ¿Cuál es tu modelo de negocio?</li>
-                  <li>• ¿Qué te diferencia?</li>
-                </ul>
-              </div>
-              <div className="bg-green-50 p-4 rounded-lg">
-                <h4 className="font-medium mb-2">🎯 Sobre tus objetivos:</h4>
-                <ul className="space-y-1">
-                  <li>• ¿Cuántos usuarios quieres?</li>
-                  <li>• ¿En qué tiempo?</li>
-                  <li>• ¿Cuál es tu presupuesto?</li>
-                </ul>
-              </div>
-            </div>
-
-            {transcription && (
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <h4 className="font-medium mb-2">Transcripción:</h4>
-                <p className="text-sm">{transcription}</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {currentStep === 2 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Zap className="w-5 h-5" />
-              Análisis AI en progreso
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="text-center py-8">
-              {isGenerating ? (
-                <div className="space-y-4">
-                  <div className="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto"></div>
-                  <p className="text-gray-600">Analizando tu mercado y generando estrategia...</p>
+          <CardContent>
+            <div className="h-96 overflow-y-auto mb-4 p-4 bg-gray-50 rounded-lg space-y-4">
+              {conversation.map((message, index) => (
+                <div key={index} className={`p-3 rounded-lg ${
+                  message.role === 'user' 
+                    ? 'bg-blue-100 ml-8 text-blue-900' 
+                    : 'bg-white mr-8 border shadow-sm'
+                }`}>
+                  <div className="flex items-start gap-2">
+                    {message.role === 'assistant' && <Brain className="w-4 h-4 text-purple-600 mt-1 flex-shrink-0" />}
+                    <div className="text-sm whitespace-pre-wrap">{message.content}</div>
+                  </div>
                 </div>
-              ) : (
-                <div className="space-y-4">
-                  <p className="text-gray-600 mb-6">Tu input ha sido procesado. ¿Listo para generar tu estrategia personalizada?</p>
-                  <Button onClick={generateStrategy} size="lg" className="bg-gradient-to-r from-blue-600 to-green-600">
-                    <Zap className="w-4 h-4 mr-2" />
-                    Generar Estrategia
-                  </Button>
+              ))}
+              {(isProcessing || generatingStrategy) && (
+                <div className="bg-white mr-8 border shadow-sm p-3 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <Brain className="w-4 h-4 text-purple-600 animate-pulse" />
+                    <div className="text-sm text-gray-600">
+                      {generatingStrategy ? 'Generando estrategia GTM completa...' : 'Procesando...'}
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
 
-            <div className="bg-blue-50 p-4 rounded-lg">
-              <h4 className="font-medium mb-2">Procesando:</h4>
-              <div className="space-y-2 text-sm">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                  <span>Análisis de audiencia objetivo</span>
+            {/* Input Section */}
+            <div className="space-y-4">
+              <div className="flex gap-2">
+                <Button
+                  variant={isRecording ? "destructive" : "outline"}
+                  size="sm"
+                  onClick={isRecording ? stopRecording : startRecording}
+                  disabled={isProcessing}
+                >
+                  {isRecording ? <MicOff className="w-4 h-4" /> : <mic className="w-4 h-4" />}
+                  {isRecording ? 'Detener' : 'Grabar'}
+                </Button>
+                <div className="text-sm text-gray-600 flex items-center">
+                  Usa voz o escribe tu respuesta
                 </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                  <span>Investigación de competencia</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className={`w-2 h-2 rounded-full ${isGenerating ? 'bg-blue-500 animate-pulse' : 'bg-gray-300'}`}></div>
-                  <span>Optimización de canales</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-gray-300 rounded-full"></div>
-                  <span>Creación de campañas</span>
-                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <Textarea
+                  value={textInput}
+                  onChange={(e) => setTextInput(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  placeholder="Escribe tu respuesta aquí o usa el botón de grabación..."
+                  className="flex-1"
+                  rows={3}
+                  disabled={isProcessing}
+                />
+                <Button
+                  onClick={handleSendMessage}
+                  disabled={!textInput.trim() || isProcessing}
+                  size="sm"
+                  className="self-end"
+                >
+                  <Send className="w-4 h-4" />
+                </Button>
               </div>
             </div>
           </CardContent>
         </Card>
-      )}
 
-      {currentStep === 3 && strategy && (
-        <div className="space-y-6">
+        {/* Strategy Overview */}
+        {strategy && (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Target className="w-5 h-5" />
-                Tu Estrategia de Lanzamiento
+                <Target className="w-5 h-5 text-green-600" />
+                Estrategia GTM Generada
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <h4 className="font-medium text-sm text-gray-700 mb-1">Target Audience</h4>
+                <p className="text-sm">{strategy.targetAudience}</p>
+              </div>
+              <div>
+                <h4 className="font-medium text-sm text-gray-700 mb-1">Positioning</h4>
+                <p className="text-sm">{strategy.positioning}</p>
+              </div>
+              <div>
+                <h4 className="font-medium text-sm text-gray-700 mb-1">Canales Principales</h4>
+                <div className="flex flex-wrap gap-1">
+                  {strategy.channels.map((channel, i) => (
+                    <Badge key={i} variant="outline" className="text-xs">{channel}</Badge>
+                  ))}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Quick Actions */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Acciones Rápidas</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <Button variant="outline" className="w-full justify-start" size="sm">
+              <TrendingUp className="w-4 h-4 mr-2" />
+              Exportar Estrategia
+            </Button>
+            <Button variant="outline" className="w-full justify-start" size="sm">
+              <Calendar className="w-4 h-4 mr-2" />
+              Crear Timeline
+            </Button>
+            <Button variant="outline" className="w-full justify-start" size="sm">
+              <BarChart3 className="w-4 h-4 mr-2" />
+              Setup Analytics
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Detailed Strategy Display */}
+      {strategy && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {/* Content Calendar */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Calendar className="w-4 h-4" />
+                Content Calendar
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <Tabs defaultValue="overview" className="w-full">
-                <TabsList className="grid w-full grid-cols-4">
-                  <TabsTrigger value="overview">Resumen</TabsTrigger>
-                  <TabsTrigger value="audience">Audiencia</TabsTrigger>
-                  <TabsTrigger value="channels">Canales</TabsTrigger>
-                  <TabsTrigger value="campaigns">Campañas</TabsTrigger>
-                </TabsList>
+              <div className="space-y-3">
+                {strategy.contentCalendar.slice(0, 4).map((item, i) => (
+                  <div key={i} className="p-2 bg-gray-50 rounded text-sm">
+                    <div className="font-medium">{item.week}</div>
+                    <div className="text-gray-600">{item.content}</div>
+                    <Badge variant="outline" className="text-xs mt-1">{item.channel}</Badge>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
 
-                <TabsContent value="overview" className="space-y-4">
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <div className="bg-blue-50 p-4 rounded-lg">
-                      <h4 className="font-medium mb-2 flex items-center gap-2">
-                        <TrendingUp className="w-4 h-4" />
-                        Objetivos
-                      </h4>
-                      <div className="space-y-2 text-sm">
-                        <p><strong>Usuarios objetivo:</strong> {strategy.summary.targetUsers}</p>
-                        <p><strong>Plazo:</strong> {strategy.summary.timeline}</p>
-                        <p><strong>Presupuesto:</strong> {strategy.summary.budget}</p>
-                      </div>
+          {/* Pricing Strategy */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <DollarSign className="w-4 h-4" />
+                Pricing Strategy
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {strategy.pricing.map((tier, i) => (
+                  <div key={i} className="p-2 border rounded">
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="font-medium text-sm">{tier.tier}</span>
+                      <span className="text-sm text-green-600">{tier.price}</span>
                     </div>
-                    <div className="bg-green-50 p-4 rounded-lg">
-                      <h4 className="font-medium mb-2 flex items-center gap-2">
-                        <DollarSign className="w-4 h-4" />
-                        Métricas Esperadas
-                      </h4>
-                      <div className="space-y-2 text-sm">
-                        <p><strong>CPA objetivo:</strong> {strategy.metrics.target_cpa}</p>
-                        <p><strong>Conversión:</strong> {strategy.metrics.expected_conversion_rate}</p>
-                        <p><strong>LTV:</strong> {strategy.metrics.lifetime_value}</p>
-                      </div>
+                    <div className="text-xs text-gray-600">
+                      {tier.features.slice(0, 2).join(', ')}
                     </div>
                   </div>
-                </TabsContent>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
 
-                <TabsContent value="audience" className="space-y-4">
-                  <div className="space-y-4">
-                    <div className="bg-purple-50 p-4 rounded-lg">
-                      <h4 className="font-medium mb-2">Audiencia Primaria</h4>
-                      <p className="text-sm">{strategy.audience.primary}</p>
-                    </div>
-                    <div className="bg-orange-50 p-4 rounded-lg">
-                      <h4 className="font-medium mb-2">Perfil Psicográfico</h4>
-                      <p className="text-sm">{strategy.audience.psychographics}</p>
-                    </div>
+          {/* Competition Analysis */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Users className="w-4 h-4" />
+                Competidores
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {strategy.competition.map((comp, i) => (
+                  <div key={i} className="p-2 bg-gray-50 rounded text-sm">
+                    <div className="font-medium">{comp.name}</div>
+                    <div className="text-xs text-green-600">+ {comp.strength}</div>
+                    <div className="text-xs text-red-600">- {comp.weakness}</div>
                   </div>
-                </TabsContent>
-
-                <TabsContent value="channels" className="space-y-4">
-                  <div className="grid gap-4">
-                    {strategy.channels.map((channel: any, index: number) => (
-                      <div key={index} className="border rounded-lg p-4">
-                        <div className="flex justify-between items-center mb-2">
-                          <h4 className="font-medium">{channel.name}</h4>
-                          <Badge>{channel.timeline}</Badge>
-                        </div>
-                        <div className="grid grid-cols-3 gap-4 text-sm">
-                          <div>
-                            <span className="text-gray-600">Presupuesto:</span>
-                            <p className="font-medium">{channel.budget}</p>
-                          </div>
-                          <div>
-                            <span className="text-gray-600">Usuarios esperados:</span>
-                            <p className="font-medium">{channel.expected_users}</p>
-                          </div>
-                          <div>
-                            <span className="text-gray-600">CPA:</span>
-                            <p className="font-medium">{channel.cpa}</p>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="campaigns" className="space-y-4">
-                  {strategy.campaigns.map((campaign: any, index: number) => (
-                    <div key={index} className="border rounded-lg p-4">
-                      <h4 className="font-medium mb-2">{campaign.campaign_name}</h4>
-                      <div className="space-y-3 text-sm">
-                        <div>
-                          <span className="text-gray-600">Copy del anuncio:</span>
-                          <p className="italic">"{campaign.ad_copy}"</p>
-                        </div>
-                        <div>
-                          <span className="text-gray-600">Targeting:</span>
-                          <p>{campaign.targeting}</p>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <span className="text-gray-600">Presupuesto diario:</span>
-                            <p className="font-medium">{campaign.budget_daily}</p>
-                          </div>
-                          <div>
-                            <span className="text-gray-600">Duración:</span>
-                            <p className="font-medium">{campaign.duration}</p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </TabsContent>
-              </Tabs>
-
-              <div className="mt-6 flex gap-4">
-                <Button onClick={createCampaigns} className="bg-gradient-to-r from-blue-600 to-green-600">
-                  <Upload className="w-4 h-4 mr-2" />
-                  Crear Campañas Automáticamente
-                </Button>
-                <Button variant="outline">
-                  <ExternalLink className="w-4 h-4 mr-2" />
-                  Exportar Estrategia
-                </Button>
+                ))}
               </div>
             </CardContent>
           </Card>
         </div>
-      )}
-
-      {currentStep === 4 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="w-5 h-5 text-green-600" />
-              Campañas Creadas y Listas
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="text-center py-6">
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Zap className="w-8 h-8 text-green-600" />
-              </div>
-              <h3 className="text-lg font-medium mb-2">¡Listo para lanzar!</h3>
-              <p className="text-gray-600">Tus campañas están configuradas y listas para activar</p>
-            </div>
-
-            <div className="grid gap-4">
-              <div className="border border-green-200 bg-green-50 rounded-lg p-4">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <h4 className="font-medium">LinkedIn - Freelancer Financial Control</h4>
-                    <p className="text-sm text-gray-600">Configurada y lista para lanzar</p>
-                  </div>
-                  <Button size="sm" className="bg-green-600 hover:bg-green-700">
-                    Activar
-                  </Button>
-                </div>
-              </div>
-
-              <div className="border border-blue-200 bg-blue-50 rounded-lg p-4">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <h4 className="font-medium">Google Ads - Gestión Financiera Freelancer</h4>
-                    <p className="text-sm text-gray-600">Configurada y lista para lanzar</p>
-                  </div>
-                  <Button size="sm" variant="outline">
-                    Revisar
-                  </Button>
-                </div>
-              </div>
-
-              <div className="border border-purple-200 bg-purple-50 rounded-lg p-4">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <h4 className="font-medium">Facebook/Instagram - Autonomía Financiera</h4>
-                    <p className="text-sm text-gray-600">En preparación</p>
-                  </div>
-                  <Button size="sm" variant="outline">
-                    Pendiente
-                  </Button>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex gap-4">
-              <Button onClick={() => setCurrentStep(1)} variant="outline">
-                Nueva Estrategia
-              </Button>
-              <Button className="bg-gradient-to-r from-blue-600 to-green-600">
-                <ExternalLink className="w-4 h-4 mr-2" />
-                Ir a Dashboard de Campañas
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
       )}
     </div>
   )

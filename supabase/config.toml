@@ -4,35 +4,93 @@ project_id = "jxvrpnjluuvoggxonfll"
 [api]
 enabled = true
 port = 54321
-schemas = ["public", "graphql_public"]
+schemas = ["public"]
 extra_search_path = ["public", "extensions"]
 max_rows = 1000
-
-[auth]
-enabled = true
-port = 54326
-site_url = "http://localhost:3000"
-
-[edge_functions]
-enabled = true
-port = 54325
-
-[functions.chat-ai]
-verify_jwt = true
-
-[functions.process-document]
-verify_jwt = true
-
-[functions.send-invitation]
-verify_jwt = true
 
 [db]
 port = 54322
 
+[db.pooler]
+enabled = false
+port = 54329
+pool_mode = "transaction"
+default_pool_size = 20
+max_client_conn = 100
+
+[realtime]
+enabled = true
+ip_version = 4
+
 [studio]
 enabled = true
 port = 54323
+api_url = "http://localhost"
+
+[inbucket]
+enabled = true
+port = 54324
+smtp_port = 54325
+pop3_port = 54326
 
 [storage]
 enabled = true
-port = 54324
+file_size_limit = "50MiB"
+
+[auth]
+enabled = true
+external.apple.enabled = false
+external.azure.enabled = false
+external.bitbucket.enabled = false
+external.discord.enabled = false
+external.facebook.enabled = false
+external.github.enabled = false
+external.gitlab.enabled = false
+external.google.enabled = false
+external.keycloak.enabled = false
+external.linkedin.enabled = false
+external.notion.enabled = false
+external.twitch.enabled = false
+external.twitter.enabled = false
+external.slack.enabled = false
+external.spotify.enabled = false
+external.workos.enabled = false
+external.zoom.enabled = false
+
+[auth.email]
+enable_signup = true
+double_confirm_changes = true
+enable_confirmations = false
+
+[functions.voice-to-text]
+verify_jwt = false
+
+[functions.launch-strategy-ai]
+verify_jwt = false
+
+[functions.generate-gtm-strategy]
+verify_jwt = false
+
+[functions.test-github-connection]
+verify_jwt = false
+
+[functions.test-webhook-connection]
+verify_jwt = false
+
+[functions.claude-analyze-request]
+verify_jwt = false
+
+[functions.lovable-generate-code]
+verify_jwt = false
+
+[functions.deploy-approved-changes]
+verify_jwt = false
+
+[functions.generate-n8n-workflow]
+verify_jwt = false
+
+[functions.deploy-n8n-workflow]
+verify_jwt = false
+
+[functions.cerebro-real-analytics]
+verify_jwt = false
