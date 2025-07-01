@@ -3,18 +3,8 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/integrations/supabase/client'
 import { toast } from '@/hooks/use-toast'
 
-export interface AmplitudeUserJourney {
-  user_id: string
-  stage: 'registration' | 'kyc_start' | 'kyc_document_upload' | 'kyc_complete' | 'first_transfer' | 'repeat_user'
-  timestamp: string
-  time_in_stage: number // minutes
-  completion_rate: number
-  friction_points: string[]
-  drop_off_reason?: string
-}
-
 export interface AmplitudeInsight {
-  insight_type: 'friction' | 'churn_prediction' | 'onboarding_optimization'
+  insight_type: 'friction' | 'churn_prediction' | 'onboarding_optimization' | 'user_growth' | 'growth_analysis' | 'configuration'
   title: string
   description: string
   impact_score: number
@@ -24,70 +14,11 @@ export interface AmplitudeInsight {
   created_at: string
 }
 
-export interface OnboardingAnalysis {
-  stage_metrics: {
-    [stage: string]: {
-      average_time_minutes: number
-      completion_rate: number
-      friction_incidents: number
-      drop_off_count: number
-      user_count: number
-      friction_rate: number
-    }
-  }
-  problematic_stages: Array<{
-    stage: string
-    issues: string[]
-    metrics: any
-  }>
-  overall_onboarding_health: 'good' | 'needs_attention' | 'critical'
-}
-
-export interface ActivationMetrics {
-  activation_rate: number
-  power_users: number
-  core_users: number
-  casual_users: number
-  dormant_users: number
-  avg_time_to_activation: number
-  monthly_trends: Array<{
-    month: string
-    activation_rate: number
-    new_users: number
-    activated_users: number
-  }>
-}
-
-export interface RetentionMetrics {
-  cohort_retention: Array<{
-    cohort_month: string
-    users_count: number
-    retention_rates: {
-      month_1: number
-      month_3: number
-      month_6: number
-      month_12: number
-    }
-  }>
-  churn_predictions: Array<{
-    user_id: string
-    risk_level: 'high' | 'medium' | 'low'
-    days_since_last_transaction: number
-    total_transactions: number
-    predicted_churn_date: string
-    intervention_recommended: string
-    user_value: number
-  }>
-  inactive_users: {
-    total: number
-    over_3_months: number
-    over_6_months: number
-    over_12_months: number
-  }
-}
-
 export interface AmplitudeDashboardData {
-  userJourneys: AmplitudeUserJourney[]
+  totalActiveUsers: number
+  monthlyActiveUsers: number
+  newUsersLastMonth: number
+  usabilityScore: number
   insights: AmplitudeInsight[]
   conversionRates: {
     registration_to_kyc: number
@@ -107,13 +38,10 @@ export interface AmplitudeDashboardData {
     total_analyzed_users: number
     churn_prevention_actions: string[]
   }
-  onboardingAnalysis: OnboardingAnalysis
-  activationMetrics: ActivationMetrics
-  retentionMetrics: RetentionMetrics
-  usabilityScore: number
-  totalActiveUsers: number
-  monthlyActiveUsers: number
-  newUsersLastMonth: number
+  status: string
+  dataSource?: string
+  fetchedAt?: string
+  apiCallsSuccessful?: boolean
 }
 
 export const useAmplitudeAnalytics = () => {
@@ -125,9 +53,8 @@ export const useAmplitudeAnalytics = () => {
     try {
       setLoading(true)
       setError(null)
-      console.log('📊 Fetching comprehensive Amplitude analytics data for:', timeframe)
+      console.log('📊 Fetching REAL Amplitude analytics data...')
 
-      // Call our enhanced edge function to get Amplitude insights
       const { data: amplitudeData, error: amplitudeError } = await supabase.functions.invoke('amplitude-analytics', {
         body: {
           action: 'fetch_insights',
@@ -143,20 +70,30 @@ export const useAmplitudeAnalytics = () => {
         throw new Error('No data received from Amplitude')
       }
 
+      console.log('✅ REAL Amplitude data received:', amplitudeData)
       setData(amplitudeData)
-      console.log('✅ Amplitude analytics data loaded successfully')
-      console.log(`📈 Total Active Users: ${amplitudeData.totalActiveUsers?.toLocaleString() || 'N/A'}`)
-      console.log(`🎯 Usability Score: ${amplitudeData.usabilityScore}/100`)
-      console.log(`🚨 High Risk Users: ${amplitudeData.churnPredictions?.high_risk_users || 0}`)
-      console.log(`⚡ Insights Generated: ${amplitudeData.insights?.length || 0}`)
+      
+      // Show status toast
+      if (amplitudeData.status === 'REAL_DATA_FROM_AMPLITUDE') {
+        toast({
+          title: "✅ Datos Reales Cargados",
+          description: `${amplitudeData.totalActiveUsers?.toLocaleString()} usuarios activos desde Amplitude`,
+        })
+      } else {
+        toast({
+          title: "⚠️ Problema de Conexión",
+          description: "Verifica las API keys de Amplitude en configuración",
+          variant: "destructive"
+        })
+      }
       
     } catch (err) {
-      console.error('❌ Error fetching Amplitude data:', err)
+      console.error('❌ Error fetching REAL Amplitude data:', err)
       const errorMessage = err instanceof Error ? err.message : 'Error desconocido'
       setError(errorMessage)
       toast({
-        title: "Error de Amplitude",
-        description: `No se pudieron cargar los datos de análisis: ${errorMessage}`,
+        title: "❌ Error de Amplitude",
+        description: `No se pudieron cargar los datos reales: ${errorMessage}`,
         variant: "destructive"
       })
     } finally {
@@ -166,55 +103,22 @@ export const useAmplitudeAnalytics = () => {
 
   const syncAmplitudeEvents = async () => {
     try {
-      console.log('🔄 Syncing Amplitude events...')
-      
-      const { error } = await supabase.functions.invoke('amplitude-analytics', {
-        body: {
-          action: 'sync_events'
-        }
-      })
-
-      if (error) throw error
-
-      toast({
-        title: "Sincronización completa",
-        description: "Los eventos de Amplitude han sido sincronizados exitosamente"
-      })
-
-      // Refresh data after sync
+      console.log('🔄 Refreshing REAL Amplitude data...')
       await fetchAmplitudeData()
       
-    } catch (err) {
-      console.error('❌ Error syncing Amplitude events:', err)
       toast({
-        title: "Error de sincronización",
-        description: "No se pudieron sincronizar los eventos de Amplitude",
+        title: "🔄 Datos Actualizados",
+        description: "Datos reales de Amplitude actualizados exitosamente"
+      })
+      
+    } catch (err) {
+      console.error('❌ Error refreshing Amplitude data:', err)
+      toast({
+        title: "❌ Error de actualización",
+        description: "No se pudieron actualizar los datos de Amplitude",
         variant: "destructive"
       })
     }
-  }
-
-  const analyzeUserJourney = async (userId: string) => {
-    try {
-      const { data: journeyData, error } = await supabase.functions.invoke('amplitude-analytics', {
-        body: {
-          action: 'analyze_user_journey',
-          user_id: userId
-        }
-      })
-
-      if (error) throw error
-
-      return journeyData
-      
-    } catch (err) {
-      console.error('❌ Error analyzing user journey:', err)
-      throw err
-    }
-  }
-
-  const getInsightsByType = (type: 'friction' | 'churn_prediction' | 'onboarding_optimization') => {
-    return data?.insights.filter(insight => insight.insight_type === type) || []
   }
 
   const getHighestImpactInsights = (limit: number = 5) => {
@@ -223,28 +127,8 @@ export const useAmplitudeAnalytics = () => {
       .slice(0, limit) || []
   }
 
-  const getOnboardingHealthStatus = () => {
-    return data?.onboardingAnalysis.overall_onboarding_health || 'good'
-  }
-
-  const getMostProblematicStage = () => {
-    const problematic = data?.onboardingAnalysis.problematic_stages || []
-    return problematic.length > 0 ? problematic[0] : null
-  }
-
-  const getActivationRate = () => {
-    return data?.activationMetrics?.activation_rate || 0
-  }
-
-  const getRetentionByPeriod = (period: 'month_1' | 'month_3' | 'month_6' | 'month_12') => {
-    const cohorts = data?.retentionMetrics?.cohort_retention || []
-    if (cohorts.length === 0) return 0
-    
-    const avgRetention = cohorts.reduce((sum, cohort) => sum + cohort.retention_rates[period], 0) / cohorts.length
-    return Math.round(avgRetention)
-  }
-
   useEffect(() => {
+    console.log('🚀 Loading REAL Amplitude analytics on mount...')
     fetchAmplitudeData()
   }, [])
 
@@ -254,12 +138,6 @@ export const useAmplitudeAnalytics = () => {
     error,
     refetch: fetchAmplitudeData,
     syncAmplitudeEvents,
-    analyzeUserJourney,
-    getInsightsByType,
-    getHighestImpactInsights,
-    getOnboardingHealthStatus,
-    getMostProblematicStage,
-    getActivationRate,
-    getRetentionByPeriod
+    getHighestImpactInsights
   }
 }
