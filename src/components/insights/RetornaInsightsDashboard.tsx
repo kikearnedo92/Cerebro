@@ -1,15 +1,16 @@
 
 import React, { useState } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Globe, TrendingUp, Users, Target, CheckCircle, AlertCircle, Wifi } from 'lucide-react'
+import { TrendingUp, Users, Target } from 'lucide-react'
 import { useAmplitudeAnalytics } from '@/hooks/useAmplitudeAnalytics'
 import { OnboardingAnalytics } from './OnboardingAnalytics'
 import { ActivationAnalytics } from './ActivationAnalytics'
 import { RetentionAnalytics } from './RetentionAnalytics'
 import { TimeFilterControls } from './TimeFilterControls'
-import { Badge } from '@/components/ui/badge'
+import { DashboardHeader } from './DashboardHeader'
+import { DataStatusCard } from './DataStatusCard'
+import { LoadingState } from './LoadingState'
+import { ErrorState } from './ErrorState'
 
 export const RetornaInsightsDashboard = () => {
   const [selectedPeriod, setSelectedPeriod] = useState('30d')
@@ -35,33 +36,15 @@ export const RetornaInsightsDashboard = () => {
   }
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Cargando datos REALES de Amplitude...</p>
-        </div>
-      </div>
-    )
+    return <LoadingState />
   }
 
   if (error) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <AlertCircle className="mx-auto h-12 w-12 text-red-500 mb-4" />
-          <p className="text-red-600 mb-4">Error al cargar datos REALES de Amplitude</p>
-          <p className="text-sm text-gray-500 mb-4">{error}</p>
-          <Button onClick={handleRefetch} variant="outline">Reintentar Conexión</Button>
-        </div>
-      </div>
-    )
+    return <ErrorState error={error} onRetry={handleRefetch} />
   }
 
   // Determinar el estado de los datos
   const isRealData = data?.status === 'REAL_DATA_FROM_AMPLITUDE'
-  const StatusIcon = isRealData ? CheckCircle : AlertCircle
-  const dataStatusColor = isRealData ? 'text-green-600' : 'text-orange-600'
   const dataStatusText = isRealData ? 'Datos REALES de Amplitude' : 'Problema de Conexión'
 
   // Mock data for demonstration - in production this would come from Amplitude
@@ -132,68 +115,20 @@ export const RetornaInsightsDashboard = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Globe className="w-8 h-8 text-blue-600" />
-          <div>
-            <h1 className="text-2xl font-bold">Insights de Retorna B2C</h1>
-            <div className="flex items-center gap-2">
-              <p className="text-gray-600">Analytics de usuarios de la app de remesas</p>
-              <Badge variant={isRealData ? "default" : "secondary"} className="flex items-center gap-1">
-                <Wifi className="w-3 h-3" />
-                {dataStatusText}
-              </Badge>
-            </div>
-          </div>
-        </div>
-        <div className="flex gap-2">
-          <Button 
-            onClick={handleSyncAmplitude} 
-            variant="outline" 
-            size="sm"
-            disabled={loading}
-          >
-            <TrendingUp className="w-4 h-4 mr-1" />
-            Actualizar Datos Reales
-          </Button>
-          <Button onClick={handleRefetch} variant="outline" size="sm">
-            Refrescar
-          </Button>
-        </div>
-      </div>
+      <DashboardHeader
+        isRealData={isRealData}
+        dataStatusText={dataStatusText}
+        loading={loading}
+        onRefetch={handleRefetch}
+        onSyncAmplitude={handleSyncAmplitude}
+      />
 
       {/* Status Card */}
-      <Card className={`border-l-4 ${isRealData ? 'border-l-green-500 bg-green-50' : 'border-l-orange-500 bg-orange-50'}`}>
-        <CardContent className="p-4">
-          <div className="flex items-center gap-3">
-            <StatusIcon className={`w-6 h-6 ${dataStatusColor}`} />
-            <div className="flex-1">
-              <div className="flex items-center gap-2">
-                <h3 className="font-semibold">{dataStatusText}</h3>
-                {data?.fetchedAt && (
-                  <span className="text-sm text-gray-500">
-                    • Actualizado: {new Date(data.fetchedAt).toLocaleTimeString()}
-                  </span>
-                )}
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-2">
-                <div>
-                  <p className="text-2xl font-bold text-blue-600">{(data?.totalActiveUsers || 0).toLocaleString()}</p>
-                  <p className="text-sm text-gray-600">Usuarios Activos (REAL)</p>
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-green-600">{(data?.newUsersLastMonth || 0).toLocaleString()}</p>
-                  <p className="text-sm text-gray-600">Nuevos Usuarios (REAL)</p>
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-purple-600">{data?.usabilityScore || 0}/100</p>
-                  <p className="text-sm text-gray-600">Score de Usabilidad</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <DataStatusCard
+        isRealData={isRealData}
+        dataStatusText={dataStatusText}
+        data={data}
+      />
 
       {/* Time Filter Controls */}
       <TimeFilterControls
