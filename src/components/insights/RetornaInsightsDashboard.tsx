@@ -60,7 +60,7 @@ export const RetornaInsightsDashboard = () => {
 
   // Determinar el estado de los datos
   const isRealData = data?.status === 'REAL_DATA_FROM_AMPLITUDE'
-  const dataStatusIcon = isRealData ? CheckCircle : AlertCircle
+  const StatusIcon = isRealData ? CheckCircle : AlertCircle
   const dataStatusColor = isRealData ? 'text-green-600' : 'text-orange-600'
   const dataStatusText = isRealData ? 'Datos REALES de Amplitude' : 'Problema de Conexión'
 
@@ -166,7 +166,7 @@ export const RetornaInsightsDashboard = () => {
       <Card className={`border-l-4 ${isRealData ? 'border-l-green-500 bg-green-50' : 'border-l-orange-500 bg-orange-50'}`}>
         <CardContent className="p-4">
           <div className="flex items-center gap-3">
-            <dataStatusIcon className={`w-6 h-6 ${dataStatusColor}`} />
+            <StatusIcon className={`w-6 h-6 ${dataStatusColor}`} />
             <div className="flex-1">
               <div className="flex items-center gap-2">
                 <h3 className="font-semibold">{dataStatusText}</h3>
