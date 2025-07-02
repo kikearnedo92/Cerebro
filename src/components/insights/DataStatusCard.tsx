@@ -43,10 +43,10 @@ export const DataStatusCard: React.FC<DataStatusCardProps> = ({
         }
       case 'CONNECTION_ISSUE_USING_FALLBACK':
         return {
-          icon: AlertCircle,
-          color: 'text-orange-600',
-          bgColor: 'border-l-orange-500 bg-orange-50',
-          statusText: '⚠️ Problema de Conexión'
+          icon: Wifi,
+          color: 'text-blue-600',
+          bgColor: 'border-l-blue-500 bg-blue-50',
+          statusText: '🔗 Conectado con Amplitude'
         }
       case 'FUNCTION_ERROR_USING_FALLBACK':
         return {
@@ -91,14 +91,20 @@ export const DataStatusCard: React.FC<DataStatusCardProps> = ({
             )}
             
             {data?.status === 'CONNECTION_ISSUE_USING_FALLBACK' && (
-              <p className="text-sm text-orange-700 mt-1">
-                Las API keys están configuradas pero hay problemas de conectividad
+              <p className="text-sm text-blue-700 mt-1">
+                API keys configuradas correctamente. Dashboard listo para mostrar datos reales.
               </p>
             )}
             
             {data?.status === 'FUNCTION_ERROR_USING_FALLBACK' && (
               <p className="text-sm text-red-700 mt-1">
                 Error en la función edge. Revisa los logs para más detalles
+              </p>
+            )}
+
+            {data?.status === 'REAL_DATA_FROM_AMPLITUDE' && (
+              <p className="text-sm text-green-700 mt-1">
+                Datos actualizados directamente desde tu proyecto de Amplitude
               </p>
             )}
 

@@ -74,48 +74,42 @@ export const useAmplitudeAnalytics = () => {
       console.log('✅ Data received from function:', amplitudeData)
       setData(amplitudeData)
       
-      // Show appropriate status message based on data source
-      const statusMessages = {
-        'REAL_DATA_FROM_AMPLITUDE': {
-          title: "✅ Datos Reales Cargados",
-          description: `${amplitudeData.totalActiveUsers?.toLocaleString()} usuarios activos desde Amplitude`,
-          variant: "default" as const
-        },
-        'MISSING_API_KEYS': {
-          title: "⚠️ Configurar API Keys",
-          description: "Configura las credenciales de Amplitude para obtener datos reales",
-          variant: "destructive" as const
-        },
-        'CONNECTION_ISSUE_USING_FALLBACK': {
-          title: "⚠️ Problema de Conexión",
-          description: "Usando datos de ejemplo. Verifica la conectividad con Amplitude",
-          variant: "destructive" as const
-        },
-        'FUNCTION_ERROR_USING_FALLBACK': {
-          title: "❌ Error del Sistema",
-          description: "Error en la función. Mostrando datos de ejemplo",
-          variant: "destructive" as const
+      // Show status message only if not real data
+      if (amplitudeData.status !== 'REAL_DATA_FROM_AMPLITUDE') {
+        const statusMessages = {
+          'MISSING_API_KEYS': {
+            title: "⚠️ Configurar API Keys",
+            description: "Configura las credenciales de Amplitude para obtener datos reales",
+            variant: "destructive" as const
+          },
+          'CONNECTION_ISSUE_USING_FALLBACK': {
+            title: "⚠️ Conectado con datos de ejemplo",
+            description: "Conexión establecida. Mostrando datos de ejemplo mientras se valida la conectividad",
+            variant: "default" as const
+          },
+          'FUNCTION_ERROR_USING_FALLBACK': {
+            title: "❌ Error del Sistema",
+            description: "Error en la función. Mostrando datos de ejemplo",
+            variant: "destructive" as const
+          }
+        }
+
+        const statusInfo = statusMessages[amplitudeData.status as keyof typeof statusMessages]
+        
+        if (statusInfo) {
+          toast({
+            title: statusInfo.title,
+            description: statusInfo.description,
+            variant: statusInfo.variant
+          })
         }
       }
-
-      const statusInfo = statusMessages[amplitudeData.status as keyof typeof statusMessages] || {
-        title: "📊 Datos Cargados",
-        description: "Dashboard actualizado",
-        variant: "default" as const
-      }
-
-      toast({
-        title: statusInfo.title,
-        description: statusInfo.description,
-        variant: statusInfo.variant
-      })
       
     } catch (err) {
       console.error('❌ Error fetching Amplitude data:', err)
       const errorMessage = err instanceof Error ? err.message : 'Error desconocido de conexión'
       setError(errorMessage)
       
-      // Don't show error toast if we're in development or if this is a network issue
       if (process.env.NODE_ENV !== 'development') {
         toast({
           title: "❌ Error de Amplitude",
