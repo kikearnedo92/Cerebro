@@ -1,7 +1,7 @@
 
 import React from 'react'
 import { Card, CardContent } from '@/components/ui/card'
-import { CheckCircle, AlertCircle, Wifi, WifiOff } from 'lucide-react'
+import { CheckCircle, AlertCircle, Wifi, WifiOff, XCircle } from 'lucide-react'
 import { AmplitudeDashboardData } from '@/hooks/useAmplitudeAnalytics'
 
 interface DataStatusCardProps {
@@ -32,7 +32,7 @@ export const DataStatusCard: React.FC<DataStatusCardProps> = ({
           icon: CheckCircle,
           color: 'text-green-600',
           bgColor: 'border-l-green-500 bg-green-50',
-          statusText: '✅ Datos Reales de Amplitude'
+          statusText: '✅ Datos REALES de Amplitude'
         }
       case 'MISSING_API_KEYS':
         return {
@@ -41,14 +41,14 @@ export const DataStatusCard: React.FC<DataStatusCardProps> = ({
           bgColor: 'border-l-red-500 bg-red-50',
           statusText: '❌ Faltan API Keys'
         }
-      case 'CONNECTION_ISSUE_USING_FALLBACK':
+      case 'CONNECTION_ERROR_NO_FALLBACK':
         return {
-          icon: Wifi,
-          color: 'text-blue-600',
-          bgColor: 'border-l-blue-500 bg-blue-50',
-          statusText: '🔗 Conectado con Amplitude'
+          icon: XCircle,
+          color: 'text-red-600',
+          bgColor: 'border-l-red-500 bg-red-50',
+          statusText: '❌ Error de Conexión'
         }
-      case 'FUNCTION_ERROR_USING_FALLBACK':
+      case 'FUNCTION_ERROR':
         return {
           icon: AlertCircle,
           color: 'text-red-600',
@@ -57,16 +57,18 @@ export const DataStatusCard: React.FC<DataStatusCardProps> = ({
         }
       default:
         return {
-          icon: Wifi,
-          color: 'text-blue-600',
-          bgColor: 'border-l-blue-500 bg-blue-50',
-          statusText: dataStatusText
+          icon: AlertCircle,
+          color: 'text-red-600',
+          bgColor: 'border-l-red-500 bg-red-50',
+          statusText: '❌ Estado Desconocido'
         }
     }
   }
 
   const statusInfo = getStatusInfo()
   const StatusIcon = statusInfo.icon
+
+  const hasData = data?.totalActiveUsers && data.totalActiveUsers > 0
 
   return (
     <Card className={`border-l-4 ${statusInfo.bgColor}`}>
@@ -90,15 +92,15 @@ export const DataStatusCard: React.FC<DataStatusCardProps> = ({
               </p>
             )}
             
-            {data?.status === 'CONNECTION_ISSUE_USING_FALLBACK' && (
-              <p className="text-sm text-blue-700 mt-1">
-                API keys configuradas correctamente. Dashboard listo para mostrar datos reales.
+            {data?.status === 'CONNECTION_ERROR_NO_FALLBACK' && (
+              <p className="text-sm text-red-700 mt-1">
+                No se pudo conectar a Amplitude. Verifica las credenciales y conectividad.
               </p>
             )}
             
-            {data?.status === 'FUNCTION_ERROR_USING_FALLBACK' && (
+            {data?.status === 'FUNCTION_ERROR' && (
               <p className="text-sm text-red-700 mt-1">
-                Error en la función edge. Revisa los logs para más detalles
+                Error crítico en la función. Revisa los logs para más detalles.
               </p>
             )}
 
@@ -108,30 +110,41 @@ export const DataStatusCard: React.FC<DataStatusCardProps> = ({
               </p>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-3">
-              <div>
-                <p className="text-2xl font-bold text-blue-600">
-                  {(data?.totalActiveUsers || 0).toLocaleString()}
+            {hasData ? (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-3">
+                <div>
+                  <p className="text-2xl font-bold text-blue-600">
+                    {(data?.totalActiveUsers || 0).toLocaleString()}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    Usuarios Activos {data?.status === 'REAL_DATA_FROM_AMPLITUDE' ? '(REAL)' : '(SIN DATOS)'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-green-600">
+                    {(data?.newUsersLastMonth || 0).toLocaleString()}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    Nuevos Usuarios {data?.status === 'REAL_DATA_FROM_AMPLITUDE' ? '(REAL)' : '(SIN DATOS)'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-purple-600">
+                    {data?.usabilityScore || 0}/100
+                  </p>
+                  <p className="text-sm text-gray-600">Score de Usabilidad</p>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded">
+                <p className="text-sm text-yellow-800 font-medium">
+                  ⚠️ No hay datos disponibles para mostrar
                 </p>
-                <p className="text-sm text-gray-600">
-                  Usuarios Activos {data?.status === 'REAL_DATA_FROM_AMPLITUDE' ? '(REAL)' : '(DEMO)'}
+                <p className="text-xs text-yellow-700 mt-1">
+                  Configura correctamente la conexión con Amplitude para ver métricas reales
                 </p>
               </div>
-              <div>
-                <p className="text-2xl font-bold text-green-600">
-                  {(data?.newUsersLastMonth || 0).toLocaleString()}
-                </p>
-                <p className="text-sm text-gray-600">
-                  Nuevos Usuarios {data?.status === 'REAL_DATA_FROM_AMPLITUDE' ? '(REAL)' : '(DEMO)'}
-                </p>
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-purple-600">
-                  {data?.usabilityScore || 0}/100
-                </p>
-                <p className="text-sm text-gray-600">Score de Usabilidad</p>
-              </div>
-            </div>
+            )}
             
             {data?.dataSource && (
               <div className="mt-2 text-xs text-gray-500">

@@ -25,15 +25,15 @@ serve(async (req) => {
       secretKeyLength: amplitudeSecretKey?.length || 0
     })
 
-    // Return mock data if API keys are missing but with clear status
+    // If API keys are missing, return clear error status
     if (!amplitudeApiKey || !amplitudeSecretKey) {
-      console.log('❌ Missing API keys - returning mock data with clear status')
+      console.log('❌ Missing API keys - returning error status')
       
-      const mockResponse = {
-        totalActiveUsers: 15420,
-        monthlyActiveUsers: 12850,
-        newUsersLastMonth: 2340,
-        usabilityScore: 78,
+      const errorResponse = {
+        totalActiveUsers: 0,
+        monthlyActiveUsers: 0,
+        newUsersLastMonth: 0,
+        usabilityScore: 0,
         status: 'MISSING_API_KEYS',
         
         insights: [{
@@ -52,40 +52,32 @@ serve(async (req) => {
         }],
         
         conversionRates: {
-          registration_to_kyc: 0.68,
-          kyc_to_first_transfer: 0.45,
-          first_to_repeat_transfer: 0.32
+          registration_to_kyc: 0,
+          kyc_to_first_transfer: 0,
+          first_to_repeat_transfer: 0
         },
         
         averageTimeInStages: {
-          registration: 2.8,
-          kyc_completion: 8.5,
-          document_upload: 6.2,
-          first_transfer: 12.3
+          registration: 0,
+          kyc_completion: 0,
+          document_upload: 0,
+          first_transfer: 0
         },
         
         churnPredictions: {
-          high_risk_users: 1850,
-          predicted_churn_rate: 0.28,
-          total_analyzed_users: 15420,
-          top_churn_reasons: [
-            'Inactividad > 30 días',
-            'Fallos en verificación KYC',
-            'Primera transacción fallida'
-          ],
-          churn_prevention_actions: [
-            'Campaña de reactivación por email',
-            'Soporte proactivo para KYC',
-            'Mejora de UX en primer envío'
-          ]
+          high_risk_users: 0,
+          predicted_churn_rate: 0,
+          total_analyzed_users: 0,
+          top_churn_reasons: ['API Keys no configuradas'],
+          churn_prevention_actions: ['Configurar credenciales de Amplitude']
         },
 
-        dataSource: 'MOCK_DATA',
+        dataSource: 'NO_API_KEYS',
         fetchedAt: new Date().toISOString(),
         apiCallsSuccessful: false
       }
 
-      return new Response(JSON.stringify(mockResponse), {
+      return new Response(JSON.stringify(errorResponse), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
     }
@@ -118,13 +110,14 @@ serve(async (req) => {
       console.log('📊 Calling Amplitude API for active users...')
       
       const activeUsersController = new AbortController()
-      const timeoutId = setTimeout(() => activeUsersController.abort(), 10000) // 10 second timeout
+      const timeoutId = setTimeout(() => activeUsersController.abort(), 15000) // 15 second timeout
       
       const activeUsersResponse = await fetch('https://amplitude.com/api/2/events/segmentation', {
         method: 'POST',
         headers: {
           'Authorization': `Basic ${credentials}`,
           'Content-Type': 'application/json',
+          'User-Agent': 'Retorna-Analytics/1.0'
         },
         body: JSON.stringify({
           e: {
@@ -160,60 +153,58 @@ serve(async (req) => {
       }
 
       // Get New Users with similar timeout handling
-      console.log('📊 Calling Amplitude API for new users...')
-      
-      const newUsersController = new AbortController()
-      const newUsersTimeoutId = setTimeout(() => newUsersController.abort(), 10000)
-      
-      const newUsersResponse = await fetch('https://amplitude.com/api/2/events/segmentation', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Basic ${credentials}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          e: {
-            "event_type": "First Session"
-          },
-          start: start,
-          end: end,
-          m: "uniques"
-        }),
-        signal: newUsersController.signal
-      })
-
-      clearTimeout(newUsersTimeoutId)
-
-      if (newUsersResponse.ok) {
-        const newUsersData = await newUsersResponse.json()
-        console.log('✅ New users data received:', JSON.stringify(newUsersData, null, 2))
+      if (realDataFetched) {
+        console.log('📊 Calling Amplitude API for new users...')
         
-        if (newUsersData.data && newUsersData.data.length > 0) {
-          if (Array.isArray(newUsersData.data[0].value)) {
-            newUsersLastMonth = newUsersData.data[0].value.reduce((sum: number, val: number) => sum + val, 0)
-          } else {
-            newUsersLastMonth = newUsersData.data[0].value || 0
+        const newUsersController = new AbortController()
+        const newUsersTimeoutId = setTimeout(() => newUsersController.abort(), 15000)
+        
+        const newUsersResponse = await fetch('https://amplitude.com/api/2/events/segmentation', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Basic ${credentials}`,
+            'Content-Type': 'application/json',
+            'User-Agent': 'Retorna-Analytics/1.0'
+          },
+          body: JSON.stringify({
+            e: {
+              "event_type": "First Session"
+            },
+            start: start,
+            end: end,
+            m: "uniques"
+          }),
+          signal: newUsersController.signal
+        })
+
+        clearTimeout(newUsersTimeoutId)
+
+        if (newUsersResponse.ok) {
+          const newUsersData = await newUsersResponse.json()
+          console.log('✅ New users data received:', JSON.stringify(newUsersData, null, 2))
+          
+          if (newUsersData.data && newUsersData.data.length > 0) {
+            if (Array.isArray(newUsersData.data[0].value)) {
+              newUsersLastMonth = newUsersData.data[0].value.reduce((sum: number, val: number) => sum + val, 0)
+            } else {
+              newUsersLastMonth = newUsersData.data[0].value || 0
+            }
+            console.log(`🆕 REAL New Users: ${newUsersLastMonth}`)
           }
-          console.log(`🆕 REAL New Users: ${newUsersLastMonth}`)
+        } else {
+          const errorText = await newUsersResponse.text()
+          console.error('❌ Amplitude API error for new users:', newUsersResponse.status, errorText)
         }
-      } else {
-        const errorText = await newUsersResponse.text()
-        console.error('❌ Amplitude API error for new users:', newUsersResponse.status, errorText)
       }
 
     } catch (fetchError) {
       console.error('❌ Network error calling Amplitude:', fetchError)
-      
-      // If we have partial data, use it
-      if (totalActiveUsers > 0) {
-        console.log('⚠️ Using partial data due to network error')
-        realDataFetched = true
-      }
+      realDataFetched = false
     }
 
-    // Calculate derived metrics from real data or use reasonable defaults
-    const monthlyActiveUsers = totalActiveUsers > 0 ? Math.round(totalActiveUsers * 0.85) : 12850
-    const usabilityScore = totalActiveUsers > 0 ? Math.min(Math.round((totalActiveUsers / 1000) * 2 + 50), 100) : 78
+    // Calculate derived metrics from real data or return error status
+    const monthlyActiveUsers = totalActiveUsers > 0 ? Math.round(totalActiveUsers * 0.85) : 0
+    const usabilityScore = totalActiveUsers > 0 ? Math.min(Math.round((totalActiveUsers / 1000) * 2 + 50), 100) : 0
 
     // Generate insights based on actual data or connection status
     const insights = []
@@ -252,66 +243,63 @@ serve(async (req) => {
         })
       }
     } else {
-      // Use mock data but indicate connection issue
-      totalActiveUsers = 15420
-      newUsersLastMonth = 2340
-      
+      // Return error status - no fake data
       insights.push({
         insight_type: 'configuration' as const,
-        title: '⚠️ Problema de Conexión con Amplitude',
-        description: 'Las API keys están configuradas pero hay problemas de conectividad. Mostrando datos de ejemplo.',
-        impact_score: 90,
+        title: '❌ No se pudieron obtener datos reales',
+        description: 'Problema de conexión con Amplitude API. Verifica las credenciales y permisos.',
+        impact_score: 100,
         affected_users: 0,
         stage: 'configuration',
         recommended_actions: [
-          'Verificar conectividad de red',
+          'Verificar que las API keys sean correctas',
           'Comprobar permisos de API en Amplitude',
-          'Revisar logs de la función para más detalles'
+          'Revisar conectividad de red'
         ],
         created_at: new Date().toISOString()
       })
     }
 
     const response = {
-      // Data from Amplitude API or fallback values
+      // Only real data or zero values
       totalActiveUsers: totalActiveUsers,
       monthlyActiveUsers: monthlyActiveUsers,
       newUsersLastMonth: newUsersLastMonth,
       usabilityScore: usabilityScore,
-      status: realDataFetched ? 'REAL_DATA_FROM_AMPLITUDE' : 'CONNECTION_ISSUE_USING_FALLBACK',
+      status: realDataFetched ? 'REAL_DATA_FROM_AMPLITUDE' : 'CONNECTION_ERROR_NO_FALLBACK',
       
       insights: insights,
       
       conversionRates: {
-        registration_to_kyc: totalActiveUsers > 0 ? (newUsersLastMonth / totalActiveUsers * 0.78) : 0.68,
-        kyc_to_first_transfer: totalActiveUsers > 0 ? (newUsersLastMonth / totalActiveUsers * 0.45) : 0.45,
-        first_to_repeat_transfer: totalActiveUsers > 0 ? (totalActiveUsers * 0.32 / totalActiveUsers) : 0.32
+        registration_to_kyc: totalActiveUsers > 0 ? (newUsersLastMonth / totalActiveUsers * 0.78) : 0,
+        kyc_to_first_transfer: totalActiveUsers > 0 ? (newUsersLastMonth / totalActiveUsers * 0.45) : 0,
+        first_to_repeat_transfer: totalActiveUsers > 0 ? (totalActiveUsers * 0.32 / totalActiveUsers) : 0
       },
       
       averageTimeInStages: {
-        registration: 2.8,
-        kyc_completion: totalActiveUsers > 1000 ? 8.5 : 15.2,
-        document_upload: 6.2,
-        first_transfer: totalActiveUsers > 5000 ? 12.3 : 25.8
+        registration: totalActiveUsers > 0 ? 2.8 : 0,
+        kyc_completion: totalActiveUsers > 1000 ? 8.5 : 0,
+        document_upload: totalActiveUsers > 0 ? 6.2 : 0,
+        first_transfer: totalActiveUsers > 5000 ? 12.3 : 0
       },
       
       churnPredictions: {
         high_risk_users: Math.round(totalActiveUsers * 0.12),
-        predicted_churn_rate: totalActiveUsers > 10000 ? 0.28 : 0.45,
+        predicted_churn_rate: totalActiveUsers > 10000 ? 0.28 : 0,
         total_analyzed_users: totalActiveUsers,
-        top_churn_reasons: [
+        top_churn_reasons: totalActiveUsers > 0 ? [
           'Inactividad > 30 días',
           'Fallos en transacciones',
           'Experiencia de onboarding deficiente'
-        ],
-        churn_prevention_actions: [
+        ] : ['No hay datos disponibles'],
+        churn_prevention_actions: totalActiveUsers > 0 ? [
           'Campaña de re-engagement automática',
           'Mejora de UX basada en datos reales',
           'Soporte proactivo para usuarios de alto valor'
-        ]
+        ] : ['Establecer conexión con Amplitude']
       },
 
-      dataSource: realDataFetched ? 'AMPLITUDE_API' : 'FALLBACK_DATA',
+      dataSource: realDataFetched ? 'AMPLITUDE_API' : 'NO_CONNECTION',
       fetchedAt: new Date().toISOString(),
       apiCallsSuccessful: realDataFetched
     }
@@ -326,52 +314,52 @@ serve(async (req) => {
   } catch (error) {
     console.error('❌ Critical error in Amplitude function:', error)
     
-    // Return fallback data even on critical errors
-    const fallbackResponse = {
-      totalActiveUsers: 15420,
-      monthlyActiveUsers: 12850,
-      newUsersLastMonth: 2340,
-      usabilityScore: 78,
-      status: 'FUNCTION_ERROR_USING_FALLBACK',
+    // Return error response - no fake data
+    const errorResponse = {
+      totalActiveUsers: 0,
+      monthlyActiveUsers: 0,
+      newUsersLastMonth: 0,
+      usabilityScore: 0,
+      status: 'FUNCTION_ERROR',
       insights: [{
         insight_type: 'configuration' as const,
-        title: '❌ Error en Función de Amplitude',
-        description: `Error del sistema: ${error.message}. Mostrando datos de ejemplo mientras se resuelve.`,
+        title: '❌ Error Crítico del Sistema',
+        description: `Error del sistema: ${error.message}. No se pueden mostrar datos hasta resolver el problema.`,
         impact_score: 100,
         affected_users: 0,
         stage: 'configuration',
         recommended_actions: [
           'Revisar logs de la función edge',
           'Verificar configuración de Supabase',
-          'Contactar soporte si el problema persiste'
+          'Contactar soporte técnico'
         ],
         created_at: new Date().toISOString()
       }],
       conversionRates: {
-        registration_to_kyc: 0.68,
-        kyc_to_first_transfer: 0.45,
-        first_to_repeat_transfer: 0.32
+        registration_to_kyc: 0,
+        kyc_to_first_transfer: 0,
+        first_to_repeat_transfer: 0
       },
       averageTimeInStages: {
-        registration: 2.8,
-        kyc_completion: 8.5,
-        document_upload: 6.2,
-        first_transfer: 12.3
+        registration: 0,
+        kyc_completion: 0,
+        document_upload: 0,
+        first_transfer: 0
       },
       churnPredictions: {
-        high_risk_users: 1850,
-        predicted_churn_rate: 0.28,
-        total_analyzed_users: 15420,
-        top_churn_reasons: ['Error del sistema', 'Verificar configuración'],
+        high_risk_users: 0,
+        predicted_churn_rate: 0,
+        total_analyzed_users: 0,
+        top_churn_reasons: ['Error del sistema'],
         churn_prevention_actions: ['Resolver error técnico']
       },
-      dataSource: 'ERROR_FALLBACK',
+      dataSource: 'ERROR',
       fetchedAt: new Date().toISOString(),
       apiCallsSuccessful: false
     }
     
-    return new Response(JSON.stringify(fallbackResponse), {
-      status: 200, // Return 200 to avoid frontend errors
+    return new Response(JSON.stringify(errorResponse), {
+      status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
   }
