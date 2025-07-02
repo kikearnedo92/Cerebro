@@ -11,6 +11,20 @@ interface UsabilityMetricsProps {
 export const UsabilityMetrics: React.FC<UsabilityMetricsProps> = ({ data }) => {
   const isRealData = data?.status === 'REAL_DATA_FROM_AMPLITUDE'
 
+  const getUsabilityScoreColor = (): 'green' | 'orange' | 'red' => {
+    if (!data?.usabilityScore) return 'orange'
+    if (data.usabilityScore > 75) return 'green'
+    if (data.usabilityScore > 50) return 'orange'
+    return 'red'
+  }
+
+  const getKycTimeColor = (): 'green' | 'orange' | 'red' => {
+    if (!data?.averageTimeInStages.kyc_completion) return 'green'
+    if (data.averageTimeInStages.kyc_completion > 10) return 'red'
+    if (data.averageTimeInStages.kyc_completion > 5) return 'orange'
+    return 'green'
+  }
+
   const metrics = [
     {
       title: 'Usuarios Activos Totales',
@@ -50,7 +64,7 @@ export const UsabilityMetrics: React.FC<UsabilityMetricsProps> = ({ data }) => {
       value: `${data?.usabilityScore || 0}/100`,
       description: 'Índice compuesto que evalúa facilidad de uso, tiempo en tareas críticas y tasa de éxito. Basado en métricas de UX estándar.',
       icon: CheckCircle,
-      color: data?.usabilityScore && data.usabilityScore > 75 ? 'green' : 'orange',
+      color: getUsabilityScoreColor(),
       trend: {
         value: '+3pts',
         direction: 'up' as const
@@ -83,7 +97,7 @@ export const UsabilityMetrics: React.FC<UsabilityMetricsProps> = ({ data }) => {
       value: `${data?.averageTimeInStages.kyc_completion || 0} min`,
       description: 'Tiempo promedio para completar verificación de identidad. Tiempos altos indican fricción en el proceso.',
       icon: Clock,
-      color: data?.averageTimeInStages.kyc_completion && data.averageTimeInStages.kyc_completion > 10 ? 'red' : 'green',
+      color: getKycTimeColor(),
       trend: {
         value: '-15%',
         direction: 'up' as const
