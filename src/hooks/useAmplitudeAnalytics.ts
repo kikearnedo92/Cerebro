@@ -63,39 +63,66 @@ export const useAmplitudeAnalytics = () => {
       })
 
       if (amplitudeError) {
-        throw new Error(amplitudeError.message)
+        console.error('❌ Supabase function error:', amplitudeError)
+        throw new Error(`Error de función: ${amplitudeError.message}`)
       }
 
       if (!amplitudeData) {
-        throw new Error('No data received from Amplitude')
+        throw new Error('No se recibieron datos de la función')
       }
 
-      console.log('✅ REAL Amplitude data received:', amplitudeData)
+      console.log('✅ Data received from function:', amplitudeData)
       setData(amplitudeData)
       
-      // Show status toast
-      if (amplitudeData.status === 'REAL_DATA_FROM_AMPLITUDE') {
-        toast({
+      // Show appropriate status message based on data source
+      const statusMessages = {
+        'REAL_DATA_FROM_AMPLITUDE': {
           title: "✅ Datos Reales Cargados",
           description: `${amplitudeData.totalActiveUsers?.toLocaleString()} usuarios activos desde Amplitude`,
-        })
-      } else {
-        toast({
+          variant: "default" as const
+        },
+        'MISSING_API_KEYS': {
+          title: "⚠️ Configurar API Keys",
+          description: "Configura las credenciales de Amplitude para obtener datos reales",
+          variant: "destructive" as const
+        },
+        'CONNECTION_ISSUE_USING_FALLBACK': {
           title: "⚠️ Problema de Conexión",
-          description: "Verifica las API keys de Amplitude en configuración",
+          description: "Usando datos de ejemplo. Verifica la conectividad con Amplitude",
+          variant: "destructive" as const
+        },
+        'FUNCTION_ERROR_USING_FALLBACK': {
+          title: "❌ Error del Sistema",
+          description: "Error en la función. Mostrando datos de ejemplo",
+          variant: "destructive" as const
+        }
+      }
+
+      const statusInfo = statusMessages[amplitudeData.status as keyof typeof statusMessages] || {
+        title: "📊 Datos Cargados",
+        description: "Dashboard actualizado",
+        variant: "default" as const
+      }
+
+      toast({
+        title: statusInfo.title,
+        description: statusInfo.description,
+        variant: statusInfo.variant
+      })
+      
+    } catch (err) {
+      console.error('❌ Error fetching Amplitude data:', err)
+      const errorMessage = err instanceof Error ? err.message : 'Error desconocido de conexión'
+      setError(errorMessage)
+      
+      // Don't show error toast if we're in development or if this is a network issue
+      if (process.env.NODE_ENV !== 'development') {
+        toast({
+          title: "❌ Error de Amplitude",
+          description: `No se pudieron cargar los datos: ${errorMessage}`,
           variant: "destructive"
         })
       }
-      
-    } catch (err) {
-      console.error('❌ Error fetching REAL Amplitude data:', err)
-      const errorMessage = err instanceof Error ? err.message : 'Error desconocido'
-      setError(errorMessage)
-      toast({
-        title: "❌ Error de Amplitude",
-        description: `No se pudieron cargar los datos reales: ${errorMessage}`,
-        variant: "destructive"
-      })
     } finally {
       setLoading(false)
     }
@@ -108,14 +135,14 @@ export const useAmplitudeAnalytics = () => {
       
       toast({
         title: "🔄 Datos Actualizados",
-        description: "Datos reales de Amplitude actualizados exitosamente"
+        description: "Dashboard actualizado con los últimos datos disponibles"
       })
       
     } catch (err) {
       console.error('❌ Error refreshing Amplitude data:', err)
       toast({
         title: "❌ Error de actualización",
-        description: "No se pudieron actualizar los datos de Amplitude",
+        description: "No se pudieron actualizar los datos. Intenta de nuevo.",
         variant: "destructive"
       })
     }
@@ -128,7 +155,7 @@ export const useAmplitudeAnalytics = () => {
   }
 
   useEffect(() => {
-    console.log('🚀 Loading REAL Amplitude analytics on mount...')
+    console.log('🚀 Loading Amplitude analytics on component mount...')
     fetchAmplitudeData()
   }, [])
 
