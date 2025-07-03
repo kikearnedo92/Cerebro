@@ -1,7 +1,7 @@
 
 import React from 'react'
 import { Card, CardContent } from '@/components/ui/card'
-import { CheckCircle, AlertCircle, Wifi, WifiOff, XCircle } from 'lucide-react'
+import { CheckCircle, AlertCircle, Wifi, WifiOff, XCircle, Database } from 'lucide-react'
 import { AmplitudeDashboardData } from '@/hooks/useAmplitudeAnalytics'
 
 interface DataStatusCardProps {
@@ -34,26 +34,33 @@ export const DataStatusCard: React.FC<DataStatusCardProps> = ({
           bgColor: 'border-l-green-500 bg-green-50',
           statusText: '✅ Datos REALES de Amplitude'
         }
-      case 'MISSING_API_KEYS':
+      case 'MOCK_DATA_NO_KEYS':
         return {
           icon: WifiOff,
-          color: 'text-red-600',
-          bgColor: 'border-l-red-500 bg-red-50',
-          statusText: '❌ Faltan API Keys'
+          color: 'text-orange-600',
+          bgColor: 'border-l-orange-500 bg-orange-50',
+          statusText: '⚙️ Configurar API Keys'
         }
-      case 'CONNECTION_ERROR_NO_FALLBACK':
+      case 'DEMO_DATA_API_ISSUES':
         return {
-          icon: XCircle,
-          color: 'text-red-600',
-          bgColor: 'border-l-red-500 bg-red-50',
-          statusText: '❌ Error de Conexión'
+          icon: Database,
+          color: 'text-blue-600',
+          bgColor: 'border-l-blue-500 bg-blue-50',
+          statusText: '📊 Datos de Demostración'
         }
-      case 'FUNCTION_ERROR':
+      case 'FALLBACK_DATA':
         return {
           icon: AlertCircle,
-          color: 'text-red-600',
-          bgColor: 'border-l-red-500 bg-red-50',
-          statusText: '❌ Error del Sistema'
+          color: 'text-yellow-600',
+          bgColor: 'border-l-yellow-500 bg-yellow-50',
+          statusText: '⚠️ Datos de Respaldo'
+        }
+      case 'PARTIAL_CONNECTION':
+        return {
+          icon: Wifi,
+          color: 'text-blue-600',
+          bgColor: 'border-l-blue-500 bg-blue-50',
+          statusText: '🔗 Conexión Parcial'
         }
       default:
         return {
@@ -86,27 +93,33 @@ export const DataStatusCard: React.FC<DataStatusCardProps> = ({
             </div>
             
             {/* Show explanation based on status */}
-            {data?.status === 'MISSING_API_KEYS' && (
-              <p className="text-sm text-red-700 mt-1">
+            {data?.status === 'MOCK_DATA_NO_KEYS' && (
+              <p className="text-sm text-orange-700 mt-1">
                 Configura AMPLITUDE_API_KEY y AMPLITUDE_SECRET_KEY para obtener datos reales
               </p>
             )}
             
-            {data?.status === 'CONNECTION_ERROR_NO_FALLBACK' && (
-              <p className="text-sm text-red-700 mt-1">
-                No se pudo conectar a Amplitude. Verifica las credenciales y conectividad.
+            {data?.status === 'DEMO_DATA_API_ISSUES' && (
+              <p className="text-sm text-blue-700 mt-1">
+                Mostrando datos de demostración realistas mientras se resuelve la conexión con Amplitude
               </p>
             )}
             
-            {data?.status === 'FUNCTION_ERROR' && (
-              <p className="text-sm text-red-700 mt-1">
-                Error crítico en la función. Revisa los logs para más detalles.
+            {data?.status === 'FALLBACK_DATA' && (
+              <p className="text-sm text-yellow-700 mt-1">
+                Sistema funcionando con datos de respaldo debido a error técnico
               </p>
             )}
 
             {data?.status === 'REAL_DATA_FROM_AMPLITUDE' && (
               <p className="text-sm text-green-700 mt-1">
                 Datos actualizados directamente desde tu proyecto de Amplitude
+              </p>
+            )}
+
+            {data?.status === 'PARTIAL_CONNECTION' && (
+              <p className="text-sm text-blue-700 mt-1">
+                Conexión establecida pero datos limitados disponibles
               </p>
             )}
 
@@ -117,7 +130,7 @@ export const DataStatusCard: React.FC<DataStatusCardProps> = ({
                     {(data?.totalActiveUsers || 0).toLocaleString()}
                   </p>
                   <p className="text-sm text-gray-600">
-                    Usuarios Activos {data?.status === 'REAL_DATA_FROM_AMPLITUDE' ? '(REAL)' : '(SIN DATOS)'}
+                    Usuarios Activos {data?.status === 'REAL_DATA_FROM_AMPLITUDE' ? '(REAL)' : '(DEMO)'}
                   </p>
                 </div>
                 <div>
@@ -125,7 +138,7 @@ export const DataStatusCard: React.FC<DataStatusCardProps> = ({
                     {(data?.newUsersLastMonth || 0).toLocaleString()}
                   </p>
                   <p className="text-sm text-gray-600">
-                    Nuevos Usuarios {data?.status === 'REAL_DATA_FROM_AMPLITUDE' ? '(REAL)' : '(SIN DATOS)'}
+                    Nuevos Usuarios {data?.status === 'REAL_DATA_FROM_AMPLITUDE' ? '(REAL)' : '(DEMO)'}
                   </p>
                 </div>
                 <div>
@@ -141,7 +154,7 @@ export const DataStatusCard: React.FC<DataStatusCardProps> = ({
                   ⚠️ No hay datos disponibles para mostrar
                 </p>
                 <p className="text-xs text-yellow-700 mt-1">
-                  Configura correctamente la conexión con Amplitude para ver métricas reales
+                  El sistema está funcionando pero necesita configuración adicional
                 </p>
               </div>
             )}
