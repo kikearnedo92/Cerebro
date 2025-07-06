@@ -42,18 +42,43 @@ export interface AmplitudeDashboardData {
   dataSource?: string
   fetchedAt?: string
   apiCallsSuccessful?: boolean
+  errorDetails?: any
+}
+
+interface ErrorLog {
+  timestamp: string
+  level: 'error' | 'warning' | 'info'
+  message: string
+  details?: any
 }
 
 export const useAmplitudeAnalytics = () => {
   const [data, setData] = useState<AmplitudeDashboardData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [errorLogs, setErrorLogs] = useState<ErrorLog[]>([])
+
+  const addErrorLog = (level: 'error' | 'warning' | 'info', message: string, details?: any) => {
+    const newLog: ErrorLog = {
+      timestamp: new Date().toISOString(),
+      level,
+      message,
+      details
+    }
+    setErrorLogs(prev => [newLog, ...prev].slice(0, 10)) // Keep only last 10 errors
+  }
+
+  const clearErrorLogs = () => {
+    setErrorLogs([])
+  }
 
   const fetchAmplitudeData = async (timeframe: string = '30d') => {
     try {
       setLoading(true)
       setError(null)
       console.log('📊 Fetching REAL Amplitude analytics data...')
+      
+      addErrorLog('info', 'Iniciando conexión con Amplitude...', { timeframe })
 
       const { data: amplitudeData, error: amplitudeError } = await supabase.functions.invoke('amplitude-analytics', {
         body: {
@@ -64,29 +89,44 @@ export const useAmplitudeAnalytics = () => {
 
       if (amplitudeError) {
         console.error('❌ Supabase function error:', amplitudeError)
+        addErrorLog('error', 'Error en función Supabase', amplitudeError)
         throw new Error(`Error de función: ${amplitudeError.message}`)
       }
 
       if (!amplitudeData) {
+        addErrorLog('error', 'No se recibieron datos de la función')
         throw new Error('No se recibieron datos de la función')
       }
 
       console.log('✅ Data received from function:', amplitudeData)
       setData(amplitudeData)
       
+      // Log the actual status and connection details
+      addErrorLog('info', `Estado de conexión: ${amplitudeData.status}`, {
+        status: amplitudeData.status,
+        dataSource: amplitudeData.dataSource,
+        apiCallsSuccessful: amplitudeData.apiCallsSuccessful,
+        errorDetails: amplitudeData.errorDetails
+      })
+
+      // Show specific error details if available
+      if (amplitudeData.errorDetails) {
+        addErrorLog('error', 'Detalles del error de Amplitude', amplitudeData.errorDetails)
+      }
+
       // Show status message based on connection status
       const statusMessages: Record<string, { title: string; description: string; variant: "default" | "destructive" }> = {
-        'MISSING_API_KEYS': {
+        'MISSING_CREDENTIALS': {
           title: "⚠️ Configurar API Keys",
           description: "Configura las credenciales de Amplitude para obtener datos reales",
           variant: "destructive"
         },
-        'CONNECTION_ERROR_NO_FALLBACK': {
-          title: "❌ Error de Conexión",
-          description: "No se pudo conectar a Amplitude. Verifica credenciales y conectividad.",
+        'API_KEYS_VALID_NO_DATA': {
+          title: "🔧 API Keys Válidos - Sin Datos",
+          description: "Credenciales válidas pero sin acceso a datos. Verifica permisos en Amplitude",
           variant: "destructive"
         },
-        'FUNCTION_ERROR': {
+        'SYSTEM_ERROR': {
           title: "❌ Error del Sistema",
           description: "Error crítico en la función. Revisa los logs de la aplicación.",
           variant: "destructive"
@@ -113,6 +153,11 @@ export const useAmplitudeAnalytics = () => {
       const errorMessage = err instanceof Error ? err.message : 'Error desconocido de conexión'
       setError(errorMessage)
       
+      addErrorLog('error', 'Error general de conexión', {
+        error: errorMessage,
+        stack: err instanceof Error ? err.stack : undefined
+      })
+      
       toast({
         title: "❌ Error de Amplitude",
         description: `No se pudieron cargar los datos: ${errorMessage}`,
@@ -126,6 +171,7 @@ export const useAmplitudeAnalytics = () => {
   const syncAmplitudeEvents = async () => {
     try {
       console.log('🔄 Refreshing REAL Amplitude data...')
+      addErrorLog('info', 'Sincronizando datos de Amplitude...')
       await fetchAmplitudeData()
       
       if (data?.status === 'REAL_DATA_FROM_AMPLITUDE') {
@@ -133,10 +179,12 @@ export const useAmplitudeAnalytics = () => {
           title: "🔄 Datos Actualizados",
           description: "Dashboard actualizado con los últimos datos reales de Amplitude"
         })
+        addErrorLog('info', 'Datos actualizados exitosamente')
       }
       
     } catch (err) {
       console.error('❌ Error refreshing Amplitude data:', err)
+      addErrorLog('error', 'Error al sincronizar datos', err)
       toast({
         title: "❌ Error de actualización",
         description: "No se pudieron actualizar los datos. Intenta de nuevo.",
@@ -160,6 +208,8 @@ export const useAmplitudeAnalytics = () => {
     data,
     loading,
     error,
+    errorLogs,
+    clearErrorLogs,
     refetch: fetchAmplitudeData,
     syncAmplitudeEvents,
     getHighestImpactInsights

@@ -13,6 +13,7 @@ import { LoadingState } from './LoadingState'
 import { ErrorState } from './ErrorState'
 import { UsabilityMetrics } from './UsabilityMetrics'
 import { UsabilityInsights } from './UsabilityInsights'
+import { ErrorConsole } from './ErrorConsole'
 
 export const RetornaInsightsDashboard = () => {
   const [selectedPeriod, setSelectedPeriod] = useState('30d')
@@ -25,6 +26,8 @@ export const RetornaInsightsDashboard = () => {
     data, 
     loading, 
     error, 
+    errorLogs,
+    clearErrorLogs,
     refetch, 
     syncAmplitudeEvents 
   } = useAmplitudeAnalytics()
@@ -195,6 +198,12 @@ export const RetornaInsightsDashboard = () => {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Error Console - Visible on mobile */}
+      <ErrorConsole 
+        errors={errorLogs} 
+        onClear={clearErrorLogs}
+      />
     </div>
   )
 }
