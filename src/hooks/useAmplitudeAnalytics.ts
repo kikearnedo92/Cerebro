@@ -12,6 +12,15 @@ export interface AmplitudeInsight {
   stage: string
   recommended_actions: string[]
   created_at: string
+  metadata?: {
+    churn_probability?: string
+    days_since_last_transfer?: number
+    typical_profile?: string
+    drop_off_rate?: number
+    avg_time_stuck?: string
+    most_common_errors?: string[]
+    [key: string]: any
+  }
 }
 
 export interface AmplitudeDashboardData {

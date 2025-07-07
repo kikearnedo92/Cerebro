@@ -71,7 +71,7 @@ export const UsabilityInsights: React.FC<UsabilityInsightsProps> = ({ insights }
                   {insight.description}
                 </p>
                 
-                <div className="space-y-2">
+                <div className="space-y-3">
                   <div className="flex items-center gap-2 text-xs text-gray-500">
                     <Users className="w-3 h-3" />
                     <span>{insight.affected_users.toLocaleString()} usuarios afectados</span>
@@ -79,10 +79,38 @@ export const UsabilityInsights: React.FC<UsabilityInsightsProps> = ({ insights }
                     <span>Etapa: {insight.stage}</span>
                   </div>
                   
+                  {/* Mostrar detalles específicos para churn */}
+                  {insight.insight_type === 'churn_prediction' && insight.metadata && (
+                    <div className="bg-orange-50 border border-orange-200 rounded p-2 text-xs">
+                      <p className="font-medium text-orange-800 mb-1">Detalles del Riesgo:</p>
+                      <p className="text-orange-700">
+                        Probabilidad: {insight.metadata.churn_probability} | 
+                        Días sin actividad: {insight.metadata.days_since_last_transfer} | 
+                        Perfil típico: {insight.metadata.typical_profile}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Mostrar detalles específicos para fricción */}
+                  {insight.insight_type === 'friction' && insight.metadata && (
+                    <div className="bg-red-50 border border-red-200 rounded p-2 text-xs">
+                      <p className="font-medium text-red-800 mb-1">Análisis de Fricción:</p>
+                      <p className="text-red-700">
+                        Tasa de abandono: {insight.metadata.drop_off_rate}% | 
+                        Tiempo promedio: {insight.metadata.avg_time_stuck}
+                      </p>
+                      {insight.metadata.most_common_errors && (
+                        <p className="text-red-600 mt-1">
+                          Errores comunes: {insight.metadata.most_common_errors.join(', ')}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  
                   <div className="space-y-1">
                     <p className="text-xs font-medium text-gray-700">Acciones recomendadas:</p>
                     <ul className="text-xs text-gray-600 space-y-1">
-                      {insight.recommended_actions.slice(0, 2).map((action, actionIndex) => (
+                      {insight.recommended_actions.slice(0, 3).map((action, actionIndex) => (
                         <li key={actionIndex} className="flex items-start gap-1">
                           <span className="text-blue-500">•</span>
                           <span>{action}</span>
