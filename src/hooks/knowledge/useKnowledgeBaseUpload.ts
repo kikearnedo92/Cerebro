@@ -52,8 +52,9 @@ export const useKnowledgeBaseUpload = (
       // Process file with REAL edge function
       const { data: processData, error: processError } = await supabase.functions.invoke('process-document', {
         body: {
-          fileUrl: uploadData.path,
+          fileUrl: `${supabase.storage.from('retorna-files').getPublicUrl(uploadData.path).data.publicUrl}`,
           fileName: file.name,
+          fileType: file.type,
           title: metadata.title || file.name.replace(/\.[^/.]+$/, ""),
           project: metadata.project,
           tags: metadata.tags,
@@ -66,16 +67,18 @@ export const useKnowledgeBaseUpload = (
         throw new Error(`Error procesando documento: ${processError.message}`)
       }
 
-      const newItem = processData.item
-      setItems(prev => [newItem, ...prev])
-
       console.log('✅ REAL file uploaded and processed successfully')
+      console.log('Process response:', processData)
+      
+      // Refresh the knowledge base data
+      window.location.reload() // Simple refresh for now, will improve with real-time updates
+      
       toast({
-        title: "Archivo subido exitosamente",
-        description: `${file.name} ha sido procesado y agregado a la base de conocimiento (${processData.extractedLength} caracteres extraídos)`
+        title: "🚀 Archivo Procesado",
+        description: `${file.name} agregado a Memory con ${processData.contentLength} caracteres extraídos`
       })
 
-      return newItem
+      return processData
 
     } catch (error) {
       console.error('Upload error:', error)

@@ -1,6 +1,6 @@
 
 import React from 'react'
-import KnowledgeBaseManager from '@/components/admin/KnowledgeBaseManager'
+import KnowledgeBaseManager from '@/components/knowledge/KnowledgeBaseManager'
 
 const KnowledgeBasePage = () => {
   return <KnowledgeBaseManager />
