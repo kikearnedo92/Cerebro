@@ -27,6 +27,7 @@ import { useEnhancedChat } from '@/hooks/useEnhancedChat'
 import { useAuth } from '@/hooks/useAuth'
 import { useKnowledgeBase } from '@/hooks/useKnowledgeBase'
 import { toast } from '@/hooks/use-toast'
+import FileUpload from '@/components/admin/FileUpload'
 
 const EnhancedChatInterface = () => {
   const [input, setInput] = useState('')
@@ -146,10 +147,10 @@ const EnhancedChatInterface = () => {
   }
 
   return (
-    <div className="flex h-[800px] bg-background border rounded-lg shadow-lg overflow-hidden">
+    <div className="flex h-screen bg-background">
       {/* Sidebar de conversaciones */}
-      <div className="w-80 border-r bg-muted/20">
-        <div className="p-4 border-b bg-background">
+      <div className="w-80 border-r bg-muted/20 flex flex-col">
+        <div className="p-4 border-b bg-background flex-shrink-0">
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-semibold text-lg flex items-center gap-2">
               <Brain className="w-5 h-5 text-primary" />
@@ -192,7 +193,16 @@ const EnhancedChatInterface = () => {
               <div className="space-y-2">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-sm font-medium text-foreground">Base de Conocimiento</h3>
-                  <span className="text-xs text-muted-foreground">{knowledgeItems.length} docs</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">{knowledgeItems.length} docs</span>
+                    <FileUpload 
+                      maxFiles={5}
+                      onUploadComplete={() => {
+                        // Refresh knowledge base after upload
+                        window.location.reload()
+                      }}
+                    />
+                  </div>
                 </div>
                 {knowledgeItems.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground">
@@ -307,7 +317,7 @@ const EnhancedChatInterface = () => {
       {/* Chat principal */}
       <div className="flex-1 flex flex-col">
         {/* Header del chat */}
-        <div className="p-4 border-b bg-background">
+        <div className="p-4 border-b bg-background flex-shrink-0">
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-xl font-bold flex items-center gap-2">
@@ -342,107 +352,113 @@ const EnhancedChatInterface = () => {
           </div>
         </div>
 
-        {/* Área de mensajes */}
-        <ScrollArea className="flex-1 p-4">
-          <div className="space-y-4">
-            {!currentConversation || currentConversation.messages.length === 0 ? (
-              <div className="text-center py-12">
-                <Brain className="w-16 h-16 mx-auto mb-4 text-primary opacity-50" />
-                <h3 className="text-lg font-medium text-foreground mb-2">
-                  ¡Hola! Soy CEREBRO
-                </h3>
-                <p className="text-muted-foreground mb-4 max-w-md mx-auto">
-                  Tu plataforma de conocimiento inteligente. Pregúntame sobre procesos de Retorna, 
-                  políticas por país, ATC, compliance, o cualquier tema de la base de conocimiento.
-                </p>
-                <div className="flex flex-wrap gap-2 justify-center">
-                  <Badge variant="secondary">🇨🇱 Chile</Badge>
-                  <Badge variant="secondary">🇨🇴 Colombia</Badge>
-                  <Badge variant="secondary">🇵🇪 Perú</Badge>
-                  <Badge variant="secondary">🇪🇸 España</Badge>
-                  <Badge variant="secondary">📞 ATC</Badge>
-                  <Badge variant="secondary">📋 Compliance</Badge>
+        {/* Área de mensajes - Esta es la parte crítica para que los mensajes sean visibles */}
+        <div className="flex-1 overflow-hidden flex flex-col">
+          <ScrollArea className="flex-1 p-4">
+            <div className="space-y-4 min-h-full">
+              {!currentConversation || currentConversation.messages.length === 0 ? (
+                <div className="flex items-center justify-center h-full min-h-[400px]">
+                  <div className="text-center">
+                    <Brain className="w-16 h-16 mx-auto mb-4 text-primary opacity-50" />
+                    <h3 className="text-lg font-medium text-foreground mb-2">
+                      ¡Hola! Soy CEREBRO
+                    </h3>
+                    <p className="text-muted-foreground mb-4 max-w-md mx-auto">
+                      Tu plataforma de conocimiento inteligente. Pregúntame sobre procesos de Retorna, 
+                      políticas por país, ATC, compliance, o cualquier tema de la base de conocimiento.
+                    </p>
+                    <div className="flex flex-wrap gap-2 justify-center">
+                      <Badge variant="secondary">🇨🇱 Chile</Badge>
+                      <Badge variant="secondary">🇨🇴 Colombia</Badge>
+                      <Badge variant="secondary">🇵🇪 Perú</Badge>
+                      <Badge variant="secondary">🇪🇸 España</Badge>
+                      <Badge variant="secondary">📞 ATC</Badge>
+                      <Badge variant="secondary">📋 Compliance</Badge>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ) : (
-              currentConversation.messages.map((message) => (
-                <div
-                  key={message.id}
-                  className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                >
-                  <div
-                    className={`max-w-[80%] p-4 rounded-lg ${
-                      message.role === 'user'
-                        ? 'bg-primary text-primary-foreground'
-                        : 'bg-muted'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium">
-                          {message.role === 'user' ? 'Tú' : 'CEREBRO'}
-                        </span>
-                        {message.role === 'assistant' && message.knowledgeUsed && message.knowledgeUsed.length > 0 && (
-                          <Badge variant="outline" className="text-xs">
-                            <Zap className="w-3 h-3 mr-1" />
-                            {message.knowledgeUsed.length} fuentes
-                          </Badge>
-                        )}
-                      </div>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleCopyMessage(message.content)}
-                        className="opacity-0 group-hover:opacity-100 transition-opacity"
+              ) : (
+                <>
+                  {currentConversation.messages.map((message) => (
+                    <div
+                      key={message.id}
+                      className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'} group`}
+                    >
+                      <div
+                        className={`max-w-[80%] p-4 rounded-lg ${
+                          message.role === 'user'
+                            ? 'bg-primary text-primary-foreground'
+                            : 'bg-muted'
+                        }`}
                       >
-                        <Copy className="w-3 h-3" />
-                      </Button>
-                    </div>
-                    
-                    <div className="text-sm">
-                      {formatMessage(message.content)}
-                    </div>
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium">
+                              {message.role === 'user' ? 'Tú' : 'CEREBRO'}
+                            </span>
+                            {message.role === 'assistant' && message.knowledgeUsed && message.knowledgeUsed.length > 0 && (
+                              <Badge variant="outline" className="text-xs">
+                                <Zap className="w-3 h-3 mr-1" />
+                                {message.knowledgeUsed.length} fuentes
+                              </Badge>
+                            )}
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleCopyMessage(message.content)}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <Copy className="w-3 h-3" />
+                          </Button>
+                        </div>
+                        
+                        <div className="text-sm whitespace-pre-wrap">
+                          {formatMessage(message.content)}
+                        </div>
 
-                    {/* Mostrar fuentes si las hay */}
-                    {message.sources && message.sources.length > 0 && (
-                      <div className="mt-3 pt-3 border-t border-border/50">
-                        <p className="text-xs text-muted-foreground mb-2">📚 Fuentes consultadas:</p>
-                        <div className="space-y-1">
-                          {message.sources.map((source, index) => (
-                            <div key={index} className="text-xs text-muted-foreground flex items-center gap-1">
-                              <FileText className="w-3 h-3" />
-                              {source}
+                        {/* Mostrar fuentes si las hay */}
+                        {message.sources && message.sources.length > 0 && (
+                          <div className="mt-3 pt-3 border-t border-border/50">
+                            <p className="text-xs text-muted-foreground mb-2">📚 Fuentes consultadas:</p>
+                            <div className="space-y-1">
+                              {message.sources.map((source, index) => (
+                                <div key={index} className="text-xs text-muted-foreground flex items-center gap-1">
+                                  <FileText className="w-3 h-3" />
+                                  {source}
+                                </div>
+                              ))}
                             </div>
-                          ))}
+                          </div>
+                        )}
+
+                        <div className="text-xs text-muted-foreground mt-2 opacity-70">
+                          {message.timestamp.toLocaleTimeString()}
                         </div>
                       </div>
-                    )}
-
-                    <div className="text-xs text-muted-foreground mt-2 opacity-70">
-                      {message.timestamp.toLocaleTimeString()}
                     </div>
-                  </div>
-                </div>
-              ))
-            )}
+                  ))}
 
-            {isLoading && (
-              <div className="flex justify-start">
-                <div className="bg-muted p-4 rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
-                    <span className="text-sm text-muted-foreground">CEREBRO está pensando...</span>
-                  </div>
-                </div>
-              </div>
-            )}
-            
-            <div ref={messagesEndRef} />
-          </div>
-        </ScrollArea>
+                  {isLoading && (
+                    <div className="flex justify-start">
+                      <div className="bg-muted p-4 rounded-lg">
+                        <div className="flex items-center gap-2">
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+                          <span className="text-sm text-muted-foreground">CEREBRO está pensando...</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div ref={messagesEndRef} />
+                </>
+              )}
+            </div>
+          </ScrollArea>
+        </div>
 
-        {/* Input del chat */}
-        <div className="p-4 border-t bg-background">
+        {/* Input del chat - Fijo en la parte inferior */}
+        <div className="p-4 border-t bg-background flex-shrink-0">
           <form onSubmit={handleSubmit} className="flex gap-2">
             <Input
               ref={inputRef}
