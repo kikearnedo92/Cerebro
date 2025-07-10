@@ -25,21 +25,24 @@ import {
 } from 'lucide-react'
 import { useEnhancedChat } from '@/hooks/useEnhancedChat'
 import { useAuth } from '@/hooks/useAuth'
+import { useKnowledgeBase } from '@/hooks/useKnowledgeBase'
 import { toast } from '@/hooks/use-toast'
 
 const EnhancedChatInterface = () => {
   const [input, setInput] = useState('')
   const [selectedImage, setSelectedImage] = useState<string>()
+  const [showKnowledgeBase, setShowKnowledgeBase] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   
   const { user } = useAuth()
+  const { items: knowledgeItems, deleteItem, toggleActive } = useKnowledgeBase()
   const {
     conversations,
     currentConversation,
     isLoading,
     isLoadingConversations,
-    useKnowledgeBase,
+    useKnowledgeBase: knowledgeEnabled,
     setUseKnowledgeBase,
     sendMessage,
     createNewConversation,
@@ -114,22 +117,27 @@ const EnhancedChatInterface = () => {
               <Brain className="w-5 h-5 text-primary" />
               CEREBRO Memory
             </h2>
-            <Button size="sm" onClick={handleNewConversation}>
-              <Plus className="w-4 h-4" />
-            </Button>
+            <div className="flex gap-1">
+              <Button size="sm" variant="ghost" onClick={() => setShowKnowledgeBase(!showKnowledgeBase)}>
+                <BookOpen className="w-4 h-4" />
+              </Button>
+              <Button size="sm" onClick={handleNewConversation}>
+                <Plus className="w-4 h-4" />
+              </Button>
+            </div>
           </div>
           
           {/* Toggle Knowledge Base */}
           <div className="flex items-center space-x-2">
             <Switch
               id="knowledge-base"
-              checked={useKnowledgeBase}
+              checked={knowledgeEnabled}
               onCheckedChange={setUseKnowledgeBase}
             />
             <Label htmlFor="knowledge-base" className="text-sm">
               Usar base de conocimiento
             </Label>
-            {useKnowledgeBase && (
+            {knowledgeEnabled && (
               <Badge variant="outline" className="text-xs">
                 <Sparkles className="w-3 h-3 mr-1" />
                 Activo
@@ -138,52 +146,121 @@ const EnhancedChatInterface = () => {
           </div>
         </div>
 
-        {/* Lista de conversaciones */}
+        {/* Lista de conversaciones o Knowledge Base */}
         <ScrollArea className="flex-1">
           <div className="p-2">
-            {conversations.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                <p className="text-sm">No hay conversaciones</p>
-                <p className="text-xs">Crea una nueva para empezar</p>
+            {showKnowledgeBase ? (
+              // Vista de Knowledge Base
+              <div className="space-y-2">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-medium text-foreground">Base de Conocimiento</h3>
+                  <span className="text-xs text-muted-foreground">{knowledgeItems.length} docs</span>
+                </div>
+                {knowledgeItems.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <FileText className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">No hay documentos</p>
+                    <p className="text-xs">Agrega contenido para empezar</p>
+                  </div>
+                ) : (
+                  knowledgeItems.map((item) => (
+                    <div
+                      key={item.id}
+                      className="p-3 rounded-lg bg-background hover:bg-muted/50 transition-colors group border"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <FileText className="w-3 h-3 text-primary" />
+                            <p className="text-sm font-medium truncate">
+                              {item.title}
+                            </p>
+                          </div>
+                          <p className="text-xs text-muted-foreground mb-1">
+                            Proyecto: {item.project}
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <div className={`w-2 h-2 rounded-full ${item.active ? 'bg-green-500' : 'bg-red-500'}`} />
+                            <span className="text-xs text-muted-foreground">
+                              {item.active ? 'Activo' : 'Inactivo'}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => toggleActive(item.id, !item.active)}
+                            title={item.active ? 'Desactivar' : 'Activar'}
+                          >
+                            {item.active ? (
+                              <XCircle className="w-3 h-3 text-orange-500" />
+                            ) : (
+                              <CheckCircle className="w-3 h-3 text-green-500" />
+                            )}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => deleteItem(item.id)}
+                            title="Eliminar documento"
+                          >
+                            <Trash2 className="w-3 h-3 text-destructive" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             ) : (
-              conversations.map((conversation) => (
-                <div
-                  key={conversation.id}
-                  className={`p-3 rounded-lg cursor-pointer mb-2 transition-colors group ${
-                    currentConversation?.id === conversation.id
-                      ? 'bg-primary/10 border border-primary/20'
-                      : 'bg-background hover:bg-muted/50'
-                  }`}
-                  onClick={() => selectConversation(conversation)}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">
-                        {conversation.title}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {conversation.messages.length} mensajes
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {conversation.updated_at.toLocaleDateString()}
-                      </p>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="opacity-0 group-hover:opacity-100 transition-opacity"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        deleteConversation(conversation.id)
-                      }}
-                    >
-                      <Trash2 className="w-3 h-3 text-destructive" />
-                    </Button>
+              // Vista de Conversaciones
+              <>
+                {conversations.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">No hay conversaciones</p>
+                    <p className="text-xs">Crea una nueva para empezar</p>
                   </div>
-                </div>
-              ))
+                ) : (
+                  conversations.map((conversation) => (
+                    <div
+                      key={conversation.id}
+                      className={`p-3 rounded-lg cursor-pointer mb-2 transition-colors group ${
+                        currentConversation?.id === conversation.id
+                          ? 'bg-primary/10 border border-primary/20'
+                          : 'bg-background hover:bg-muted/50'
+                      }`}
+                      onClick={() => selectConversation(conversation)}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">
+                            {conversation.title}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {conversation.messages.length} mensajes
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {conversation.updated_at.toLocaleDateString()}
+                          </p>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            deleteConversation(conversation.id)
+                          }}
+                        >
+                          <Trash2 className="w-3 h-3 text-destructive" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </>
             )}
           </div>
         </ScrollArea>
@@ -204,7 +281,7 @@ const EnhancedChatInterface = () => {
                   <Target className="w-3 h-3 mr-1" />
                   Demo Ready
                 </Badge>
-                {useKnowledgeBase && (
+                {knowledgeEnabled && (
                   <Badge variant="outline" className="text-xs">
                     <BookOpen className="w-3 h-3 mr-1" />
                     Knowledge Active
@@ -333,7 +410,7 @@ const EnhancedChatInterface = () => {
               ref={inputRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder={useKnowledgeBase ? "Pregunta sobre Retorna, procesos, políticas..." : "Escribe tu mensaje..."}
+              placeholder={knowledgeEnabled ? "Pregunta sobre Retorna, procesos, políticas..." : "Escribe tu mensaje..."}
               disabled={isLoading}
               className="flex-1"
             />
@@ -342,7 +419,7 @@ const EnhancedChatInterface = () => {
             </Button>
           </form>
           
-          {useKnowledgeBase && (
+          {knowledgeEnabled && (
             <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
               <Sparkles className="w-3 h-3" />
               Respuestas enriquecidas con la base de conocimiento de Retorna
