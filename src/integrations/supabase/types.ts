@@ -14,6 +14,113 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_recommendations: {
+        Row: {
+          created_at: string | null
+          created_by_agent: string | null
+          description: string
+          effort_score: number | null
+          expected_impact_percentage: number | null
+          id: string
+          implementation_steps: Json | null
+          priority_score: number | null
+          recommendation_type: string
+          related_insight_id: string | null
+          status: string | null
+          success_metrics: Json | null
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by_agent?: string | null
+          description: string
+          effort_score?: number | null
+          expected_impact_percentage?: number | null
+          id?: string
+          implementation_steps?: Json | null
+          priority_score?: number | null
+          recommendation_type: string
+          related_insight_id?: string | null
+          status?: string | null
+          success_metrics?: Json | null
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by_agent?: string | null
+          description?: string
+          effort_score?: number | null
+          expected_impact_percentage?: number | null
+          id?: string
+          implementation_steps?: Json | null
+          priority_score?: number | null
+          recommendation_type?: string
+          related_insight_id?: string | null
+          status?: string | null
+          success_metrics?: Json | null
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_recommendations_related_insight_id_fkey"
+            columns: ["related_insight_id"]
+            isOneToOne: false
+            referencedRelation: "behavioral_insights"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      behavioral_insights: {
+        Row: {
+          affected_users: number
+          ai_confidence: number | null
+          created_at: string | null
+          description: string
+          id: string
+          impact_score: number
+          insight_type: string
+          metadata: Json | null
+          recommended_actions: Json
+          stage: string
+          status: string | null
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          affected_users?: number
+          ai_confidence?: number | null
+          created_at?: string | null
+          description: string
+          id?: string
+          impact_score: number
+          insight_type: string
+          metadata?: Json | null
+          recommended_actions?: Json
+          stage: string
+          status?: string | null
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          affected_users?: number
+          ai_confidence?: number | null
+          created_at?: string | null
+          description?: string
+          id?: string
+          impact_score?: number
+          insight_type?: string
+          metadata?: Json | null
+          recommended_actions?: Json
+          stage?: string
+          status?: string | null
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       churn_predictions: {
         Row: {
           avg_transfer_amount: number | null
@@ -173,6 +280,45 @@ export type Database = {
           title?: string
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      data_sync_logs: {
+        Row: {
+          agent_notes: string | null
+          discrepancy_detected: boolean | null
+          discrepancy_percentage: number | null
+          id: string
+          reconciled_value: Json
+          reconciliation_method: string | null
+          source_system: string
+          source_value: Json
+          sync_timestamp: string | null
+          sync_type: string
+        }
+        Insert: {
+          agent_notes?: string | null
+          discrepancy_detected?: boolean | null
+          discrepancy_percentage?: number | null
+          id?: string
+          reconciled_value: Json
+          reconciliation_method?: string | null
+          source_system: string
+          source_value: Json
+          sync_timestamp?: string | null
+          sync_type: string
+        }
+        Update: {
+          agent_notes?: string | null
+          discrepancy_detected?: boolean | null
+          discrepancy_percentage?: number | null
+          id?: string
+          reconciled_value?: Json
+          reconciliation_method?: string | null
+          source_system?: string
+          source_value?: Json
+          sync_timestamp?: string | null
+          sync_type?: string
         }
         Relationships: []
       }
@@ -880,6 +1026,51 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      user_behavior_patterns: {
+        Row: {
+          affected_user_count: number | null
+          confidence_score: number | null
+          description: string
+          detection_metadata: Json | null
+          first_detected: string | null
+          frequency_detected: number | null
+          id: string
+          is_active: boolean | null
+          last_detected: string | null
+          pattern_name: string
+          pattern_type: string
+          stage_affected: string
+        }
+        Insert: {
+          affected_user_count?: number | null
+          confidence_score?: number | null
+          description: string
+          detection_metadata?: Json | null
+          first_detected?: string | null
+          frequency_detected?: number | null
+          id?: string
+          is_active?: boolean | null
+          last_detected?: string | null
+          pattern_name: string
+          pattern_type: string
+          stage_affected: string
+        }
+        Update: {
+          affected_user_count?: number | null
+          confidence_score?: number | null
+          description?: string
+          detection_metadata?: Json | null
+          first_detected?: string | null
+          frequency_detected?: number | null
+          id?: string
+          is_active?: boolean | null
+          last_detected?: string | null
+          pattern_name?: string
+          pattern_type?: string
+          stage_affected?: string
+        }
+        Relationships: []
       }
       user_feature_permissions: {
         Row: {
