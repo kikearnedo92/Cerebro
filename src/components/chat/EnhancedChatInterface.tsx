@@ -53,12 +53,16 @@ const EnhancedChatInterface = () => {
 
   // Auto-scroll to bottom cuando hay nuevos mensajes
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' })
+    }
   }, [currentConversation?.messages])
 
   // Focus en input cuando se carga
   useEffect(() => {
-    inputRef.current?.focus()
+    if (inputRef.current) {
+      inputRef.current.focus()
+    }
   }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -79,6 +83,40 @@ const EnhancedChatInterface = () => {
   const handleNewConversation = async () => {
     await createNewConversation()
     inputRef.current?.focus()
+  }
+
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteItem(id)
+      toast({
+        title: "🗑️ Documento Eliminado",
+        description: "Removido de la base de conocimiento"
+      })
+    } catch (error) {
+      console.error('Error deleting item:', error)
+      toast({
+        title: "Error",
+        description: "No se pudo eliminar el documento",
+        variant: "destructive"
+      })
+    }
+  }
+
+  const handleToggleActive = async (id: string, currentActive: boolean) => {
+    try {
+      await toggleActive(id, !currentActive)
+      toast({
+        title: currentActive ? "📴 Documento Desactivado" : "✅ Documento Activado",
+        description: currentActive ? "Ya no se usará en búsquedas" : "Disponible para búsquedas"
+      })
+    } catch (error) {
+      console.error('Error toggling active:', error)
+      toast({
+        title: "Error",
+        description: "No se pudo cambiar el estado",
+        variant: "destructive"
+      })
+    }
   }
 
   const handleCopyMessage = (content: string) => {
@@ -190,7 +228,7 @@ const EnhancedChatInterface = () => {
                           <Button
                             size="sm"
                             variant="ghost"
-                            onClick={() => toggleActive(item.id, !item.active)}
+                            onClick={() => handleToggleActive(item.id, item.active)}
                             title={item.active ? 'Desactivar' : 'Activar'}
                           >
                             {item.active ? (
@@ -202,7 +240,7 @@ const EnhancedChatInterface = () => {
                           <Button
                             size="sm"
                             variant="ghost"
-                            onClick={() => deleteItem(item.id)}
+                            onClick={() => handleDelete(item.id)}
                             title="Eliminar documento"
                           >
                             <Trash2 className="w-3 h-3 text-destructive" />
