@@ -945,6 +945,16 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: string
       }
+      get_knowledge_base_stats: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          total_documents: number
+          active_documents: number
+          total_projects: number
+          total_size_mb: number
+          most_common_tags: string[]
+        }[]
+      }
       halfvec_avg: {
         Args: { "": number[] }
         Returns: unknown
@@ -1020,6 +1030,25 @@ export type Database = {
           chunk_text: string
           similarity: number
           project: string
+        }[]
+      }
+      search_knowledge_semantic: {
+        Args: {
+          query_text: string
+          project_filter?: string
+          active_only?: boolean
+          match_count?: number
+        }
+        Returns: {
+          id: string
+          title: string
+          content: string
+          project: string
+          tags: string[]
+          file_type: string
+          file_url: string
+          created_at: string
+          relevance_score: number
         }[]
       }
       sparsevec_out: {

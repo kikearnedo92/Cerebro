@@ -1,7 +1,7 @@
 
 import React from 'react'
 import { useLocation } from 'react-router-dom'
-import ConversationalChatInterface from '@/components/chat/ConversationalChatInterface'
+import EnhancedChatInterface from '@/components/chat/EnhancedChatInterface'
 import NucleoMemoryInterface from '@/components/chat/NucleoMemoryInterface'
 
 const ChatPage = () => {
@@ -10,7 +10,7 @@ const ChatPage = () => {
 
   console.log('💬 ChatPage - Current path:', location.pathname, 'Is Núcleo:', isNucleo)
 
-  return isNucleo ? <NucleoMemoryInterface /> : <ConversationalChatInterface />
+  return isNucleo ? <NucleoMemoryInterface /> : <EnhancedChatInterface />
 }
 
 export default ChatPage

@@ -6,8 +6,8 @@ const openai = new OpenAI({
   dangerouslyAllowBrowser: true
 })
 
-export const createChatCompletion = async (messages: any[], fileContent?: string) => {
-  const systemPrompt = `Eres CEREBRO, la plataforma de conocimiento inteligente de Retorna (fintech de remesas).
+export const createChatCompletion = async (messages: any[], fileContent?: string, knowledgeContext?: any[]) => {
+  let systemPrompt = `Eres CEREBRO, la plataforma de conocimiento inteligente de Retorna (fintech de remesas).
 
 Tu función es ayudar al equipo interno con información sobre:
 - Atención al cliente y resolución de casos
@@ -32,9 +32,23 @@ INSTRUCCIONES:
 4. Para temas de ATC, sugiere scripts de respuesta cuando sea apropiado
 5. Para research, proporciona contexto y metodología cuando esté disponible
 6. SIEMPRE cita las fuentes cuando uses información específica de documentos
-7. Si la información viene de la base de conocimiento, mencionalo claramente
+7. Si la información viene de la base de conocimiento, mencionalo claramente`
 
-${fileContent ? `\nArchivo adjunto para analizar:\n${fileContent}` : ''}`
+  // Agregar contexto de la base de conocimiento si está disponible
+  if (knowledgeContext && knowledgeContext.length > 0) {
+    systemPrompt += `\n\nCONTEXTO DE LA BASE DE CONOCIMIENTO:
+${knowledgeContext.map((doc, index) => 
+  `\n[DOCUMENTO ${index + 1}] ${doc.title} (Proyecto: ${doc.project})
+Contenido: ${doc.content}
+Fuente: ${doc.source}
+Relevancia: ${Math.round(doc.relevance * 100)}%`
+).join('\n')}`
+  }
+
+  // Agregar archivo adjunto si está disponible
+  if (fileContent) {
+    systemPrompt += `\n\nArchivo adjunto para analizar:\n${fileContent}`
+  }
 
   const chatMessages = [
     { role: 'system', content: systemPrompt },
