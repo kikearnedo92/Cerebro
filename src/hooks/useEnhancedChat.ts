@@ -1,8 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/integrations/supabase/client'
 import { useAuth } from '@/hooks/useAuth'
-import { useKnowledgeBaseSearch } from '@/hooks/knowledge/useKnowledgeBaseSearch'
-import { createChatCompletion } from '@/lib/openai'
 import { toast } from '@/hooks/use-toast'
 
 interface Message {
@@ -29,7 +27,6 @@ export const useEnhancedChat = () => {
   const [isLoadingConversations, setIsLoadingConversations] = useState(true)
   const [useKnowledgeBase, setUseKnowledgeBase] = useState(true)
   const { user } = useAuth()
-  const { searchForContext } = useKnowledgeBaseSearch()
   const abortControllerRef = useRef<AbortController | null>(null)
 
   // Cargar conversaciones del usuario
@@ -69,7 +66,9 @@ export const useEnhancedChat = () => {
             ...conv,
             messages: (messagesData || []).map(msg => ({
               ...msg,
-              timestamp: new Date(msg.timestamp)
+              timestamp: new Date(msg.timestamp),
+              sources: msg.attachments?.knowledge_sources?.map((ks: any) => ks.title) || undefined,
+              knowledgeUsed: msg.attachments?.knowledge_sources || undefined
             })),
             created_at: new Date(conv.created_at),
             updated_at: new Date(conv.updated_at)
@@ -175,95 +174,57 @@ export const useEnhancedChat = () => {
         prev.map(c => c.id === conversation!.id ? updatedConversation : c)
       )
 
-      // Buscar contexto en la base de conocimiento si está habilitado
-      let knowledgeContext: any[] = []
-      if (useKnowledgeBase) {
-        console.log('🧠 Searching knowledge base for context...')
-        knowledgeContext = await searchForContext(content, 3)
-        console.log(`📚 Found ${knowledgeContext.length} relevant documents`)
-      }
-
-      // Preparar mensajes para OpenAI
-      const allMessages = updatedConversation.messages.map(msg => ({
-        role: msg.role,
-        content: msg.content
-      }))
-
-      // Obtener respuesta de OpenAI con contexto
-      const completion = await createChatCompletion(
-        allMessages, 
-        undefined, // fileContent
-        knowledgeContext // knowledge context
-      )
-
-      let aiResponse = ''
+      // Llamar a la edge function chat-ai
+      console.log('🧠 Sending message to CEREBRO chat-ai...')
       
-      // Procesar stream de respuesta
-      for await (const chunk of completion) {
-        if (abortControllerRef.current?.signal.aborted) {
-          throw new Error('Request aborted')
+      const { data, error } = await supabase.functions.invoke('chat-ai', {
+        body: {
+          message: content,
+          useKnowledgeBase,
+          imageData: selectedImage
         }
+      })
 
-        const content = chunk.choices[0]?.delta?.content || ''
-        if (content) {
-          aiResponse += content
-          
-          // Actualizar mensaje AI en tiempo real
-          const aiMessage: Message = {
-            id: 'ai-temp',
-            role: 'assistant',
-            content: aiResponse,
-            timestamp: new Date(),
-            knowledgeUsed: knowledgeContext,
-            sources: knowledgeContext.map(doc => doc.source)
-          }
-
-          setCurrentConversation(prev => {
-            if (!prev) return prev
-            const messages = [...prev.messages]
-            const aiMessageIndex = messages.findIndex(m => m.id === 'ai-temp')
-            
-            if (aiMessageIndex >= 0) {
-              messages[aiMessageIndex] = aiMessage
-            } else {
-              messages.push(aiMessage)
-            }
-
-            return { ...prev, messages }
-          })
-        }
+      if (error) {
+        console.error('Edge function error:', error)
+        throw new Error(`Error en CEREBRO: ${error.message}`)
       }
 
-      // Guardar mensaje final de AI
-      const finalAiMessage: Message = {
+      if (!data) {
+        throw new Error('No se recibió respuesta de CEREBRO')
+      }
+
+      const { response, sources, documentsFound, foundRelevantContent } = data
+      
+      console.log(`✅ CEREBRO response received - Used ${documentsFound || 0} documents`)
+
+      // Crear mensaje del asistente
+      const assistantMessage: Message = {
         id: crypto.randomUUID(),
         role: 'assistant',
-        content: aiResponse,
+        content: response,
         timestamp: new Date(),
-        knowledgeUsed: knowledgeContext,
-        sources: knowledgeContext.map(doc => doc.source)
+        sources: sources?.length > 0 ? sources : undefined,
+        knowledgeUsed: foundRelevantContent ? sources : undefined
       }
 
+      // Guardar mensaje del asistente en la base de datos
       await supabase.from('messages').insert({
         conversation_id: conversation.id,
         role: 'assistant',
-        content: aiResponse,
-        attachments: knowledgeContext.length > 0 ? {
-          knowledge_sources: knowledgeContext.map(doc => ({
-            title: doc.title,
-            project: doc.project,
-            relevance: doc.relevance,
-            source: doc.source
-          }))
+        content: response,
+        attachments: foundRelevantContent ? {
+          knowledge_sources: sources?.map((source: string) => ({ title: source }))
         } : null
       })
 
-      // Actualizar conversación final
+      // Agregar mensaje a la conversación
       const finalConversation = {
         ...updatedConversation,
-        messages: [...updatedConversation.messages, finalAiMessage]
+        messages: [...updatedConversation.messages, assistantMessage],
+        updated_at: new Date()
       }
-
+      
       setCurrentConversation(finalConversation)
       setConversations(prev => 
         prev.map(c => c.id === conversation!.id ? finalConversation : c)
@@ -278,10 +239,10 @@ export const useEnhancedChat = () => {
           .eq('id', conversation.id)
       }
 
-      if (knowledgeContext.length > 0) {
+      if (foundRelevantContent && documentsFound > 0) {
         toast({
           title: "🧠 Respuesta enriquecida",
-          description: `Usé ${knowledgeContext.length} documentos de la base de conocimiento`
+          description: `CEREBRO consultó ${documentsFound} documentos de la base de conocimiento`
         })
       }
 
@@ -293,8 +254,8 @@ export const useEnhancedChat = () => {
       
       console.error('Error sending message:', error)
       toast({
-        title: "Error",
-        description: "No se pudo enviar el mensaje. Intenta de nuevo.",
+        title: "Error en CEREBRO",
+        description: "No se pudo procesar el mensaje. Verifica tu conexión e intenta de nuevo.",
         variant: "destructive"
       })
     } finally {
@@ -314,7 +275,8 @@ export const useEnhancedChat = () => {
       setConversations(prev => prev.filter(c => c.id !== conversationId))
       
       if (currentConversation?.id === conversationId) {
-        setCurrentConversation(conversations[0] || null)
+        const remainingConversations = conversations.filter(c => c.id !== conversationId)
+        setCurrentConversation(remainingConversations[0] || null)
       }
       
       toast({
