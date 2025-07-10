@@ -212,6 +212,10 @@ const CerebroSidebar = () => {
                   <User2 className="mr-2 h-4 w-4" />
                   Profile
                 </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleNavigation('/settings/personality')}>
+                  <Settings className="mr-2 h-4 w-4" />
+                  Personality Settings
+                </DropdownMenuItem>
                 <DropdownMenuItem onClick={handleSignOut}>
                   <LogOut className="mr-2 h-4 w-4" />
                   Sign Out

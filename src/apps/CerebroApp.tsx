@@ -4,6 +4,7 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
 import CerebroLayout from '@/components/layouts/CerebroLayout'
 import CerebroLanding from '@/pages/cerebro/CerebroLanding'
+import PersonalitySettingsPage from '@/pages/cerebro/PersonalitySettingsPage'
 import ChatPage from '@/pages/ChatPage'
 import InsightsPage from '@/pages/InsightsPage'
 import KnowledgePage from '@/pages/KnowledgePage'
@@ -47,6 +48,7 @@ function CerebroApp() {
           <Route path="analytics" element={<AnalyticsPage />} />
           <Route path="integrations" element={<IntegrationsPage />} />
           <Route path="profile" element={<ProfilePage />} />
+          <Route path="settings/personality" element={<PersonalitySettingsPage />} />
           <Route path="admin/tenants" element={<TenantsPage />} />
           <Route path="feature-flags" element={<FeatureFlagsPage />} />
         </Route>

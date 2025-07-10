@@ -28,6 +28,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { useKnowledgeBase } from '@/hooks/useKnowledgeBase'
 import { toast } from '@/hooks/use-toast'
 import FileUpload from '@/components/admin/FileUpload'
+import EscalationEngine from '@/components/chat/EscalationEngine'
 
 const EnhancedChatInterface = () => {
   const [input, setInput] = useState('')
@@ -35,6 +36,7 @@ const EnhancedChatInterface = () => {
   const [showKnowledgeBase, setShowKnowledgeBase] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const [lastUserMessage, setLastUserMessage] = useState('')
   
   const { user } = useAuth()
   const { items: knowledgeItems, deleteItem, toggleActive } = useKnowledgeBase()
@@ -72,6 +74,7 @@ const EnhancedChatInterface = () => {
 
     const message = input.trim()
     setInput('')
+    setLastUserMessage(message)
     
     try {
       await sendMessage(message, selectedImage)
@@ -135,6 +138,16 @@ const EnhancedChatInterface = () => {
         {index < content.split('\n').length - 1 && <br />}
       </span>
     ))
+  }
+
+  const handleEscalationApply = (suggestion: any) => {
+    const escalationText = suggestion.template
+    setInput(escalationText)
+    inputRef.current?.focus()
+    toast({
+      title: "Sugerencia aplicada",
+      description: `Template de escalación para ${suggestion.contact.name} añadido`
+    })
   }
 
   if (isLoadingConversations) {
@@ -447,6 +460,16 @@ const EnhancedChatInterface = () => {
                           <span className="text-sm text-muted-foreground">CEREBRO está pensando...</span>
                         </div>
                       </div>
+                    </div>
+                  )}
+                  
+                  {/* Escalation Engine */}
+                  {lastUserMessage && (
+                    <div className="mt-4">
+                      <EscalationEngine 
+                        message={lastUserMessage}
+                        onSuggestionApply={handleEscalationApply}
+                      />
                     </div>
                   )}
                   

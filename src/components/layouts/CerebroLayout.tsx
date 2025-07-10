@@ -34,6 +34,8 @@ const CerebroLayout = () => {
         return 'Tenants'
       case '/profile':
         return 'Profile'
+      case '/settings/personality':
+        return 'Personality Settings'
       default:
         return 'Memory'
     }
