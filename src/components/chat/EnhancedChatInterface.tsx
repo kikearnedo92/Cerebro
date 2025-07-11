@@ -7,6 +7,8 @@ import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import ReactMarkdown from 'react-markdown'
 import { 
   Send, 
   Brain, 
@@ -21,7 +23,8 @@ import {
   Zap,
   BookOpen,
   Target,
-  StopCircle
+  StopCircle,
+  ExternalLink
 } from 'lucide-react'
 import { useEnhancedChat } from '@/hooks/useEnhancedChat'
 import { useAuth } from '@/hooks/useAuth'
@@ -54,14 +57,12 @@ const EnhancedChatInterface = () => {
     stopGeneration
   } = useEnhancedChat()
 
-  // Auto-scroll to bottom cuando hay nuevos mensajes
   useEffect(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' })
     }
   }, [currentConversation?.messages])
 
-  // Focus en input cuando se carga
   useEffect(() => {
     if (inputRef.current) {
       inputRef.current.focus()
@@ -131,13 +132,10 @@ const EnhancedChatInterface = () => {
     })
   }
 
-  const formatMessage = (content: string) => {
-    return content.split('\n').map((line, index) => (
-      <span key={index}>
-        {line}
-        {index < content.split('\n').length - 1 && <br />}
-      </span>
-    ))
+  const hasLowConfidence = (content: string, sources: any[]) => {
+    const confidence = sources?.length || 0
+    const hasKeywords = /no sé|no tengo información|no encuentro|disculpa/i.test(content)
+    return confidence < 2 || hasKeywords
   }
 
   const handleEscalationApply = (suggestion: any) => {
@@ -161,8 +159,8 @@ const EnhancedChatInterface = () => {
 
   return (
     <div className="flex h-screen bg-background">
-      {/* Sidebar de conversaciones */}
-      <div className="w-80 border-r bg-muted/20 flex flex-col">
+      {/* Sidebar - Mobile responsive */}
+      <div className="w-80 md:w-80 hidden md:flex border-r bg-muted/20 flex-col">
         <div className="p-4 border-b bg-background flex-shrink-0">
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-semibold text-lg flex items-center gap-2">
@@ -179,7 +177,6 @@ const EnhancedChatInterface = () => {
             </div>
           </div>
           
-          {/* Toggle Knowledge Base */}
           <div className="flex items-center space-x-2">
             <Switch
               id="knowledge-base"
@@ -198,11 +195,9 @@ const EnhancedChatInterface = () => {
           </div>
         </div>
 
-        {/* Lista de conversaciones o Knowledge Base */}
         <ScrollArea className="flex-1">
           <div className="p-2">
             {showKnowledgeBase ? (
-              // Vista de Knowledge Base
               <div className="space-y-2">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-sm font-medium text-foreground">Base de Conocimiento</h3>
@@ -211,7 +206,6 @@ const EnhancedChatInterface = () => {
                     <FileUpload 
                       maxFiles={5}
                       onUploadComplete={() => {
-                        // Refresh knowledge base after upload
                         window.location.reload()
                       }}
                     />
@@ -275,7 +269,6 @@ const EnhancedChatInterface = () => {
                 )}
               </div>
             ) : (
-              // Vista de Conversaciones
               <>
                 {conversations.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground">
@@ -329,12 +322,12 @@ const EnhancedChatInterface = () => {
 
       {/* Chat principal */}
       <div className="flex-1 flex flex-col">
-        {/* Header del chat */}
-        <div className="p-4 border-b bg-background flex-shrink-0">
+        {/* Header */}
+        <div className="p-2 md:p-4 border-b bg-background flex-shrink-0">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-xl font-bold flex items-center gap-2">
-                <Brain className="w-6 h-6 text-primary" />
+              <h1 className="text-lg md:text-xl font-bold flex items-center gap-2">
+                <Brain className="w-5 h-5 md:w-6 md:h-6 text-primary" />
                 {currentConversation?.title || 'Nueva Conversación'}
               </h1>
               <div className="flex items-center gap-2 mt-1">
@@ -345,7 +338,7 @@ const EnhancedChatInterface = () => {
                 {knowledgeEnabled && (
                   <Badge variant="outline" className="text-xs">
                     <BookOpen className="w-3 h-3 mr-1" />
-                    Knowledge Active
+                    KB Active
                   </Badge>
                 )}
               </div>
@@ -365,28 +358,28 @@ const EnhancedChatInterface = () => {
           </div>
         </div>
 
-        {/* Área de mensajes - Esta es la parte crítica para que los mensajes sean visibles */}
+        {/* Messages Area - Mobile responsive */}
         <div className="flex-1 overflow-hidden flex flex-col">
-          <ScrollArea className="flex-1 p-4">
+          <ScrollArea className="flex-1 p-2 md:p-4">
             <div className="space-y-4 min-h-full">
               {!currentConversation || currentConversation.messages.length === 0 ? (
-                <div className="flex items-center justify-center h-full min-h-[400px]">
-                  <div className="text-center">
-                    <Brain className="w-16 h-16 mx-auto mb-4 text-primary opacity-50" />
+                <div className="flex items-center justify-center h-full min-h-[300px] md:min-h-[400px]">
+                  <div className="text-center px-4">
+                    <Brain className="w-12 h-12 md:w-16 md:h-16 mx-auto mb-4 text-primary opacity-50" />
                     <h3 className="text-lg font-medium text-foreground mb-2">
                       ¡Hola! Soy CEREBRO
                     </h3>
-                    <p className="text-muted-foreground mb-4 max-w-md mx-auto">
+                    <p className="text-sm md:text-base text-muted-foreground mb-4 max-w-md mx-auto">
                       Tu plataforma de conocimiento inteligente. Pregúntame sobre procesos de Retorna, 
                       políticas por país, ATC, compliance, o cualquier tema de la base de conocimiento.
                     </p>
                     <div className="flex flex-wrap gap-2 justify-center">
-                      <Badge variant="secondary">🇨🇱 Chile</Badge>
-                      <Badge variant="secondary">🇨🇴 Colombia</Badge>
-                      <Badge variant="secondary">🇵🇪 Perú</Badge>
-                      <Badge variant="secondary">🇪🇸 España</Badge>
-                      <Badge variant="secondary">📞 ATC</Badge>
-                      <Badge variant="secondary">📋 Compliance</Badge>
+                      <Badge variant="secondary" className="text-xs">🇨🇱 Chile</Badge>
+                      <Badge variant="secondary" className="text-xs">🇨🇴 Colombia</Badge>
+                      <Badge variant="secondary" className="text-xs">🇵🇪 Perú</Badge>
+                      <Badge variant="secondary" className="text-xs">🇪🇸 España</Badge>
+                      <Badge variant="secondary" className="text-xs">📞 ATC</Badge>
+                      <Badge variant="secondary" className="text-xs">📋 Compliance</Badge>
                     </div>
                   </div>
                 </div>
@@ -398,7 +391,7 @@ const EnhancedChatInterface = () => {
                       className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'} group`}
                     >
                       <div
-                        className={`max-w-[80%] p-4 rounded-lg ${
+                        className={`max-w-[90%] md:max-w-[80%] p-3 md:p-4 rounded-lg ${
                           message.role === 'user'
                             ? 'bg-primary text-primary-foreground'
                             : 'bg-muted'
@@ -426,22 +419,66 @@ const EnhancedChatInterface = () => {
                           </Button>
                         </div>
                         
-                        <div className="text-sm whitespace-pre-wrap">
-                          {formatMessage(message.content)}
+                        <div className="text-sm prose prose-sm max-w-none dark:prose-invert">
+                          <ReactMarkdown>
+                            {message.content}
+                          </ReactMarkdown>
                         </div>
 
-                        {/* Mostrar fuentes si las hay */}
+                        {/* Compact sources with modal */}
                         {message.sources && message.sources.length > 0 && (
                           <div className="mt-3 pt-3 border-t border-border/50">
-                            <p className="text-xs text-muted-foreground mb-2">📚 Fuentes consultadas:</p>
-                            <div className="space-y-1">
-                              {message.sources.map((source, index) => (
-                                <div key={index} className="text-xs text-muted-foreground flex items-center gap-1">
-                                  <FileText className="w-3 h-3" />
-                                  {source}
-                                </div>
-                              ))}
+                            <div className="flex items-center gap-2">
+                              <Dialog>
+                                <DialogTrigger asChild>
+                                  <Badge variant="outline" className="cursor-pointer hover:bg-muted">
+                                    📄 Ver fuentes ({message.sources.length})
+                                  </Badge>
+                                </DialogTrigger>
+                                <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                                  <DialogHeader>
+                                    <DialogTitle>Fuentes consultadas</DialogTitle>
+                                  </DialogHeader>
+                                  <div className="space-y-3">
+                                     {message.sources.map((source, index) => (
+                                       <div key={index} className="bg-muted/50 rounded p-4">
+                                         <div className="font-medium text-primary mb-2">
+                                           {typeof source === 'string' ? source : (source as any)?.title || 'Fuente'}
+                                         </div>
+                                         {typeof source === 'object' && source && (source as any).content && (
+                                           <div className="text-sm text-muted-foreground">
+                                             {(source as any).content}
+                                           </div>
+                                         )}
+                                         {typeof source === 'object' && source && (source as any).file_url && (
+                                           <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
+                                             <span>Proyecto: {(source as any).project || 'General'}</span>
+                                             <Button
+                                               variant="ghost"
+                                               size="sm"
+                                               className="h-auto p-1"
+                                               onClick={() => window.open((source as any).file_url, '_blank')}
+                                             >
+                                               <ExternalLink className="w-3 h-3" />
+                                             </Button>
+                                           </div>
+                                         )}
+                                       </div>
+                                     ))}
+                                  </div>
+                                </DialogContent>
+                              </Dialog>
                             </div>
+                          </div>
+                        )}
+
+                        {/* Smart Escalation - only show if low confidence */}
+                        {message.role === 'assistant' && hasLowConfidence(message.content, message.sources || []) && (
+                          <div className="mt-3 pt-3 border-t border-border/50">
+                            <EscalationEngine 
+                              message={lastUserMessage}
+                              onSuggestionApply={handleEscalationApply}
+                            />
                           </div>
                         )}
 
@@ -463,16 +500,6 @@ const EnhancedChatInterface = () => {
                     </div>
                   )}
                   
-                  {/* Escalation Engine */}
-                  {lastUserMessage && (
-                    <div className="mt-4">
-                      <EscalationEngine 
-                        message={lastUserMessage}
-                        onSuggestionApply={handleEscalationApply}
-                      />
-                    </div>
-                  )}
-                  
                   <div ref={messagesEndRef} />
                 </>
               )}
@@ -480,18 +507,18 @@ const EnhancedChatInterface = () => {
           </ScrollArea>
         </div>
 
-        {/* Input del chat - Fijo en la parte inferior */}
-        <div className="p-4 border-t bg-background flex-shrink-0">
+        {/* Input Area - Mobile responsive */}
+        <div className="p-2 md:p-4 border-t bg-background flex-shrink-0">
           <form onSubmit={handleSubmit} className="flex gap-2">
             <Input
               ref={inputRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder={knowledgeEnabled ? "Pregunta sobre Retorna, procesos, políticas..." : "Escribe tu mensaje..."}
+              placeholder={knowledgeEnabled ? "Pregunta sobre Retorna..." : "Escribe tu mensaje..."}
               disabled={isLoading}
-              className="flex-1"
+              className="flex-1 text-sm md:text-base"
             />
-            <Button type="submit" disabled={!input.trim() || isLoading}>
+            <Button type="submit" disabled={!input.trim() || isLoading} size="sm" className="md:size-default">
               <Send className="w-4 h-4" />
             </Button>
           </form>
@@ -499,7 +526,7 @@ const EnhancedChatInterface = () => {
           {knowledgeEnabled && (
             <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
               <Sparkles className="w-3 h-3" />
-              Respuestas enriquecidas con la base de conocimiento de Retorna
+              Respuestas enriquecidas con la base de conocimiento
             </p>
           )}
         </div>

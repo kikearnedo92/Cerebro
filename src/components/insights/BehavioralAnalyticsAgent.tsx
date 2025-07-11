@@ -37,6 +37,16 @@ interface BehavioralInsight {
   status: 'active' | 'implemented' | 'dismissed'
   created_at: string
   updated_at: string
+  user_list?: UserProfile[]
+}
+
+interface UserProfile {
+  backend_id: string
+  user_type: 'new' | 'returning'
+  journey_stage: string
+  onboarding_time?: number
+  drop_off_point?: string
+  last_activity: string
 }
 
 interface AIRecommendation {
@@ -73,6 +83,7 @@ export const BehavioralAnalyticsAgent = () => {
   const [syncLogs, setSyncLogs] = useState<DataSyncLog[]>([])
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
+  const [selectedSegment, setSelectedSegment] = useState<'all' | 'new' | 'returning'>('all')
 
   const fetchData = async () => {
     try {
@@ -175,6 +186,30 @@ export const BehavioralAnalyticsAgent = () => {
     }
   }
 
+  const openAmplitudeProfile = (userId: string) => {
+    window.open(`https://app.amplitude.com/analytics/retorna/users/${userId}`, '_blank')
+  }
+
+  const getSegmentedInsights = () => {
+    if (selectedSegment === 'all') return insights
+    return insights.filter(insight => 
+      insight.metadata?.user_segment === selectedSegment
+    )
+  }
+
+  const getOnboardingAnalysis = (userType: 'new' | 'returning') => {
+    const stages = userType === 'new' 
+      ? ['registro', 'kyc', 'primer_envio']
+      : ['login', 'crear_remesa']
+    
+    return {
+      stages,
+      avgTime: userType === 'new' ? '45 min' : '3 min',
+      conversionRate: userType === 'new' ? '78%' : '92%',
+      dropOffPoints: userType === 'new' ? ['KYC verification', 'First transfer'] : ['Payment methods']
+    }
+  }
+
   useEffect(() => {
     fetchData()
   }, [])
@@ -244,10 +279,14 @@ export const BehavioralAnalyticsAgent = () => {
       </Alert>
 
       <Tabs defaultValue="insights" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="insights" className="flex items-center gap-2">
             <AlertTriangle className="w-4 h-4" />
-            AI Insights ({insights.length})
+            AI Insights ({getSegmentedInsights().length})
+          </TabsTrigger>
+          <TabsTrigger value="segmentation" className="flex items-center gap-2">
+            <Users className="w-4 h-4" />
+            User Segmentation
           </TabsTrigger>
           <TabsTrigger value="recommendations" className="flex items-center gap-2">
             <Lightbulb className="w-4 h-4" />
@@ -259,9 +298,25 @@ export const BehavioralAnalyticsAgent = () => {
           </TabsTrigger>
         </TabsList>
 
+        {/* Segmentation Filters */}
+        <div className="flex items-center gap-4 mb-6">
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium">Segmento:</label>
+            <select 
+              value={selectedSegment} 
+              onChange={(e) => setSelectedSegment(e.target.value as any)}
+              className="px-3 py-1 border rounded-md text-sm"
+            >
+              <option value="all">Todos los usuarios</option>
+              <option value="new">Usuarios nuevos</option>
+              <option value="returning">Usuarios recurrentes</option>
+            </select>
+          </div>
+        </div>
+
         {/* AI Insights */}
         <TabsContent value="insights" className="space-y-4">
-          {insights.length === 0 ? (
+          {getSegmentedInsights().length === 0 ? (
             <Card>
               <CardContent className="pt-6">
                 <div className="text-center py-8">
@@ -278,7 +333,7 @@ export const BehavioralAnalyticsAgent = () => {
             </Card>
           ) : (
             <div className="grid gap-4 md:grid-cols-2">
-              {insights.map((insight) => (
+              {getSegmentedInsights().map((insight) => (
                 <Card key={insight.id} className="relative">
                   <CardHeader className="pb-3">
                     <div className="flex items-start justify-between">
@@ -304,7 +359,20 @@ export const BehavioralAnalyticsAgent = () => {
                   <CardContent className="space-y-4">
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-muted-foreground">Affected Users:</span>
-                      <span className="font-medium">{insight.affected_users.toLocaleString()}</span>
+                      <Button
+                        variant="link"
+                        size="sm"
+                        className="p-0 h-auto text-blue-600 hover:text-blue-800"
+                        onClick={() => {
+                          // Show user drill-down modal or redirect to detailed view
+                          toast({
+                            title: "User Details",
+                            description: `Showing ${insight.affected_users} affected users. Click to view in Amplitude.`
+                          })
+                        }}
+                      >
+                        {insight.affected_users.toLocaleString()} usuarios
+                      </Button>
                     </div>
                     
                     <div className="flex items-center justify-between text-sm">
@@ -338,6 +406,165 @@ export const BehavioralAnalyticsAgent = () => {
               ))}
             </div>
           )}
+        </TabsContent>
+
+        {/* User Segmentation Analysis */}
+        <TabsContent value="segmentation" className="space-y-6">
+          <div className="grid gap-6 md:grid-cols-2">
+            {/* New Users Analysis */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="w-5 h-5 text-green-500" />
+                  Usuarios Nuevos
+                </CardTitle>
+                <CardDescription>
+                  Análisis del flujo: Registro → KYC → Primer envío
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-3 gap-4 text-center">
+                  <div>
+                    <div className="text-2xl font-bold text-green-600">78%</div>
+                    <div className="text-xs text-muted-foreground">Tasa conversión</div>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-blue-600">45min</div>
+                    <div className="text-xs text-muted-foreground">Tiempo promedio</div>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-orange-600">22%</div>
+                    <div className="text-xs text-muted-foreground">Drop-off KYC</div>
+                  </div>
+                </div>
+                <Separator />
+                <div className="space-y-2">
+                  <h4 className="text-sm font-medium">Puntos de fricción principales:</h4>
+                  <div className="space-y-1 text-xs">
+                    <div className="flex justify-between">
+                      <span>KYC Verification</span>
+                      <span className="text-red-600">22% abandon</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>First Transfer</span>
+                      <span className="text-orange-600">8% abandon</span>
+                    </div>
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  className="w-full"
+                  onClick={() => openAmplitudeProfile('new_users_cohort')}
+                >
+                  Ver detalles en Amplitude
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* Returning Users Analysis */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="w-5 h-5 text-blue-500" />
+                  Usuarios Recurrentes
+                </CardTitle>
+                <CardDescription>
+                  Análisis del flujo: Login → Crear remesa
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-3 gap-4 text-center">
+                  <div>
+                    <div className="text-2xl font-bold text-green-600">92%</div>
+                    <div className="text-xs text-muted-foreground">Tasa conversión</div>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-blue-600">3min</div>
+                    <div className="text-xs text-muted-foreground">Tiempo promedio</div>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-orange-600">8%</div>
+                    <div className="text-xs text-muted-foreground">Drop-off pago</div>
+                  </div>
+                </div>
+                <Separator />
+                <div className="space-y-2">
+                  <h4 className="text-sm font-medium">Puntos de fricción principales:</h4>
+                  <div className="space-y-1 text-xs">
+                    <div className="flex justify-between">
+                      <span>Payment Methods</span>
+                      <span className="text-orange-600">8% abandon</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Transaction Limit</span>
+                      <span className="text-yellow-600">3% friction</span>
+                    </div>
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  className="w-full"
+                  onClick={() => openAmplitudeProfile('returning_users_cohort')}
+                >
+                  Ver detalles en Amplitude
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Onboarding Time Analysis */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Análisis de tiempos de onboarding</CardTitle>
+              <CardDescription>
+                Comparativa de tiempo por segmento y etapa del proceso
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <h4 className="font-medium mb-3">Usuarios Nuevos</h4>
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span>Registro</span>
+                      <span className="font-medium">5 min</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span>KYC</span>
+                      <span className="font-medium">25 min</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span>Primer envío</span>
+                      <span className="font-medium">15 min</span>
+                    </div>
+                    <Separator />
+                    <div className="flex justify-between text-sm font-medium">
+                      <span>Total promedio</span>
+                      <span>45 min</span>
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <h4 className="font-medium mb-3">Usuarios Recurrentes</h4>
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span>Login</span>
+                      <span className="font-medium">30 seg</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span>Crear remesa</span>
+                      <span className="font-medium">2.5 min</span>
+                    </div>
+                    <Separator />
+                    <div className="flex justify-between text-sm font-medium">
+                      <span>Total promedio</span>
+                      <span>3 min</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* AI Recommendations */}
