@@ -81,6 +81,7 @@ export const BehavioralAnalyticsAgent = () => {
   const [insights, setInsights] = useState<BehavioralInsight[]>([])
   const [recommendations, setRecommendations] = useState<AIRecommendation[]>([])
   const [syncLogs, setSyncLogs] = useState<DataSyncLog[]>([])
+  const [amplitudeData, setAmplitudeData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
   const [selectedSegment, setSelectedSegment] = useState<'all' | 'new' | 'returning'>('all')
@@ -145,9 +146,12 @@ export const BehavioralAnalyticsAgent = () => {
 
       if (error) throw error
 
+      // Store Amplitude data for status display
+      setAmplitudeData(data)
+
       toast({
         title: "🤖 AI Analysis Complete",
-        description: "Behavioral patterns detected and synced to database",
+        description: `Analizados ${data?.totalActiveUsers?.toLocaleString() || 0} usuarios reales de Amplitude`,
         variant: "default"
       })
 
@@ -244,68 +248,76 @@ export const BehavioralAnalyticsAgent = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="space-y-1">
-          <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <Brain className="w-7 h-7 text-purple-500" />
-            🤖 Behavioral Analytics AI
+          <h2 className="text-xl md:text-2xl font-bold tracking-tight flex items-center gap-2">
+            <Brain className="w-6 h-6 md:w-7 md:h-7 text-purple-500" />
+            🤖 Insights de Usabilidad
           </h2>
-          <p className="text-muted-foreground">
-            AI agents monitoring user behavior and generating automatic insights
+          <p className="text-sm md:text-base text-muted-foreground">
+            Análisis AI de patrones de comportamiento y fricción en tu app basado en datos reales de Amplitude
           </p>
         </div>
         <Button 
           onClick={triggerDataSync} 
           disabled={syncing}
-          className="flex items-center gap-2"
+          className="flex items-center gap-2 w-full sm:w-auto"
         >
           <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
           {syncing ? 'Syncing...' : 'Sync Data'}
         </Button>
       </div>
 
-      {/* Status Alert */}
-      <Alert>
-        <Database className="h-4 w-4" />
-        <AlertTitle>Data Sync Status</AlertTitle>
-        <AlertDescription>
-          Last sync: {syncLogs[0]?.sync_timestamp ? new Date(syncLogs[0].sync_timestamp).toLocaleString() : 'Never'}
-          {syncLogs.length > 0 && (
-            <Badge variant="outline" className="ml-2">
-              {syncLogs.filter(log => log.discrepancy_detected).length} discrepancies detected
-            </Badge>
-          )}
-        </AlertDescription>
-      </Alert>
+      {/* Amplitude Connection Status */}
+      {amplitudeData?.status === 'REAL_DATA_FROM_AMPLITUDE' && (
+        <Alert className="border-green-200 bg-green-50">
+          <Database className="h-4 w-4 text-green-600" />
+          <AlertTitle className="text-green-800">✅ Conectado a Amplitude</AlertTitle>
+          <AlertDescription className="text-green-700">
+            Analizando {amplitudeData.totalActiveUsers?.toLocaleString()} usuarios activos reales. 
+            Última actualización: {amplitudeData.fetchedAt ? new Date(amplitudeData.fetchedAt).toLocaleString() : 'Ahora'}
+          </AlertDescription>
+        </Alert>
+      )}
+      
+      {amplitudeData?.status === 'MISSING_CREDENTIALS' && (
+        <Alert className="border-amber-200 bg-amber-50">
+          <Database className="h-4 w-4 text-amber-600" />
+          <AlertTitle className="text-amber-800">⚠️ Configurar API Keys</AlertTitle>
+          <AlertDescription className="text-amber-700">
+            Configura AMPLITUDE_API_KEY y AMPLITUDE_SECRET_KEY en Supabase para ver datos reales.
+          </AlertDescription>
+        </Alert>
+      )}
 
       <Tabs defaultValue="insights" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="insights" className="flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4" />
-            AI Insights ({getSegmentedInsights().length})
+        <TabsList className="grid w-full grid-cols-2 md:grid-cols-4">
+          <TabsTrigger value="insights" className="flex items-center gap-1 md:gap-2 text-xs md:text-sm">
+            <AlertTriangle className="w-3 h-3 md:w-4 md:h-4" />
+            <span className="hidden sm:inline">AI </span>Insights ({getSegmentedInsights().length})
           </TabsTrigger>
-          <TabsTrigger value="segmentation" className="flex items-center gap-2">
-            <Users className="w-4 h-4" />
-            User Segmentation
+          <TabsTrigger value="segmentation" className="flex items-center gap-1 md:gap-2 text-xs md:text-sm">
+            <Users className="w-3 h-3 md:w-4 md:h-4" />
+            <span className="hidden sm:inline">User </span>Segments
           </TabsTrigger>
-          <TabsTrigger value="recommendations" className="flex items-center gap-2">
-            <Lightbulb className="w-4 h-4" />
-            Recommendations ({recommendations.length})
+          <TabsTrigger value="recommendations" className="flex items-center gap-1 md:gap-2 text-xs md:text-sm">
+            <Lightbulb className="w-3 h-3 md:w-4 md:h-4" />
+            <span className="hidden sm:inline">Recommendations</span><span className="sm:hidden">Rec</span> ({recommendations.length})
           </TabsTrigger>
-          <TabsTrigger value="sync" className="flex items-center gap-2">
-            <Database className="w-4 h-4" />
-            Data Sync
+          <TabsTrigger value="sync" className="flex items-center gap-1 md:gap-2 text-xs md:text-sm">
+            <Database className="w-3 h-3 md:w-4 md:h-4" />
+            <span className="hidden sm:inline">Data </span>Sync
           </TabsTrigger>
         </TabsList>
 
         {/* Segmentation Filters */}
-        <div className="flex items-center gap-4 mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-6">
           <div className="flex items-center gap-2">
-            <label className="text-sm font-medium">Segmento:</label>
+            <label className="text-sm font-medium whitespace-nowrap">Segmento:</label>
             <select 
               value={selectedSegment} 
               onChange={(e) => setSelectedSegment(e.target.value as any)}
-              className="px-3 py-1 border rounded-md text-sm"
+              className="px-3 py-2 border rounded-md text-sm w-full sm:w-auto"
             >
               <option value="all">Todos los usuarios</option>
               <option value="new">Usuarios nuevos</option>
@@ -332,7 +344,7 @@ export const BehavioralAnalyticsAgent = () => {
               </CardContent>
             </Card>
           ) : (
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-1 lg:grid-cols-2">
               {getSegmentedInsights().map((insight) => (
                 <Card key={insight.id} className="relative">
                   <CardHeader className="pb-3">
@@ -356,29 +368,31 @@ export const BehavioralAnalyticsAgent = () => {
                       {insight.description}
                     </CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="flex items-center justify-between text-sm">
+                  <CardContent className="space-y-3 sm:space-y-4 p-3 sm:p-6">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-sm">
                       <span className="text-muted-foreground">Affected Users:</span>
                       <Button
                         variant="link"
                         size="sm"
-                        className="p-0 h-auto text-blue-600 hover:text-blue-800"
+                        className="p-0 h-auto text-blue-600 hover:text-blue-800 justify-start sm:justify-end"
                         onClick={() => {
-                          // Show user drill-down modal or redirect to detailed view
+                          // Open Amplitude with user segmentation
+                          const amplitudeUrl = `https://app.amplitude.com/analytics/retorna/cohort/new`
+                          window.open(amplitudeUrl, '_blank')
                           toast({
-                            title: "User Details",
-                            description: `Showing ${insight.affected_users} affected users. Click to view in Amplitude.`
+                            title: "Abriendo Amplitude",
+                            description: `Creando cohorte de ${insight.affected_users} usuarios afectados en Amplitude.`
                           })
                         }}
                       >
-                        {insight.affected_users.toLocaleString()} usuarios
+                        {insight.affected_users.toLocaleString()} usuarios 🔗
                       </Button>
                     </div>
                     
-                    <div className="flex items-center justify-between text-sm">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-sm">
                       <span className="text-muted-foreground">AI Confidence:</span>
                       <div className="flex items-center gap-2">
-                        <Progress value={insight.ai_confidence * 100} className="w-16 h-2" />
+                        <Progress value={insight.ai_confidence * 100} className="w-20 sm:w-16 h-2" />
                         <span className="font-medium">{Math.round(insight.ai_confidence * 100)}%</span>
                       </div>
                     </div>
@@ -387,11 +401,11 @@ export const BehavioralAnalyticsAgent = () => {
 
                     <div className="space-y-2">
                       <h4 className="text-sm font-medium">Recommended Actions:</h4>
-                      <ul className="text-xs space-y-1">
+                      <ul className="text-xs space-y-2">
                         {insight.recommended_actions.slice(0, 3).map((action, idx) => (
                           <li key={idx} className="flex items-start gap-2">
                             <CheckCircle className="w-3 h-3 text-green-500 mt-0.5 flex-shrink-0" />
-                            {action}
+                            <span className="break-words">{action}</span>
                           </li>
                         ))}
                       </ul>
