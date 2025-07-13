@@ -550,16 +550,14 @@ serve(async (req) => {
            }), {
              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
            })
-        } else {
-          console.log('📤 Export API returned empty data')
-        }
-      } else {
-        }
-      } else {
-        const errorText = await exportResponse.text()
-        console.error(`❌ Export API Error ${exportResponse.status}: ${errorText}`)
-        apiTestResults.export.error = errorText
-      }
+         } else {
+           console.log('📤 Export API returned empty data')
+         }
+       } else {
+         const errorText = await exportResponse.text()
+         console.error(`❌ Export API Error ${exportResponse.status}: ${errorText}`)
+         apiTestResults.export.error = errorText
+       }
     } catch (exportError) {
       console.error('❌ Export API failed:', exportError)
       apiTestResults.export = { error: exportError.message, success: false }
