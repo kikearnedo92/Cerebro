@@ -440,14 +440,13 @@ serve(async (req) => {
                     
                     realMetrics.dataSource = 'AMPLITUDE_REAL_DATA'
                     realMetrics.fetchedAt = new Date().toISOString()
-                        realMetrics.apiCallsSuccessful = true
-                        realMetrics.testResults = apiTestResults
-                        
-                        console.log('🎉 RETORNANDO MÉTRICAS BASADAS EN USUARIOS REALES DE AMPLITUDE')
-                        return new Response(JSON.stringify(realMetrics), {
-                            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-                        })
-                    }
+                    realMetrics.apiCallsSuccessful = true
+                    realMetrics.testResults = apiTestResults
+                    
+                    console.log('🎉 RETORNANDO MÉTRICAS BASADAS EN USUARIOS REALES DE AMPLITUDE')
+                    return new Response(JSON.stringify(realMetrics), {
+                        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+                    })
                 }
                 
             } catch (parseError) {
