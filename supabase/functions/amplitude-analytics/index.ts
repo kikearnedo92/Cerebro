@@ -371,58 +371,75 @@ serve(async (req) => {
 
     console.log('🚀 FASE 1: OBTENIENDO USUARIOS ACTIVOS CON DASHBOARD API')
     
-    // Fase 1: Obtener usuarios activos usando Dashboard API correcto
+    // Fase 1: Obtener usuarios activos usando Dashboard API con datos reales
     try {
         const today = new Date()
         const lastMonth = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000)
         const startDate = lastMonth.toISOString().slice(0, 10).replace(/-/g, '')
         const endDate = today.toISOString().slice(0, 10).replace(/-/g, '')
         
+        // Usar Amplitude Analytics API v2 correcta
         const usersUrl = `https://amplitude.com/api/2/users?start=${startDate}&end=${endDate}&m=active&i=1`
         
-        console.log('👥 Testing Users API:', usersUrl)
+        console.log('👥 Connecting to Amplitude API:', usersUrl)
         console.log('📅 Date range:', { startDate, endDate })
         
         const usersResponse = await fetch(usersUrl, {
             method: 'GET',
             headers: {
                 'Authorization': `Basic ${basicAuth}`,
-                'Accept': 'application/json'
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
             },
-            signal: AbortSignal.timeout(10000)
+            signal: AbortSignal.timeout(15000)
         })
 
-        console.log(`👥 Users API Response Status: ${usersResponse.status}`)
+        console.log(`👥 Amplitude API Status: ${usersResponse.status}`)
         
         const usersText = await usersResponse.text()
-        console.log(`👥 Users API Response:`, usersText.substring(0, 500))
-        
-        apiTestResults.users = {
-            url: usersUrl,
-            status: usersResponse.status,
-            success: usersResponse.ok,
-            bodyPreview: usersText.substring(0, 200),
-            dateRange: { startDate, endDate }
-        }
+        console.log(`👥 Amplitude Response:`, usersText.substring(0, 300))
         
         if (usersResponse.ok) {
             try {
                 const usersData = JSON.parse(usersText)
-                console.log('✅ DATOS DE USUARIOS OBTENIDOS:', usersData)
+                console.log('✅ AMPLITUDE DATA PARSED:', usersData)
                 
-                if (usersData.data && usersData.data.series && Array.isArray(usersData.data.series)) {
-                    const totalUsers = usersData.data.series[0]?.reduce((sum: number, val: number) => sum + val, 0) || 0
-                    console.log(`📊 Total usuarios activos encontrados: ${totalUsers}`)
+                // Extraer usuarios activos reales de la respuesta de Amplitude
+                let realUsers = 0
+                
+                if (usersData.data && usersData.data.series) {
+                    // Sumar todos los valores del array de series para obtener usuarios únicos
+                    const series = usersData.data.series[0] || []
+                    realUsers = Array.isArray(series) ? 
+                        series.reduce((sum: number, val: number) => sum + (val || 0), 0) : 
+                        (typeof series === 'number' ? series : 0)
+                } else if (usersData.total) {
+                    realUsers = usersData.total
+                } else if (typeof usersData === 'number') {
+                    realUsers = usersData
+                }
+                
+                console.log(`📊 USUARIOS REALES DE AMPLITUDE: ${realUsers}`)
+                
+                if (realUsers > 0) {
+                    realDataFound = true
                     
-                    if (totalUsers > 0) {
-                        realDataFound = true
-                        
-                        // AI-Powered Behavioral Analytics Engine using REAL Amplitude data
-                        const realActiveUsers = totalUsers // Use actual Amplitude data
-                        const realMetrics = await generateBehavioralInsights(realActiveUsers, usersData.data, supabase)
-                        
-                        realMetrics.dataSource = 'AMPLITUDE_DASHBOARD_API_REAL_USERS'
-                        realMetrics.fetchedAt = new Date().toISOString()
+                    // Log para verificar que usamos datos reales
+                    await supabase.from('data_sync_logs').insert({
+                        source_system: 'amplitude',
+                        sync_type: 'real_users_sync',
+                        source_value: { amplitude_response: usersData },
+                        reconciled_value: { real_users: realUsers },
+                        discrepancy_detected: false,
+                        reconciliation_method: 'amplitude_dashboard_api',
+                        agent_notes: `Successfully fetched ${realUsers} real users from Amplitude API`
+                    })
+                    
+                    // Generar insights SOLO con datos reales
+                    const realMetrics = await generateBehavioralInsights(realUsers, usersData, supabase)
+                    
+                    realMetrics.dataSource = 'AMPLITUDE_REAL_DATA'
+                    realMetrics.fetchedAt = new Date().toISOString()
                         realMetrics.apiCallsSuccessful = true
                         realMetrics.testResults = apiTestResults
                         
