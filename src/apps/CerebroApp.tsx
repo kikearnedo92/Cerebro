@@ -14,6 +14,9 @@ import IntegrationsPage from '@/pages/IntegrationsPage'
 import ProfilePage from '@/pages/ProfilePage'
 import TenantsPage from '@/pages/admin/TenantsPage'
 import FeatureFlagsPage from '@/pages/FeatureFlagsPage'
+import CalendarioPage from '@/pages/CalendarioPage'
+import EquipoPage from '@/pages/EquipoPage'
+import ReportesPage from '@/pages/ReportesPage'
 import NotFound from '@/pages/NotFound'
 
 function CerebroApp() {
@@ -51,6 +54,9 @@ function CerebroApp() {
           <Route path="settings/personality" element={<PersonalitySettingsPage />} />
           <Route path="admin/tenants" element={<TenantsPage />} />
           <Route path="feature-flags" element={<FeatureFlagsPage />} />
+          <Route path="calendario" element={<CalendarioPage />} />
+          <Route path="equipo" element={<EquipoPage />} />
+          <Route path="reportes" element={<ReportesPage />} />
         </Route>
       ) : (
         /* Redirect unauthenticated users to landing */

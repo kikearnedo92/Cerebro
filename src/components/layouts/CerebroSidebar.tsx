@@ -11,7 +11,9 @@ import {
   LogOut,
   TrendingUp,
   Brain,
-  Flag
+  Flag,
+  Calendar,
+  FileText
 } from 'lucide-react'
 
 import {
@@ -70,6 +72,24 @@ const CerebroSidebar = () => {
     }
   ]
 
+  const horarioItems = [
+    {
+      title: 'Calendario',
+      url: '/calendario',
+      icon: Calendar,
+    },
+    {
+      title: 'Gestión de Equipo',
+      url: '/equipo',
+      icon: Users,
+    },
+    {
+      title: 'Reportes',
+      url: '/reportes',
+      icon: FileText,
+    }
+  ]
+
   return (
     <Sidebar variant="inset" className="border-r-purple-200">
       <SidebarHeader className="bg-gradient-to-r from-purple-600 to-purple-700">
@@ -100,6 +120,26 @@ const CerebroSidebar = () => {
           <SidebarGroupContent>
             <SidebarMenu>
               {navigationItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton 
+                    onClick={() => handleNavigation(item.url)}
+                    isActive={location.pathname.includes(item.url)}
+                    className="data-[active=true]:bg-purple-100 data-[active=true]:text-purple-900 hover:bg-purple-50 cursor-pointer"
+                  >
+                    <item.icon />
+                    <span>{item.title}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel className="text-purple-700">Customer Success</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {horarioItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton 
                     onClick={() => handleNavigation(item.url)}
