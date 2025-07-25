@@ -3,9 +3,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EQUIPO_COMPLETO, TURNOS, type TipoSemana, type TurnoType, type AsignacionTurno, type Empleado } from "@/types/equipo";
 import { toast } from "@/hooks/use-toast";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Clock, Calendar, Users, Settings } from "lucide-react";
+import HorasExtrasForm from "@/components/ui/HorasExtrasForm";
 
 const MESES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -20,6 +22,7 @@ export default function CalendarioPage() {
   const [asignaciones, setAsignaciones] = useState<AsignacionTurno[]>([]);
   const [empleadoArrastrado, setEmpleadoArrastrado] = useState<string | null>(null);
   const [equipoConHoras, setEquipoConHoras] = useState<Empleado[]>([...EQUIPO_COMPLETO]);
+  const [solicitudesHorasExtras, setSolicitudesHorasExtras] = useState<any[]>([]);
 
   // Actualizar horas asignadas cuando cambien las asignaciones
   useEffect(() => {
@@ -217,7 +220,7 @@ export default function CalendarioPage() {
       };
 
       // 1. MADRUGADAS (01:00-07:00): Sugli principal, Diana backup vie-sáb
-      const sugli = equipoConHoras.find(e => e.nombre === 'Sugli Martínez');
+      const sugli = equipoConHoras.find(e => e.nombre === 'Sugli Martinez');
       const diana = equipoConHoras.find(e => e.nombre === 'Diana Castillo');
       
       if (esViernes || esSabado) {
@@ -230,9 +233,9 @@ export default function CalendarioPage() {
 
       // 2. SENIORS NOCTURNOS (18:00-01:00): Helen, José Manuel, Mayra - 2 días/semana cada uno
       const seniors = [
-        equipoConHoras.find(e => e.nombre === 'Helen Rodríguez'),
+        equipoConHoras.find(e => e.nombre === 'Helen Rodriguez'),
         equipoConHoras.find(e => e.nombre === 'José Manuel Torres'),
-        equipoConHoras.find(e => e.nombre === 'Mayra González')
+        equipoConHoras.find(e => e.nombre === 'Mayra Gonzalez')
       ].filter(Boolean);
       
       // Rotar seniors para turnos nocturnos (máximo 2 por semana)
@@ -253,7 +256,7 @@ export default function CalendarioPage() {
       }
 
       // 3. MAÑANAS (07:00-15:00): Máxima cobertura ATC + ONB
-      const ashley = equipoConHoras.find(e => e.nombre === 'Ashley Jiménez');
+      const ashley = equipoConHoras.find(e => e.nombre === 'Ashley Jimenez');
       let asignadosAM = 0;
 
       // Ashley fijo AM (Onboarding)
@@ -270,11 +273,10 @@ export default function CalendarioPage() {
       if (esDomingo) {
         // Domingos: Solo venezolanos/mexicanos
         const noColombianosAM = [
-          equipoConHoras.find(e => e.nombre === 'Helen Rodríguez'),
+          equipoConHoras.find(e => e.nombre === 'Helen Rodriguez'),
           equipoConHoras.find(e => e.nombre === 'José Manuel Torres'),
           equipoConHoras.find(e => e.nombre === 'Carmen Silva'),
-          equipoConHoras.find(e => e.nombre === 'Nerean Medina'),
-          equipoConHoras.find(e => e.nombre === 'Belkis Ramírez')
+          equipoConHoras.find(e => e.nombre === 'Nerean Medina')
         ].filter(Boolean).filter(e => e && puedeAsignarHoras(e.id, TURNOS.manana.horas));
 
         noColombianosAM.slice(0, Math.min(targetAM - asignadosAM, noColombianosAM.length)).forEach((emp, idx) => {
@@ -285,16 +287,16 @@ export default function CalendarioPage() {
       } else {
         // Días normales: Usar todos los disponibles
         const disponiblesAM = [
-          equipoConHoras.find(e => e.nombre === 'Helen Rodríguez'),
+          equipoConHoras.find(e => e.nombre === 'Helen Rodriguez'),
           equipoConHoras.find(e => e.nombre === 'José Manuel Torres'),
-          equipoConHoras.find(e => e.nombre === 'Stella Morales'),
+          equipoConHoras.find(e => e.nombre === 'Stella Ramirez'),
           equipoConHoras.find(e => e.nombre === 'Juan Carlos López'),
           equipoConHoras.find(e => e.nombre === 'Thalia Vargas'),
           equipoConHoras.find(e => e.nombre === 'Alejandra Ruiz'),
           equipoConHoras.find(e => e.nombre === 'Cristian Herrera'),
           equipoConHoras.find(e => e.nombre === 'Carmen Silva'),
           equipoConHoras.find(e => e.nombre === 'Nerean Medina'),
-          equipoConHoras.find(e => e.nombre === 'Belkis Ramírez')
+          equipoConHoras.find(e => e.nombre === 'Delia Morales')
         ].filter(Boolean).filter(e => e && puedeAsignarHoras(e.id, TURNOS.manana.horas));
 
         // Priorizar según utilización para equilibrar horas
@@ -446,201 +448,273 @@ export default function CalendarioPage() {
         </CardHeader>
       </Card>
 
-      <div className="grid grid-cols-12 gap-6">
-        {/* Configuración del mes */}
-        <Card className="col-span-12 lg:col-span-4 shadow-sm">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg">⚙️ Configuración del Mes</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <label className="text-sm font-medium mb-2 block">Mes:</label>
-              <Select value={mesActual.toString()} onValueChange={(value) => setMesActual(parseInt(value))}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {MESES.map((mes, index) => (
-                    <SelectItem key={index} value={index.toString()}>
-                      {mes}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+      <Tabs defaultValue="calendario" className="space-y-6">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="configuracion" className="flex items-center gap-2">
+            <Settings className="h-4 w-4" />
+            Configuración
+          </TabsTrigger>
+          <TabsTrigger value="calendario" className="flex items-center gap-2">
+            <Calendar className="h-4 w-4" />
+            Calendario
+          </TabsTrigger>
+          <TabsTrigger value="personal" className="flex items-center gap-2">
+            <Users className="h-4 w-4" />
+            Personal
+          </TabsTrigger>
+          <TabsTrigger value="horas-extras" className="flex items-center gap-2">
+            <Clock className="h-4 w-4" />
+            Horas Extras
+          </TabsTrigger>
+        </TabsList>
 
-            <div>
-              <label className="text-sm font-medium mb-2 block">Año:</label>
-              <Select value={anoActual.toString()} onValueChange={(value) => setAnoActual(parseInt(value))}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="2024">2024</SelectItem>
-                  <SelectItem value="2025">2025</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2 pt-4">
-              <Badge variant="destructive" className="w-full justify-center">
-                🔴 Alta (1-5, 28-31)
-              </Badge>
-              <Badge variant="secondary" className="w-full justify-center bg-yellow-100 text-yellow-800">
-                🟡 Media (13-17)
-              </Badge>
-              <Badge variant="default" className="w-full justify-center bg-green-100 text-green-800">
-                🟢 Valle (resto)
-              </Badge>
-            </div>
-
-            {/* Horarios de turnos */}
-            <div className="space-y-2 pt-4 border-t">
-              <h4 className="text-sm font-semibold text-gray-700 mb-3">🕐 Horarios de Turnos</h4>
-              {Object.entries(TURNOS).map(([key, turno]) => (
-                <div key={key} className={`p-2 rounded-md ${turno.color}`}>
-                  <div className="font-medium text-xs">{turno.nombre}</div>
-                  <div className="text-xs opacity-80">{turno.horario} ({turno.horas}h)</div>
+        <TabsContent value="configuracion">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Card className="shadow-sm">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg">⚙️ Configuración del Mes</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Mes:</label>
+                  <Select value={mesActual.toString()} onValueChange={(value) => setMesActual(parseInt(value))}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {MESES.map((mes, index) => (
+                        <SelectItem key={index} value={index.toString()}>
+                          {mes}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
 
-        {/* Calendario principal */}
-        <Card className="col-span-12 lg:col-span-8 shadow-sm">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-xl">{MESES[mesActual]} {anoActual}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-7 gap-1">
-              {DIAS_SEMANA.map(dia => (
-                <div key={dia} className="p-3 text-center font-semibold text-sm bg-gray-100 rounded border">
-                  {dia}
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Año:</label>
+                  <Select value={anoActual.toString()} onValueChange={(value) => setAnoActual(parseInt(value))}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="2024">2024</SelectItem>
+                      <SelectItem value="2025">2025</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-              ))}
 
-              {dias.map((dia, index) => (
-                <div
-                  key={index}
-                  className={`min-h-[160px] p-2 border-2 rounded ${getColorSemana(dia)}`}
-                >
-                  {dia && (
-                    <>
-                      <div className="flex justify-between items-center mb-2">
-                        <span className="font-bold text-lg">{dia}</span>
-                        <Badge variant="outline" className={`text-xs ${getTipoSemanaColor(dia)}`}>
-                          {getTipoSemanaTexto(dia)}
-                        </Badge>
-                      </div>
+                <div className="space-y-2 pt-4">
+                  <Badge variant="destructive" className="w-full justify-center">
+                    🔴 Alta (1-5, 28-31)
+                  </Badge>
+                  <Badge variant="secondary" className="w-full justify-center bg-yellow-100 text-yellow-800">
+                    🟡 Media (13-17)
+                  </Badge>
+                  <Badge variant="default" className="w-full justify-center bg-green-100 text-green-800">
+                    🟢 Valle (resto)
+                  </Badge>
+                </div>
+              </CardContent>
+            </Card>
 
-                      {Object.entries(TURNOS).map(([turnoKey, turnoInfo]) => {
-                        const empleadosTurno = getEmpleadosPorTurno(dia, turnoKey as TurnoType);
-                        const sinCobertura = empleadosTurno.length === 0;
-                        const atcCount = empleadosTurno.filter(a => {
-                          const emp = equipoConHoras.find(e => e.id === a.empleadoId);
-                          return emp?.departamento === 'ATC';
-                        }).length;
-                        const onbCount = empleadosTurno.filter(a => {
-                          const emp = equipoConHoras.find(e => e.id === a.empleadoId);
-                          return emp?.departamento === 'Onboarding';
-                        }).length;
+            <Card className="shadow-sm">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg">🕐 Horarios de Turnos</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {Object.entries(TURNOS).map(([key, turno]) => (
+                  <div key={key} className={`p-3 rounded-md ${turno.color}`}>
+                    <div className="font-medium text-sm">{turno.nombre}</div>
+                    <div className="text-sm opacity-80">{turno.horario} ({turno.horas}h)</div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
 
-                        return (
-                          <div
-                            key={turnoKey}
-                            className={`mb-1 p-1 border rounded min-h-[35px] ${
-                              sinCobertura ? 'bg-red-100 border-red-300' : 'bg-white/70'
-                            }`}
-                            onDragOver={handleDragOver}
-                            onDrop={(e) => handleDrop(e, dia, turnoKey as TurnoType)}
-                          >
-                            <div className={`text-xs font-medium mb-1 px-1 py-0.5 rounded flex justify-between items-center ${turnoInfo.color}`}>
-                              <span>{turnoInfo.nombre}</span>
-                              <div className="flex gap-1">
-                                {atcCount > 0 && <Badge variant="secondary" className="text-xs px-1">ATC: {atcCount}</Badge>}
-                                {onbCount > 0 && <Badge variant="outline" className="text-xs px-1">ONB: {onbCount}</Badge>}
+        <TabsContent value="calendario">
+          <Card className="shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-xl">{MESES[mesActual]} {anoActual}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-7 gap-1">
+                {DIAS_SEMANA.map(dia => (
+                  <div key={dia} className="p-3 text-center font-semibold text-sm bg-gray-100 rounded border">
+                    {dia}
+                  </div>
+                ))}
+
+                {dias.map((dia, index) => (
+                  <div
+                    key={index}
+                    className={`min-h-[160px] p-2 border-2 rounded ${getColorSemana(dia)}`}
+                  >
+                    {dia && (
+                      <>
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="font-bold text-lg">{dia}</span>
+                          <Badge variant="outline" className={`text-xs ${getTipoSemanaColor(dia)}`}>
+                            {getTipoSemanaTexto(dia)}
+                          </Badge>
+                        </div>
+
+                        {Object.entries(TURNOS).map(([turnoKey, turnoInfo]) => {
+                          const empleadosTurno = getEmpleadosPorTurno(dia, turnoKey as TurnoType);
+                          const sinCobertura = empleadosTurno.length === 0;
+                          const atcCount = empleadosTurno.filter(a => {
+                            const emp = equipoConHoras.find(e => e.id === a.empleadoId);
+                            return emp?.departamento === 'ATC';
+                          }).length;
+                          const onbCount = empleadosTurno.filter(a => {
+                            const emp = equipoConHoras.find(e => e.id === a.empleadoId);
+                            return emp?.departamento === 'Onboarding';
+                          }).length;
+
+                          return (
+                            <div
+                              key={turnoKey}
+                              className={`mb-1 p-1 border rounded min-h-[35px] ${
+                                sinCobertura ? 'bg-red-100 border-red-300' : 'bg-white/70'
+                              }`}
+                              onDragOver={handleDragOver}
+                              onDrop={(e) => handleDrop(e, dia, turnoKey as TurnoType)}
+                            >
+                              <div className={`text-xs font-medium mb-1 px-1 py-0.5 rounded flex justify-between items-center ${turnoInfo.color}`}>
+                                <span>{turnoInfo.nombre}</span>
+                                <div className="flex gap-1">
+                                  {atcCount > 0 && <Badge variant="secondary" className="text-xs px-1">ATC: {atcCount}</Badge>}
+                                  {onbCount > 0 && <Badge variant="outline" className="text-xs px-1">ONB: {onbCount}</Badge>}
+                                </div>
+                              </div>
+                              {sinCobertura && (
+                                <div className="text-xs text-red-600 font-medium px-1">Sin cobertura</div>
+                              )}
+                              <div className="flex flex-wrap gap-1">
+                                {empleadosTurno.map(asignacion => {
+                                  const empleado = equipoConHoras.find(e => e.id === asignacion.empleadoId);
+                                  return (
+                                    <Badge
+                                      key={asignacion.id}
+                                      variant={empleado?.departamento === 'ATC' ? 'secondary' : 'outline'}
+                                      className="text-xs cursor-pointer hover:bg-red-100"
+                                      onClick={() => removerAsignacion(asignacion.id)}
+                                      title={`${empleado?.departamento} - Click para remover`}
+                                    >
+                                      {getEmpleadoNombre(asignacion.empleadoId)}
+                                    </Badge>
+                                  );
+                                })}
                               </div>
                             </div>
-                            {sinCobertura && (
-                              <div className="text-xs text-red-600 font-medium px-1">Sin cobertura</div>
-                            )}
-                            <div className="flex flex-wrap gap-1">
-                              {empleadosTurno.map(asignacion => {
-                                const empleado = equipoConHoras.find(e => e.id === asignacion.empleadoId);
-                                return (
-                                  <Badge
-                                    key={asignacion.id}
-                                    variant={empleado?.departamento === 'ATC' ? 'secondary' : 'outline'}
-                                    className="text-xs cursor-pointer hover:bg-red-100"
-                                    onClick={() => removerAsignacion(asignacion.id)}
-                                    title={`${empleado?.departamento} - Click para remover`}
-                                  >
-                                    {getEmpleadoNombre(asignacion.empleadoId)}
-                                  </Badge>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </>
-                  )}
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Personal disponible */}
-        <Card className="col-span-12 shadow-sm">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg flex items-center gap-2">
-              👥 Personal Disponible
-              <span className="text-sm text-gray-500">Arrastra a los turnos del calendario</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-              {equipoConHoras.map(empleado => {
-                const excedeHoras = (empleado.horasAsignadas || 0) > empleado.horasMax;
-                const utilizacion = ((empleado.horasAsignadas || 0) / empleado.horasMax) * 100;
-                return (
-                  <div
-                    key={empleado.id}
-                    draggable
-                    onDragStart={(e) => handleDragStart(e, empleado.id)}
-                    className={`p-3 border-2 rounded-lg cursor-move hover:shadow-md transition-all ${
-                      excedeHoras ? 'border-red-300 bg-red-50' : 
-                      utilizacion < 50 ? 'border-yellow-300 bg-yellow-50' :
-                      'border-gray-200 hover:border-purple-300 bg-white'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 mb-1">
-                      {getCountryFlag(empleado.pais)}
-                      <span className="font-medium text-sm">{empleado.nombre}</span>
-                      {excedeHoras && <AlertTriangle className="h-4 w-4 text-red-500" />}
-                    </div>
-                    <div className="text-xs text-gray-600 mb-1">
-                      {empleado.departamento} - {empleado.tipo}
-                    </div>
-                    <div className={`text-xs font-medium ${
-                      excedeHoras ? 'text-red-600' : 
-                      utilizacion < 50 ? 'text-yellow-600' :
-                      'text-gray-700'
-                    }`}>
-                      {empleado.horasAsignadas || 0} / {empleado.horasMax}h ({Math.round(utilizacion)}%)
-                    </div>
-                    {utilizacion < 50 && (
-                      <div className="text-xs text-yellow-600">⚠️ Subutilizado</div>
+                          );
+                        })}
+                      </>
                     )}
                   </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="personal">
+          <Card className="shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg flex items-center gap-2">
+                👥 Personal Disponible
+                <span className="text-sm text-gray-500">Arrastra a los turnos del calendario</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+                {equipoConHoras.map(empleado => {
+                  const excedeHoras = (empleado.horasAsignadas || 0) > empleado.horasMax;
+                  const utilizacion = ((empleado.horasAsignadas || 0) / empleado.horasMax) * 100;
+                  return (
+                    <div
+                      key={empleado.id}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, empleado.id)}
+                      className={`p-3 border-2 rounded-lg cursor-move hover:shadow-md transition-all ${
+                        excedeHoras ? 'border-red-300 bg-red-50' : 
+                        utilizacion < 50 ? 'border-yellow-300 bg-yellow-50' :
+                        'border-gray-200 hover:border-purple-300 bg-white'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        {getCountryFlag(empleado.pais)}
+                        <span className="font-medium text-sm">{empleado.nombre}</span>
+                        {excedeHoras && <AlertTriangle className="h-4 w-4 text-red-500" />}
+                      </div>
+                      <div className="text-xs text-gray-600 mb-1">
+                        {empleado.departamento} - {empleado.tipo}
+                      </div>
+                      <div className={`text-xs font-medium ${
+                        excedeHoras ? 'text-red-600' : 
+                        utilizacion < 50 ? 'text-yellow-600' :
+                        'text-gray-700'
+                      }`}>
+                        {empleado.horasAsignadas || 0} / {empleado.horasMax}h ({Math.round(utilizacion)}%)
+                      </div>
+                      {utilizacion < 50 && (
+                        <div className="text-xs text-yellow-600">⚠️ Subutilizado</div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="horas-extras">
+          <div className="space-y-6">
+            <HorasExtrasForm 
+              empleados={equipoConHoras.map(e => ({
+                id: e.id,
+                nombre: e.nombre,
+                pais: e.pais,
+                departamento: e.departamento
+              }))}
+              onSolicitudCreada={(solicitud) => {
+                setSolicitudesHorasExtras(prev => [...prev, solicitud]);
+              }}
+            />
+            
+            {solicitudesHorasExtras.length > 0 && (
+              <Card className="shadow-sm">
+                <CardHeader>
+                  <CardTitle className="text-lg">📋 Solicitudes Pendientes</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {solicitudesHorasExtras.map((solicitud, index) => (
+                      <div key={index} className="p-4 border rounded-lg bg-yellow-50 border-yellow-200">
+                        <div className="flex justify-between items-start mb-2">
+                          <div>
+                            <span className="font-medium">{solicitud.empleadoNombre}</span>
+                            <Badge className="ml-2" variant="outline">{solicitud.estado}</Badge>
+                          </div>
+                          <span className="text-sm text-gray-500">{solicitud.fecha}</span>
+                        </div>
+                        <div className="text-sm text-gray-600">
+                          <p><strong>Horario:</strong> {solicitud.horasInicio} - {solicitud.horasFin}</p>
+                          <p><strong>Tipo:</strong> {solicitud.tipoHoraExtra}</p>
+                          {solicitud.recargo && <p><strong>Recargo:</strong> {solicitud.recargo}</p>}
+                          <p><strong>Justificación:</strong> {solicitud.justificacion}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
