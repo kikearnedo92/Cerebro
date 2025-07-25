@@ -157,6 +157,134 @@ export default function CalendarioPage() {
     });
   };
 
+  const autoAsignar = () => {
+    // Lógica de auto-asignación inteligente
+    const nuevasAsignaciones: AsignacionTurno[] = [];
+    const diasMes = getDiasDelMes().filter(dia => dia !== null) as number[];
+    
+    // Reglas de asignación por tipo de semana
+    diasMes.forEach(dia => {
+      const tipoSemana = getTipoSemanaTexto(dia);
+      const fecha = `${anoActual}-${String(mesActual + 1).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
+      
+      // Madrugadas: Solo Sugli Martínez (Italia) puede hacer madrugadas
+      const sugliMarinez = equipoConHoras.find(e => e.id === 'sugli-martinez');
+      if (sugliMarinez) {
+        nuevasAsignaciones.push({
+          id: `${sugliMarinez.id}-${fecha}-madrugada`,
+          empleadoId: sugliMarinez.id,
+          fecha,
+          turno: 'madrugada',
+          horas: TURNOS.madrugada.horas
+        });
+      }
+
+      // Seniors nocturnos (18:00-01:00): Solo los seniors de Venezuela
+      const seniorsVenezuela = equipoConHoras.filter(e => 
+        e.pais === 'Venezuela' && e.tipo === 'Senior'
+      );
+      if (seniorsVenezuela.length > 0) {
+        const seniorTurno = seniorsVenezuela[dia % seniorsVenezuela.length];
+        nuevasAsignaciones.push({
+          id: `${seniorTurno.id}-${fecha}-senior_nocturno`,
+          empleadoId: seniorTurno.id,
+          fecha,
+          turno: 'senior_nocturno',
+          horas: TURNOS.senior_nocturno.horas
+        });
+      }
+
+      // Turnos mañana: Especialistas AM + regulares por rotación
+      if (tipoSemana === 'Alta') {
+        // Semanas altas necesitan más cobertura
+        const especialistaAM = equipoConHoras.find(e => e.tipo === 'AM Especialista');
+        const regularesColombia = equipoConHoras.filter(e => 
+          e.pais === 'Colombia' && e.tipo === 'Regular'
+        );
+        
+        if (especialistaAM) {
+          nuevasAsignaciones.push({
+            id: `${especialistaAM.id}-${fecha}-manana`,
+            empleadoId: especialistaAM.id,
+            fecha,
+            turno: 'manana',
+            horas: TURNOS.manana.horas
+          });
+        }
+        
+        // Agregar backup de Colombia
+        if (regularesColombia.length > 0) {
+          const backupMañana = regularesColombia[dia % regularesColombia.length];
+          nuevasAsignaciones.push({
+            id: `${backupMañana.id}-${fecha}-manana-backup`,
+            empleadoId: backupMañana.id,
+            fecha,
+            turno: 'manana',
+            horas: TURNOS.manana.horas
+          });
+        }
+      } else {
+        // Semanas media/valle - solo especialista
+        const especialistaAM = equipoConHoras.find(e => e.tipo === 'AM Especialista');
+        if (especialistaAM) {
+          nuevasAsignaciones.push({
+            id: `${especialistaAM.id}-${fecha}-manana`,
+            empleadoId: especialistaAM.id,
+            fecha,
+            turno: 'manana',
+            horas: TURNOS.manana.horas
+          });
+        }
+      }
+
+      // Turnos tarde: Especialistas PM + híbridos
+      const especialistaPM = equipoConHoras.find(e => e.tipo === 'PM Especialista');
+      const hibridos = equipoConHoras.filter(e => e.tipo === 'Híbrido');
+      
+      if (especialistaPM) {
+        nuevasAsignaciones.push({
+          id: `${especialistaPM.id}-${fecha}-tarde`,
+          empleadoId: especialistaPM.id,
+          fecha,
+          turno: 'tarde',
+          horas: TURNOS.tarde.horas
+        });
+      }
+      
+      // Fines de semana: los híbridos hacen onboarding
+      const esFinde = new Date(anoActual, mesActual, dia).getDay() === 0 || 
+                     new Date(anoActual, mesActual, dia).getDay() === 6;
+      
+      if (esFinde && hibridos.length > 0) {
+        const hibridoTurno = hibridos[dia % hibridos.length];
+        nuevasAsignaciones.push({
+          id: `${hibridoTurno.id}-${fecha}-tarde-hibrido`,
+          empleadoId: hibridoTurno.id,
+          fecha,
+          turno: 'tarde',
+          horas: TURNOS.tarde.horas
+        });
+      }
+    });
+
+    // Eliminar duplicados y verificar límites de horas
+    const asignacionesFiltradas = nuevasAsignaciones.filter(nueva => {
+      const existe = asignaciones.some(existente => 
+        existente.empleadoId === nueva.empleadoId && 
+        existente.fecha === nueva.fecha && 
+        existente.turno === nueva.turno
+      );
+      return !existe;
+    });
+
+    setAsignaciones(prev => [...prev, ...asignacionesFiltradas]);
+
+    toast({
+      title: "Auto-asignación completada",
+      description: `Se asignaron ${asignacionesFiltradas.length} turnos automáticamente siguiendo las reglas del equipo`,
+    });
+  };
+
   const limpiarCalendario = () => {
     setAsignaciones([]);
     toast({
@@ -181,6 +309,7 @@ export default function CalendarioPage() {
             <Button 
               variant="secondary"
               className="bg-white/20 hover:bg-white/30 text-white border-white/30"
+              onClick={autoAsignar}
             >
               Auto-Asignar
             </Button>

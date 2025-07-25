@@ -332,7 +332,7 @@ export default function CerebroUserManager() {
                         size="sm"
                         variant={user.can_access_cerebro ? "default" : "outline"}
                         onClick={() => toggleAccess(user.id, 'cerebro', user.can_access_cerebro)}
-                        className="text-xs"
+                        className="text-xs flex items-center gap-1"
                       >
                         {user.can_access_cerebro ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
                         Cerebro
@@ -341,7 +341,7 @@ export default function CerebroUserManager() {
                         size="sm"
                         variant={user.can_access_nucleo ? "default" : "outline"}
                         onClick={() => toggleAccess(user.id, 'nucleo', user.can_access_nucleo)}
-                        className="text-xs"
+                        className="text-xs flex items-center gap-1"
                       >
                         {user.can_access_nucleo ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
                         Núcleo
