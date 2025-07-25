@@ -58,15 +58,6 @@ const CerebroLayout = () => {
                 </h1>
               </div>
               <div className="flex items-center space-x-4">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="hidden md:flex border-blue-200 text-blue-600 hover:bg-blue-50"
-                  onClick={() => window.open('/nucleo', '_blank')}
-                >
-                  <ExternalLink className="w-4 h-4 mr-2" />
-                  Ir a Núcleo
-                </Button>
                 <Badge variant="outline" className="text-xs bg-purple-100 text-purple-700 border-purple-200">
                   Cerebro v2.0
                 </Badge>

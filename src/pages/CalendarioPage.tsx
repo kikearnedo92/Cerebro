@@ -158,117 +158,249 @@ export default function CalendarioPage() {
   };
 
   const handleAutoAsignar = () => {
-    // Lógica de auto-asignación inteligente
+    // Reglas de negocio específicas
+    const reglasNegocio = {
+      colombia: {
+        horas_maximas: 44,
+        domingos: false, // NO trabajar domingos (recargo 75%)
+        sabados: true,   // SÍ pueden trabajar sábados
+      },
+      venezuela: {
+        horas_maximas: 45,
+        domingos: true, // SÍ pueden trabajar domingos
+        horarios_flexibles: true
+      },
+      mexico: { horas_maximas: 44, flexible: true },
+      italia: { horas_maximas: 45, solo_madrugadas: true },
+      seniors: {
+        horario_nocturno: '18:00-01:00', // 7 horas, 2 días/semana cada uno
+        nunca_madrugada: true, // NO trabajan 01:00-07:00
+        deben_pasar_am_pm: true // Deben pasar por AM y PM también
+      },
+      onboarding: {
+        ashley_fijo: 'AM', // siempre mañanas
+        fernando_fijo: 'PM', // siempre tardes
+        hibridos_fin_semana: ['Juan', 'Alejandra', 'Carmen']
+      }
+    };
+
     const nuevasAsignaciones: AsignacionTurno[] = [];
     const diasMes = getDiasDelMes().filter(dia => dia !== null) as number[];
     
-    // Reglas de asignación por tipo de semana
+    // Contadores para seniors (2 días/semana cada uno)
+    let contadorSeniors: { [key: string]: number } = {};
+    
     diasMes.forEach(dia => {
-      const tipoSemana = getTipoSemanaTexto(dia);
       const fecha = `${anoActual}-${String(mesActual + 1).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
+      const fechaObj = new Date(anoActual, mesActual, dia);
+      const esDomingo = fechaObj.getDay() === 0;
+      const esSabado = fechaObj.getDay() === 6;
+      const esViernes = fechaObj.getDay() === 5;
       
-      // Madrugadas: Solo Sugli Martínez (Italia) puede hacer madrugadas
-      const sugliMarinez = equipoConHoras.find(e => e.id === 'sugli-martinez');
-      if (sugliMarinez) {
+      // MADRUGADAS (23:00-07:00): Solo Sugli, excepto viernes-sábado que descansa
+      const sugli = equipoConHoras.find(e => e.nombre.includes('Sugli'));
+      const diana = equipoConHoras.find(e => e.nombre.includes('Diana'));
+      
+      if (sugli && !esViernes && !esSabado) {
         nuevasAsignaciones.push({
-          id: `${sugliMarinez.id}-${fecha}-madrugada`,
-          empleadoId: sugliMarinez.id,
+          id: `${sugli.id}-${fecha}-madrugada`,
+          empleadoId: sugli.id,
+          fecha,
+          turno: 'madrugada',
+          horas: TURNOS.madrugada.horas
+        });
+      } else if (diana && (esViernes || esSabado)) {
+        // Diana reemplaza a Sugli viernes-sábado
+        nuevasAsignaciones.push({
+          id: `${diana.id}-${fecha}-madrugada`,
+          empleadoId: diana.id,
           fecha,
           turno: 'madrugada',
           horas: TURNOS.madrugada.horas
         });
       }
 
-      // Seniors nocturnos (18:00-01:00): Solo los seniors de Venezuela
-      const seniorsVenezuela = equipoConHoras.filter(e => 
-        e.pais === 'Venezuela' && e.tipo === 'Senior'
+      // SENIORS NOCTURNOS (18:00-01:00): Helen, José, Mayra - 2 días/semana cada uno
+      const seniors = equipoConHoras.filter(e => 
+        e.pais === 'Venezuela' && e.tipo === 'Senior' && 
+        ['Helen', 'José', 'Mayra'].some(name => e.nombre.includes(name))
       );
-      if (seniorsVenezuela.length > 0) {
-        const seniorTurno = seniorsVenezuela[dia % seniorsVenezuela.length];
-        nuevasAsignaciones.push({
-          id: `${seniorTurno.id}-${fecha}-senior_nocturno`,
-          empleadoId: seniorTurno.id,
-          fecha,
-          turno: 'senior_nocturno',
-          horas: TURNOS.senior_nocturno.horas
-        });
-      }
-
-      // Turnos mañana: Especialistas AM + regulares por rotación
-      if (tipoSemana === 'Alta') {
-        // Semanas altas necesitan más cobertura
-        const especialistaAM = equipoConHoras.find(e => e.tipo === 'AM Especialista');
-        const regularesColombia = equipoConHoras.filter(e => 
-          e.pais === 'Colombia' && e.tipo === 'Regular'
+      
+      if (seniors.length > 0) {
+        // Rotar seniors, máximo 2 días por semana cada uno
+        const seniorDisponible = seniors.find(senior => 
+          (contadorSeniors[senior.id] || 0) < 2
         );
         
-        if (especialistaAM) {
+        if (seniorDisponible) {
           nuevasAsignaciones.push({
-            id: `${especialistaAM.id}-${fecha}-manana`,
-            empleadoId: especialistaAM.id,
+            id: `${seniorDisponible.id}-${fecha}-senior_nocturno`,
+            empleadoId: seniorDisponible.id,
             fecha,
-            turno: 'manana',
-            horas: TURNOS.manana.horas
+            turno: 'senior_nocturno',
+            horas: TURNOS.senior_nocturno.horas
           });
+          contadorSeniors[seniorDisponible.id] = (contadorSeniors[seniorDisponible.id] || 0) + 1;
         }
+      }
+
+      // MAÑANAS (07:00-15:00): Ashley fijo + rotación según demanda
+      const ashley = equipoConHoras.find(e => e.nombre.includes('Ashley'));
+      
+      if (ashley) {
+        nuevasAsignaciones.push({
+          id: `${ashley.id}-${fecha}-manana`,
+          empleadoId: ashley.id,
+          fecha,
+          turno: 'manana',
+          horas: TURNOS.manana.horas
+        });
+      }
+      
+      // Domingos: Solo venezolanos/mexicanos pueden trabajar
+      if (esDomingo) {
+        const noColombianosAM = equipoConHoras.filter(e => 
+          e.pais !== 'Colombia' && 
+          ['Helen', 'José', 'Carmen', 'Nerean', 'Belkis'].some(name => e.nombre.includes(name))
+        );
         
-        // Agregar backup de Colombia
-        if (regularesColombia.length > 0) {
-          const backupMañana = regularesColombia[dia % regularesColombia.length];
+        if (noColombianosAM.length > 0) {
+          const empleadoDomingo = noColombianosAM[dia % noColombianosAM.length];
           nuevasAsignaciones.push({
-            id: `${backupMañana.id}-${fecha}-manana-backup`,
-            empleadoId: backupMañana.id,
+            id: `${empleadoDomingo.id}-${fecha}-manana-domingo`,
+            empleadoId: empleadoDomingo.id,
             fecha,
             turno: 'manana',
             horas: TURNOS.manana.horas
           });
         }
       } else {
-        // Semanas media/valle - solo especialista
-        const especialistaAM = equipoConHoras.find(e => e.tipo === 'AM Especialista');
-        if (especialistaAM) {
+        // Días normales: agregar colombianos según demanda
+        const tipoSemana = getTipoSemanaTexto(dia);
+        if (tipoSemana === 'Alta') {
+          const colombianosAM = equipoConHoras.filter(e => 
+            e.pais === 'Colombia' && e.tipo === 'Regular'
+          );
+          
+          if (colombianosAM.length > 0) {
+            const backupAM = colombianosAM[dia % colombianosAM.length];
+            nuevasAsignaciones.push({
+              id: `${backupAM.id}-${fecha}-manana-backup`,
+              empleadoId: backupAM.id,
+              fecha,
+              turno: 'manana',
+              horas: TURNOS.manana.horas
+            });
+          }
+        }
+      }
+
+      // TARDES (15:00-23:00): Fernando fijo + rotación
+      const fernando = equipoConHoras.find(e => e.nombre.includes('Fernando'));
+      
+      if (fernando) {
+        nuevasAsignaciones.push({
+          id: `${fernando.id}-${fecha}-tarde`,
+          empleadoId: fernando.id,
+          fecha,
+          turno: 'tarde',
+          horas: TURNOS.tarde.horas
+        });
+      }
+      
+      // Domingos: Solo venezolanos/mexicanos
+      if (esDomingo) {
+        const mayra = equipoConHoras.find(e => e.nombre.includes('Mayra'));
+        const nerean = equipoConHoras.find(e => e.nombre.includes('Nerean'));
+        
+        if (mayra) {
           nuevasAsignaciones.push({
-            id: `${especialistaAM.id}-${fecha}-manana`,
-            empleadoId: especialistaAM.id,
+            id: `${mayra.id}-${fecha}-tarde-domingo`,
+            empleadoId: mayra.id,
+            fecha,
+            turno: 'tarde',
+            horas: TURNOS.tarde.horas
+          });
+        }
+      } else {
+        // Fines de semana: híbridos
+        if (esSabado) {
+          const hibridos = equipoConHoras.filter(e => 
+            ['Juan', 'Alejandra', 'Carmen'].some(name => e.nombre.includes(name))
+          );
+          
+          if (hibridos.length > 0) {
+            const hibridoTurno = hibridos[dia % hibridos.length];
+            nuevasAsignaciones.push({
+              id: `${hibridoTurno.id}-${fecha}-tarde-hibrido`,
+              empleadoId: hibridoTurno.id,
+              fecha,
+              turno: 'tarde',
+              horas: TURNOS.tarde.horas
+            });
+          }
+        }
+      }
+
+      // Seniors también deben pasar por AM y PM (además de nocturnos)
+      seniors.forEach(senior => {
+        // Agregar turnos AM/PM para seniors (rotación)
+        if (dia % 7 === 1) { // Lunes
+          nuevasAsignaciones.push({
+            id: `${senior.id}-${fecha}-manana-senior`,
+            empleadoId: senior.id,
             fecha,
             turno: 'manana',
             horas: TURNOS.manana.horas
           });
+        } else if (dia % 7 === 3) { // Miércoles
+          nuevasAsignaciones.push({
+            id: `${senior.id}-${fecha}-tarde-senior`,
+            empleadoId: senior.id,
+            fecha,
+            turno: 'tarde',
+            horas: TURNOS.tarde.horas
+          });
         }
-      }
-
-      // Turnos tarde: Especialistas PM + híbridos
-      const especialistaPM = equipoConHoras.find(e => e.tipo === 'PM Especialista');
-      const hibridos = equipoConHoras.filter(e => e.tipo === 'Híbrido');
-      
-      if (especialistaPM) {
-        nuevasAsignaciones.push({
-          id: `${especialistaPM.id}-${fecha}-tarde`,
-          empleadoId: especialistaPM.id,
-          fecha,
-          turno: 'tarde',
-          horas: TURNOS.tarde.horas
-        });
-      }
-      
-      // Fines de semana: los híbridos hacen onboarding
-      const esFinde = new Date(anoActual, mesActual, dia).getDay() === 0 || 
-                     new Date(anoActual, mesActual, dia).getDay() === 6;
-      
-      if (esFinde && hibridos.length > 0) {
-        const hibridoTurno = hibridos[dia % hibridos.length];
-        nuevasAsignaciones.push({
-          id: `${hibridoTurno.id}-${fecha}-tarde-hibrido`,
-          empleadoId: hibridoTurno.id,
-          fecha,
-          turno: 'tarde',
-          horas: TURNOS.tarde.horas
-        });
-      }
+      });
     });
 
-    // Eliminar duplicados y verificar límites de horas
-    const asignacionesFiltradas = nuevasAsignaciones.filter(nueva => {
+    // Filtrar asignaciones que exceden límites de horas
+    const asignacionesValidadas = nuevasAsignaciones.filter(nueva => {
+      const empleado = equipoConHoras.find(e => e.id === nueva.empleadoId);
+      if (!empleado) return false;
+      
+      // Calcular horas actuales del empleado
+      const horasActuales = asignaciones
+        .filter(a => a.empleadoId === nueva.empleadoId)
+        .reduce((total, a) => total + a.horas, 0);
+      
+      // Aplicar límites según país
+      let limiteHoras = 45; // default
+      if (empleado.pais === 'Colombia') limiteHoras = 44;
+      if (empleado.pais === 'México') limiteHoras = 44;
+      if (empleado.pais === 'Italia') limiteHoras = 45;
+      
+      // Verificar si agregar estas horas excede el límite
+      const horasConNueva = horasActuales + nueva.horas;
+      if (horasConNueva > limiteHoras) {
+        console.warn(`Empleado ${empleado.nombre} excedería límite: ${horasConNueva}/${limiteHoras}h`);
+        return false;
+      }
+      
+      // Verificar restricciones de domingos para colombianos
+      const fechaObj = new Date(nueva.fecha);
+      const esDomingo = fechaObj.getDay() === 0;
+      if (esDomingo && empleado.pais === 'Colombia') {
+        console.warn(`Empleado colombiano ${empleado.nombre} no puede trabajar domingos`);
+        return false;
+      }
+      
+      return true;
+    });
+
+    // Eliminar duplicados
+    const asignacionesFiltradas = asignacionesValidadas.filter(nueva => {
       const existe = asignaciones.some(existente => 
         existente.empleadoId === nueva.empleadoId && 
         existente.fecha === nueva.fecha && 
@@ -280,8 +412,8 @@ export default function CalendarioPage() {
     setAsignaciones(prev => [...prev, ...asignacionesFiltradas]);
 
     toast({
-      title: "Auto-asignación completada",
-      description: `Se asignaron ${asignacionesFiltradas.length} turnos automáticamente siguiendo las reglas del equipo`,
+      title: "Auto-asignación inteligente completada",
+      description: `Se asignaron ${asignacionesFiltradas.length} turnos siguiendo las reglas de negocio (límites de horas, restricciones de país, rotaciones)`,
     });
   };
 
