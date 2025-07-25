@@ -157,7 +157,7 @@ export default function CalendarioPage() {
     });
   };
 
-  const autoAsignar = () => {
+  const handleAutoAsignar = () => {
     // Lógica de auto-asignación inteligente
     const nuevasAsignaciones: AsignacionTurno[] = [];
     const diasMes = getDiasDelMes().filter(dia => dia !== null) as number[];
@@ -309,7 +309,7 @@ export default function CalendarioPage() {
             <Button 
               variant="secondary"
               className="bg-white/20 hover:bg-white/30 text-white border-white/30"
-              onClick={autoAsignar}
+              onClick={handleAutoAsignar}
             >
               Auto-Asignar
             </Button>
