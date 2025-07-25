@@ -3,10 +3,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EQUIPO_COMPLETO, TURNOS, type TipoSemana, type TurnoType, type AsignacionTurno, type Empleado } from "@/types/equipo";
 import { toast } from "@/hooks/use-toast";
-import { AlertTriangle, Clock, Calendar, Users, Settings } from "lucide-react";
+import { AlertTriangle, ChevronLeft, ChevronRight } from "lucide-react";
 import HorasExtrasForm from "@/components/ui/HorasExtrasForm";
 
 const MESES = [
@@ -23,29 +22,32 @@ export default function CalendarioPage() {
   const [empleadoArrastrado, setEmpleadoArrastrado] = useState<string | null>(null);
   const [equipoConHoras, setEquipoConHoras] = useState<Empleado[]>([...EQUIPO_COMPLETO]);
   const [solicitudesHorasExtras, setSolicitudesHorasExtras] = useState<any[]>([]);
-  const [editandoEmpleado, setEditandoEmpleado] = useState<string | null>(null);
+  const [mostrarFormularioHorasExtras, setMostrarFormularioHorasExtras] = useState(false);
 
-  // Actualizar horas asignadas cuando cambien las asignaciones - SEMANAL
+  // Calcular horas semanales - semana va de lunes a domingo
   useEffect(() => {
     const nuevoEquipo = EQUIPO_COMPLETO.map(empleado => {
-      // Calcular horas semanales del empleado
-      const fechaActual = new Date();
-      const inicioSemana = new Date(fechaActual);
-      inicioSemana.setDate(fechaActual.getDate() - fechaActual.getDay());
+      // Obtener semana actual (lunes a domingo)
+      const hoy = new Date();
+      const diaSemana = hoy.getDay();
+      const lunes = new Date(hoy);
+      lunes.setDate(hoy.getDate() - (diaSemana === 0 ? 6 : diaSemana - 1)); // Si es domingo (0), restar 6 días
+      
+      const domingo = new Date(lunes);
+      domingo.setDate(lunes.getDate() + 6);
       
       const horasSemanales = asignaciones
         .filter(a => {
           if (a.empleadoId !== empleado.id) return false;
           const fechaAsignacion = new Date(a.fecha);
-          const inicioSemanaAsignacion = new Date(fechaAsignacion);
-          inicioSemanaAsignacion.setDate(fechaAsignacion.getDate() - fechaAsignacion.getDay());
-          return inicioSemanaAsignacion.getTime() === inicioSemana.getTime();
+          return fechaAsignacion >= lunes && fechaAsignacion <= domingo;
         })
         .reduce((total, a) => total + a.horas, 0);
       
       return {
         ...empleado,
-        horasAsignadas: horasSemanales
+        horasAsignadas: horasSemanales,
+        horasDisponibles: Math.max(0, (empleado.pais === 'Colombia' ? 44 : 45) - horasSemanales)
       };
     });
     setEquipoConHoras(nuevoEquipo);
@@ -88,7 +90,6 @@ export default function CalendarioPage() {
     for (let dia = 1; dia <= diasRestantes; dia++) {
       dias.push({
         dia,
-        esMesAnterior: false,
         esMesSiguiente: true,
         fecha: new Date(anoSiguiente, mesSiguiente, dia)
       });
@@ -202,249 +203,170 @@ export default function CalendarioPage() {
     });
   };
 
-  const handleAutoAsignar = () => {
+  const autoAsignar = () => {
     const nuevasAsignaciones: AsignacionTurno[] = [];
-    const diasMes = getDiasDelMes().filter(dia => dia !== null) as number[];
+    const dias = getDiasDelMes();
     
-    // Crear contadores de horas mensuales por empleado
-    const horasMensualesPorEmpleado: { [key: string]: number } = {};
-    equipoConHoras.forEach(emp => {
-      horasMensualesPorEmpleado[emp.id] = emp.horasAsignadas || 0;
-    });
+    // Obtener solo los días del mes actual para la semana
+    const diasSemana = dias.filter(diaObj => !diaObj.esMesAnterior && !diaObj.esMesSiguiente);
+    
+    // Si no hay días válidos, usar todos los días visibles
+    const diasParaAsignar = diasSemana.length > 0 ? diasSemana : dias;
 
-    // Contadores semanales para seniors (máximo 2 turnos nocturnos por semana)
-    let contadorSeniorsSemanales: { [key: string]: { [semana: number]: number } } = {};
-    
-    diasMes.forEach(dia => {
+    diasParaAsignar.forEach(diaObj => {
+      const dia = diaObj.dia;
       const fecha = `${anoActual}-${String(mesActual + 1).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
       const fechaObj = new Date(anoActual, mesActual, dia);
-      const esDomingo = fechaObj.getDay() === 0;
-      const esSabado = fechaObj.getDay() === 6;
-      const esViernes = fechaObj.getDay() === 5;
-      const semanaDelMes = Math.ceil(dia / 7);
+      const diaSemana = fechaObj.getDay(); // 0 = domingo, 1 = lunes, etc.
       const tipoSemana = getTipoSemanaTexto(dia);
 
-      // Función helper para verificar límites de horas
+      // Verificar límites de horas semanales
       const puedeAsignarHoras = (empleadoId: string, horas: number) => {
         const empleado = equipoConHoras.find(e => e.id === empleadoId);
         if (!empleado) return false;
         
-        let limiteHoras = 45; // default para Venezuela
-        if (empleado.pais === 'Colombia') limiteHoras = 44;
-        if (empleado.pais === 'México') limiteHoras = 44;
+        const limiteHoras = empleado.pais === 'Colombia' ? 44 : 45;
+        const horasActuales = empleado.horasAsignadas || 0;
         
-        // Calcular horas semanales actuales para este empleado
-        const fechaActual = new Date(anoActual, mesActual, dia);
-        const inicioSemana = new Date(fechaActual);
-        inicioSemana.setDate(fechaActual.getDate() - fechaActual.getDay());
-        const finSemana = new Date(inicioSemana);
-        finSemana.setDate(inicioSemana.getDate() + 6);
-        
-        const horasSemanalesActuales = nuevasAsignaciones
-          .filter(a => {
-            if (a.empleadoId !== empleadoId) return false;
-            const fechaAsignacion = new Date(a.fecha);
-            return fechaAsignacion >= inicioSemana && fechaAsignacion <= finSemana;
-          })
-          .reduce((sum, a) => sum + a.horas, 0);
-        
-        return (horasSemanalesActuales + horas) <= limiteHoras;
+        return (horasActuales + horas) <= limiteHoras;
       };
 
-      // Función helper para asignar y actualizar contador
+      // Función para asignar turno
       const asignarTurno = (empleadoId: string, turno: TurnoType, suffix = '') => {
-        if (puedeAsignarHoras(empleadoId, TURNOS[turno].horas)) {
-          const empleado = equipoConHoras.find(e => e.id === empleadoId);
-          
-          // Verificar restricción de domingos para colombianos
-          if (esDomingo && empleado?.pais === 'Colombia') {
-            return false;
-          }
+        const empleado = equipoConHoras.find(e => e.id === empleadoId);
+        if (!empleado) return false;
 
-          nuevasAsignaciones.push({
+        // Restricción de domingos para colombianos
+        if (diaSemana === 0 && empleado.pais === 'Colombia') {
+          return false;
+        }
+
+        if (puedeAsignarHoras(empleadoId, TURNOS[turno].horas)) {
+          const nuevaAsignacion: AsignacionTurno = {
             id: `${empleadoId}-${fecha}-${turno}${suffix}`,
             empleadoId,
             fecha,
             turno,
             horas: TURNOS[turno].horas
-          });
+          };
+          nuevasAsignaciones.push(nuevaAsignacion);
           
-          horasMensualesPorEmpleado[empleadoId] = (horasMensualesPorEmpleado[empleadoId] || 0) + TURNOS[turno].horas;
+          // Actualizar horas temporalmente para el siguiente cálculo
+          const empleadoIndex = equipoConHoras.findIndex(e => e.id === empleadoId);
+          if (empleadoIndex !== -1) {
+            equipoConHoras[empleadoIndex].horasAsignadas = 
+              (equipoConHoras[empleadoIndex].horasAsignadas || 0) + TURNOS[turno].horas;
+          }
           return true;
         }
         return false;
       };
 
       // 1. MADRUGADAS (01:00-07:00): Sugli principal, Diana backup vie-sáb
-      const sugli = equipoConHoras.find(e => e.nombre === 'Sugli Martinez');
-      const diana = equipoConHoras.find(e => e.nombre === 'Diana Castillo');
-      
-      if (esViernes || esSabado) {
-        // Diana reemplaza a Sugli viernes-sábado (descanso de Sugli)
+      if (diaSemana === 5 || diaSemana === 6) { // Viernes y Sábado
+        const diana = equipoConHoras.find(e => e.nombre === 'Diana Castillo');
         if (diana) asignarTurno(diana.id, 'madrugada', '-backup');
       } else {
-        // Sugli trabaja resto de días
+        const sugli = equipoConHoras.find(e => e.nombre === 'Sugli Martinez');
         if (sugli) asignarTurno(sugli.id, 'madrugada');
       }
 
-      // 2. SENIORS NOCTURNOS (18:00-01:00): Helen, José Manuel, Mayra - 2 días/semana cada uno
+      // 2. SENIORS NOCTURNOS (18:00-01:00): Solo seniors
       const seniors = [
         equipoConHoras.find(e => e.nombre === 'Helen Rodríguez'),
         equipoConHoras.find(e => e.nombre === 'José Manuel Torres'),
         equipoConHoras.find(e => e.nombre === 'Mayra González')
       ].filter(Boolean);
-      
-      // Rotar seniors para turnos nocturnos (máximo 2 por semana)
-      const seniorDisponible = seniors.find(senior => {
-        if (!senior) return false;
-        const contadorSemanal = contadorSeniorsSemanales[senior.id]?.[semanaDelMes] || 0;
-        return contadorSemanal < 2 && puedeAsignarHoras(senior.id, TURNOS.senior_nocturno.horas);
-      });
+
+      const seniorDisponible = seniors.find(senior => 
+        senior && puedeAsignarHoras(senior.id, TURNOS.senior_nocturno.horas)
+      );
       
       if (seniorDisponible) {
-        if (!contadorSeniorsSemanales[seniorDisponible.id]) {
-          contadorSeniorsSemanales[seniorDisponible.id] = {};
-        }
-        if (asignarTurno(seniorDisponible.id, 'senior_nocturno')) {
-          contadorSeniorsSemanales[seniorDisponible.id][semanaDelMes] = 
-            (contadorSeniorsSemanales[seniorDisponible.id][semanaDelMes] || 0) + 1;
-        }
+        asignarTurno(seniorDisponible.id, 'senior_nocturno');
       }
 
-      // 3. MAÑANAS (07:00-15:00): Máxima cobertura ATC + ONB
+      // 3. MAÑANAS (07:00-15:00): Ashley fijo + cobertura según demanda
       const ashley = equipoConHoras.find(e => e.nombre === 'Ashley Jiménez');
       let asignadosAM = 0;
 
-      // Ashley fijo AM (Onboarding)
-      if (ashley && asignarTurno(ashley.id, 'manana', '-onb-fijo')) {
+      if (ashley && asignarTurno(ashley.id, 'manana', '-onb')) {
         asignadosAM++;
       }
 
-      // Estrategia de cobertura según demanda y día
-      let targetAM = 1; // Mínimo base
-      if (tipoSemana === 'Alta') targetAM = 4; // Demanda alta
-      else if (tipoSemana === 'Media') targetAM = 3; // Demanda media
-      else targetAM = 2; // Valle
+      // Cobertura según demanda
+      let targetAM = 2; // Base
+      if (tipoSemana === 'Alta') targetAM = 5;
+      else if (tipoSemana === 'Media') targetAM = 3;
 
-      if (esDomingo) {
-        // Domingos: Solo venezolanos/mexicanos
-        const noColombianosAM = [
-          equipoConHoras.find(e => e.nombre === 'Helen Rodríguez'),
-          equipoConHoras.find(e => e.nombre === 'José Manuel Torres'),
-          equipoConHoras.find(e => e.nombre === 'Carmen Silva'),
-          equipoConHoras.find(e => e.nombre === 'Nerean Medina'),
-          equipoConHoras.find(e => e.nombre === 'Belkis Ramírez')
-        ].filter(Boolean).filter(e => e && puedeAsignarHoras(e.id, TURNOS.manana.horas));
+      // Lista de empleados para mañana
+      const empleadosAM = [
+        equipoConHoras.find(e => e.nombre === 'Helen Rodríguez'),
+        equipoConHoras.find(e => e.nombre === 'José Manuel Torres'),
+        equipoConHoras.find(e => e.nombre === 'Stella Morales'),
+        equipoConHoras.find(e => e.nombre === 'Juan Carlos López'),
+        equipoConHoras.find(e => e.nombre === 'Thalia Vargas'),
+        equipoConHoras.find(e => e.nombre === 'Alejandra Ruiz'),
+        equipoConHoras.find(e => e.nombre === 'Cristian Herrera'),
+        equipoConHoras.find(e => e.nombre === 'Carmen Silva'),
+        equipoConHoras.find(e => e.nombre === 'Nerean Medina'),
+        equipoConHoras.find(e => e.nombre === 'Belkis Ramírez')
+      ].filter(Boolean);
 
-        noColombianosAM.slice(0, Math.min(targetAM - asignadosAM, noColombianosAM.length)).forEach((emp, idx) => {
-          if (emp && asignarTurno(emp.id, 'manana', `-domingo-${idx}`)) {
-            asignadosAM++;
+      // Filtrar por domingos (solo no colombianos)
+      const disponiblesAM = diaSemana === 0 ? 
+        empleadosAM.filter(emp => emp && emp.pais !== 'Colombia') : 
+        empleadosAM;
+
+      // Asignar empleados hasta cubrir la demanda
+      let asignados = 0;
+      for (const emp of disponiblesAM) {
+        if (asignados >= (targetAM - asignadosAM)) break;
+        if (emp && puedeAsignarHoras(emp.id, TURNOS.manana.horas)) {
+          if (asignarTurno(emp.id, 'manana', `-atc-${asignados}`)) {
+            asignados++;
           }
-        });
-      } else {
-        // Días normales: Usar todos los disponibles
-        const disponiblesAM = [
-          equipoConHoras.find(e => e.nombre === 'Helen Rodríguez'),
-          equipoConHoras.find(e => e.nombre === 'José Manuel Torres'),
-          equipoConHoras.find(e => e.nombre === 'Stella Morales'),
-          equipoConHoras.find(e => e.nombre === 'Juan Carlos López'),
-          equipoConHoras.find(e => e.nombre === 'Thalia Vargas'),
-          equipoConHoras.find(e => e.nombre === 'Alejandra Ruiz'),
-          equipoConHoras.find(e => e.nombre === 'Cristian Herrera'),
-          equipoConHoras.find(e => e.nombre === 'Carmen Silva'),
-          equipoConHoras.find(e => e.nombre === 'Nerean Medina'),
-          equipoConHoras.find(e => e.nombre === 'Belkis Ramírez')
-        ].filter(Boolean).filter(e => e && puedeAsignarHoras(e.id, TURNOS.manana.horas));
-
-        // Priorizar según utilización para equilibrar horas
-        disponiblesAM.sort((a, b) => {
-          const utilizacionA = (horasMensualesPorEmpleado[a!.id] || 0) / a!.horasMax;
-          const utilizacionB = (horasMensualesPorEmpleado[b!.id] || 0) / b!.horasMax;
-          return utilizacionA - utilizacionB; // Menor utilización primero
-        });
-
-        disponiblesAM.slice(0, Math.min(targetAM - asignadosAM, disponiblesAM.length)).forEach((emp, idx) => {
-          if (emp && asignarTurno(emp.id, 'manana', `-atc-${idx}`)) {
-            asignadosAM++;
-          }
-        });
-      }
-
-      // 4. TARDES (15:00-23:00): Máxima cobertura
-      const fernando = equipoConHoras.find(e => e.nombre === 'Fernando Pérez');
-      let asignadosPM = 0;
-
-      // Fernando fijo PM (Onboarding)
-      if (fernando && asignarTurno(fernando.id, 'tarde', '-onb-fijo')) {
-        asignadosPM++;
-      }
-
-      let targetPM = 1; // Mínimo base
-      if (tipoSemana === 'Alta') targetPM = 3;
-      else if (tipoSemana === 'Media') targetPM = 2;
-      else targetPM = 2;
-
-      if (esDomingo) {
-        // Domingos: Solo venezolanos/mexicanos
-        const noColombianoPM = [
-          equipoConHoras.find(e => e.nombre === 'Mayra González'),
-          equipoConHoras.find(e => e.nombre === 'Nerean Medina'),
-          equipoConHoras.find(e => e.nombre === 'Belkis Ramírez')
-        ].filter(Boolean).filter(e => e && puedeAsignarHoras(e.id, TURNOS.tarde.horas));
-
-        noColombianoPM.slice(0, Math.min(targetPM - asignadosPM, noColombianoPM.length)).forEach((emp, idx) => {
-          if (emp && asignarTurno(emp.id, 'tarde', `-domingo-${idx}`)) {
-            asignadosPM++;
-          }
-        });
-      } else {
-        // Días normales + fines de semana híbridos
-        const disponiblesPM = [
-          equipoConHoras.find(e => e.nombre === 'Mayra González'),
-          ...(esSabado ? [
-            equipoConHoras.find(e => e.nombre === 'Juan Carlos López'),
-            equipoConHoras.find(e => e.nombre === 'Alejandra Ruiz'),
-            equipoConHoras.find(e => e.nombre === 'Carmen Silva')
-          ] : []),
-          equipoConHoras.find(e => e.nombre === 'Stella Morales'),
-          equipoConHoras.find(e => e.nombre === 'Nerean Medina')
-        ].filter(Boolean).filter(e => e && puedeAsignarHoras(e.id, TURNOS.tarde.horas));
-
-        // Priorizar según utilización
-        disponiblesPM.sort((a, b) => {
-          const utilizacionA = (horasMensualesPorEmpleado[a!.id] || 0) / a!.horasMax;
-          const utilizacionB = (horasMensualesPorEmpleado[b!.id] || 0) / b!.horasMax;
-          return utilizacionA - utilizacionB;
-        });
-
-        disponiblesPM.slice(0, Math.min(targetPM - asignadosPM, disponiblesPM.length)).forEach((emp, idx) => {
-          if (emp && asignarTurno(emp.id, 'tarde', `-${esSabado ? 'hibrido' : 'atc'}-${idx}`)) {
-            asignadosPM++;
-          }
-        });
-      }
-
-      // 5. Rotación adicional para seniors en AM/PM (deben pasar por todos los turnos)
-      if (dia % 4 === 0) { // Cada 4 días
-        const seniorRotacion = seniors.find(senior => 
-          senior && puedeAsignarHoras(senior.id, TURNOS.manana.horas)
-        );
-        if (seniorRotacion) {
-          asignarTurno(seniorRotacion.id, 'manana', '-senior-rotacion');
         }
       }
 
-      if (dia % 5 === 0) { // Cada 5 días
-        const seniorRotacion = seniors.find(senior => 
-          senior && puedeAsignarHoras(senior.id, TURNOS.tarde.horas)
-        );
-        if (seniorRotacion) {
-          asignarTurno(seniorRotacion.id, 'tarde', '-senior-rotacion');
+      // 4. TARDES (15:00-23:00): Fernando fijo + cobertura
+      const fernando = equipoConHoras.find(e => e.nombre === 'Fernando Pérez');
+      let asignadosPM = 0;
+
+      if (fernando && asignarTurno(fernando.id, 'tarde', '-onb')) {
+        asignadosPM++;
+      }
+
+      let targetPM = 2; // Base
+      if (tipoSemana === 'Alta') targetPM = 4;
+      else if (tipoSemana === 'Media') targetPM = 3;
+
+      const empleadosPM = [
+        equipoConHoras.find(e => e.nombre === 'Mayra González'),
+        equipoConHoras.find(e => e.nombre === 'Stella Morales'),
+        equipoConHoras.find(e => e.nombre === 'Juan Carlos López'),
+        equipoConHoras.find(e => e.nombre === 'Alejandra Ruiz'),
+        equipoConHoras.find(e => e.nombre === 'Carmen Silva'),
+        equipoConHoras.find(e => e.nombre === 'Nerean Medina'),
+        equipoConHoras.find(e => e.nombre === 'Belkis Ramírez')
+      ].filter(Boolean);
+
+      const disponiblesPM = diaSemana === 0 ? 
+        empleadosPM.filter(emp => emp && emp.pais !== 'Colombia') : 
+        empleadosPM;
+
+      let asignadosTarde = 0;
+      for (const emp of disponiblesPM) {
+        if (asignadosTarde >= (targetPM - asignadosPM)) break;
+        if (emp && puedeAsignarHoras(emp.id, TURNOS.tarde.horas)) {
+          if (asignarTurno(emp.id, 'tarde', `-atc-${asignadosTarde}`)) {
+            asignadosTarde++;
+          }
         }
       }
     });
 
-    // Eliminar duplicados y conflictos existentes
+    // Filtrar duplicados
     const asignacionesFiltradas = nuevasAsignaciones.filter(nueva => {
       const existe = asignaciones.some(existente => 
         existente.empleadoId === nueva.empleadoId && 
@@ -456,19 +378,16 @@ export default function CalendarioPage() {
 
     setAsignaciones(prev => [...prev, ...asignacionesFiltradas]);
 
-    // Calcular estadísticas
-    const totalAsignadas = asignacionesFiltradas.length;
-    const horasTotales = asignacionesFiltradas.reduce((sum, a) => sum + a.horas, 0);
-    const empleadosBeneficiados = new Set(asignacionesFiltradas.map(a => a.empleadoId)).size;
-
     toast({
-      title: "Auto-asignación inteligente completada",
-      description: `✅ ${totalAsignadas} turnos asignados (${horasTotales}h) a ${empleadosBeneficiados} empleados. Cobertura 24/7 optimizada con límites respetados.`,
+      title: "Auto-asignación completada",
+      description: `${asignacionesFiltradas.length} turnos asignados con cobertura 24/7`,
     });
   };
 
   const limpiarCalendario = () => {
     setAsignaciones([]);
+    // Resetear horas del equipo
+    setEquipoConHoras([...EQUIPO_COMPLETO]);
     toast({
       title: "Calendario limpiado",
       description: "Todas las asignaciones han sido eliminadas",
@@ -478,124 +397,165 @@ export default function CalendarioPage() {
   const dias = getDiasDelMes();
 
   return (
-    <div className="p-6 space-y-6 bg-gray-50 min-h-screen">
-      <Card className="shadow-sm">
-        <CardHeader className="text-center bg-gradient-to-r from-purple-600 to-purple-700 text-white rounded-t-lg">
-          <CardTitle className="text-2xl font-bold flex items-center justify-center gap-3">
-            📅 Calendario Customer Success
-          </CardTitle>
-          <p className="text-purple-100">
-            Gestión inteligente de horarios semanales 24/7
-          </p>
-          <div className="flex justify-center gap-3 mt-4">
-            <Button 
-              variant="secondary"
-              className="bg-white/20 hover:bg-white/30 text-white border-white/30"
-              onClick={handleAutoAsignar}
-            >
-              Auto-Asignar Semanal
-            </Button>
-            <Button 
-              variant="outline"
-              onClick={limpiarCalendario}
-              className="bg-transparent hover:bg-white/20 text-white border-white/30"
-            >
-              Limpiar
-            </Button>
+    <div className="container mx-auto p-6 space-y-6">
+      {/* Header con controles */}
+      <div className="flex justify-between items-center">
+        <h1 className="text-3xl font-bold">Calendario de Turnos 24/7</h1>
+        <div className="flex gap-2 items-center">
+          <Button 
+            onClick={autoAsignar}
+            className="bg-blue-600 hover:bg-blue-700"
+          >
+            Auto-asignar Semana
+          </Button>
+          <Button variant="outline" onClick={() => setMostrarFormularioHorasExtras(true)}>
+            Horas Extras
+          </Button>
+          <Button variant="outline" onClick={limpiarCalendario}>
+            Limpiar
+          </Button>
+        </div>
+      </div>
+
+      {/* Selector de fecha */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  if (mesActual === 0) {
+                    setMesActual(11);
+                    setAnoActual(prev => prev - 1);
+                  } else {
+                    setMesActual(prev => prev - 1);
+                  }
+                }}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <h2 className="text-xl font-semibold min-w-[200px] text-center">
+                {MESES[mesActual]} {anoActual}
+              </h2>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  if (mesActual === 11) {
+                    setMesActual(0);
+                    setAnoActual(prev => prev + 1);
+                  } else {
+                    setMesActual(prev => prev + 1);
+                  }
+                }}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="flex gap-2">
+              <Select value={anoActual.toString()} onValueChange={(value) => setAnoActual(parseInt(value))}>
+                <SelectTrigger className="w-20">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="2024">2024</SelectItem>
+                  <SelectItem value="2025">2025</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-        </CardHeader>
+        </CardContent>
       </Card>
 
-      <Tabs defaultValue="calendario" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="configuracion" className="flex items-center gap-2">
-            <Settings className="h-4 w-4" />
-            Configuración
-          </TabsTrigger>
-          <TabsTrigger value="calendario" className="flex items-center gap-2">
-            <Calendar className="h-4 w-4" />
-            Calendario
-          </TabsTrigger>
-          <TabsTrigger value="personal" className="flex items-center gap-2">
-            <Users className="h-4 w-4" />
-            Personal
-          </TabsTrigger>
-          <TabsTrigger value="horas-extras" className="flex items-center gap-2">
-            <Clock className="h-4 w-4" />
-            Horas Extras
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="configuracion">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Card className="shadow-sm">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg">⚙️ Configuración del Mes</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Mes:</label>
-                  <Select value={mesActual.toString()} onValueChange={(value) => setMesActual(parseInt(value))}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {MESES.map((mes, index) => (
-                        <SelectItem key={index} value={index.toString()}>
-                          {mes}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Año:</label>
-                  <Select value={anoActual.toString()} onValueChange={(value) => setAnoActual(parseInt(value))}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="2024">2024</SelectItem>
-                      <SelectItem value="2025">2025</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2 pt-4">
-                  <Badge variant="destructive" className="w-full justify-center">
-                    🔴 Alta (1-5, 28-31)
-                  </Badge>
-                  <Badge variant="secondary" className="w-full justify-center bg-yellow-100 text-yellow-800">
-                    🟡 Media (13-17)
-                  </Badge>
-                  <Badge variant="default" className="w-full justify-center bg-green-100 text-green-800">
-                    🟢 Valle (resto)
-                  </Badge>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="shadow-sm">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg">🕐 Horarios de Turnos</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {Object.entries(TURNOS).map(([key, turno]) => (
-                  <div key={key} className={`p-3 rounded-md ${turno.color}`}>
-                    <div className="font-medium text-sm">{turno.nombre}</div>
-                    <div className="text-sm opacity-80">{turno.horario} ({turno.horas}h)</div>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
+      {/* Leyenda de horarios */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex flex-wrap gap-4 justify-center">
+            {Object.entries(TURNOS).map(([key, turno]) => (
+              <div key={key} className={`px-3 py-1 rounded-md text-sm ${turno.color}`}>
+                <span className="font-medium">{turno.nombre}</span>
+                <span className="ml-2 opacity-80">{turno.horario}</span>
+              </div>
+            ))}
           </div>
-        </TabsContent>
+        </CardContent>
+      </Card>
 
-        <TabsContent value="calendario">
-          <Card className="shadow-sm">
+      <div className="grid grid-cols-12 gap-6">
+        {/* Panel izquierdo - Personal disponible */}
+        <div className="col-span-3">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Personal Disponible</CardTitle>
+              <p className="text-sm text-muted-foreground">Horas semanales disponibles</p>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="space-y-2 max-h-[600px] overflow-y-auto p-4">
+                {equipoConHoras.map((empleado) => {
+                  const horasSemanalesUsadas = empleado.horasAsignadas || 0;
+                  const limiteHoras = empleado.pais === 'Colombia' ? 44 : 45;
+                  const horasDisponibles = Math.max(0, limiteHoras - horasSemanalesUsadas);
+                  const utilizacion = (horasSemanalesUsadas / limiteHoras) * 100;
+                  
+                  return (
+                    <div
+                      key={empleado.id}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, empleado.id)}
+                      className="p-3 bg-white rounded-lg border border-gray-200 cursor-grab hover:shadow-md transition-shadow"
+                    >
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <h4 className="font-medium text-sm">{empleado.nombre}</h4>
+                          <div className="text-xs text-gray-600 space-y-1">
+                            <div>{getCountryFlag(empleado.pais)} {empleado.pais}</div>
+                            <div>🏢 {empleado.departamento}</div>
+                            <div>⭐ {empleado.especialidad}</div>
+                            {empleado.lider && <div>👑 Líder</div>}
+                          </div>
+                        </div>
+                        <div className="text-right text-xs">
+                          <div className="font-semibold text-blue-600">
+                            {horasDisponibles}h disponibles
+                          </div>
+                          <div className="text-gray-500">
+                            {horasSemanalesUsadas}h de {limiteHoras}h
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-1.5 mt-1">
+                            <div 
+                              className={`h-1.5 rounded-full ${
+                                utilizacion > 100 ? 'bg-red-500' : 
+                                utilizacion > 90 ? 'bg-yellow-500' : 'bg-blue-500'
+                              }`}
+                              style={{ 
+                                width: `${Math.min(100, utilizacion)}%` 
+                              }}
+                            ></div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Panel principal - Calendario */}
+        <div className="col-span-9">
+          <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-xl">{MESES[mesActual]} {anoActual}</CardTitle>
+              <CardTitle className="text-xl flex items-center gap-2">
+                📅 {MESES[mesActual]} {anoActual}
+                <div className="ml-auto flex gap-2 text-sm">
+                  <Badge variant="destructive">🔴 Alta (1-5, 28-31)</Badge>
+                  <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">🟡 Media (13-17)</Badge>
+                  <Badge variant="default" className="bg-green-100 text-green-800">🟢 Valle (resto)</Badge>
+                </div>
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-7 gap-1">
@@ -608,9 +568,7 @@ export default function CalendarioPage() {
                 {dias.map((diaObj, index) => (
                   <div
                     key={index}
-                    className={`min-h-[160px] p-2 border-2 rounded ${getColorSemana(diaObj.dia)} ${
-                      diaObj.esMesAnterior || diaObj.esMesSiguiente ? 'opacity-40' : ''
-                    }`}
+                    className={`min-h-[160px] p-2 border-2 rounded ${getColorSemana(diaObj.dia)}`}
                   >
                     {diaObj && (
                       <>
@@ -678,60 +636,19 @@ export default function CalendarioPage() {
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
+        </div>
+      </div>
 
-        <TabsContent value="personal">
-          <Card className="shadow-sm">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg flex items-center gap-2">
-                👥 Personal Disponible
-                <span className="text-sm text-gray-500">Arrastra a los turnos del calendario</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
-                {equipoConHoras.map(empleado => {
-                  const excedeHoras = (empleado.horasAsignadas || 0) > empleado.horasMax;
-                  const utilizacion = ((empleado.horasAsignadas || 0) / empleado.horasMax) * 100;
-                  return (
-                    <div
-                      key={empleado.id}
-                      draggable
-                      onDragStart={(e) => handleDragStart(e, empleado.id)}
-                      className={`p-3 border-2 rounded-lg cursor-move hover:shadow-md transition-all ${
-                        excedeHoras ? 'border-red-300 bg-red-50' : 
-                        utilizacion < 50 ? 'border-yellow-300 bg-yellow-50' :
-                        'border-gray-200 hover:border-purple-300 bg-white'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 mb-1">
-                        {getCountryFlag(empleado.pais)}
-                        <span className="font-medium text-sm">{empleado.nombre}</span>
-                        {excedeHoras && <AlertTriangle className="h-4 w-4 text-red-500" />}
-                      </div>
-                      <div className="text-xs text-gray-600 mb-1">
-                        {empleado.departamento} - {empleado.tipo}
-                      </div>
-                      <div className={`text-xs font-medium ${
-                        excedeHoras ? 'text-red-600' : 
-                        utilizacion < 50 ? 'text-yellow-600' :
-                        'text-gray-700'
-                      }`}>
-                        {empleado.horasAsignadas || 0} / {empleado.horasMax}h ({Math.round(utilizacion)}%)
-                      </div>
-                      {utilizacion < 50 && (
-                        <div className="text-xs text-yellow-600">⚠️ Subutilizado</div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="horas-extras">
-          <div className="space-y-6">
+      {/* Modal de horas extras */}
+      {mostrarFormularioHorasExtras && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold">Solicitud de Horas Extras</h2>
+              <Button variant="outline" onClick={() => setMostrarFormularioHorasExtras(false)}>
+                ✕
+              </Button>
+            </div>
             <HorasExtrasForm 
               empleados={equipoConHoras.map(e => ({
                 id: e.id,
@@ -741,40 +658,46 @@ export default function CalendarioPage() {
               }))}
               onSolicitudCreada={(solicitud) => {
                 setSolicitudesHorasExtras(prev => [...prev, solicitud]);
+                setMostrarFormularioHorasExtras(false);
+                toast({
+                  title: "Solicitud creada",
+                  description: "La solicitud de horas extras ha sido enviada",
+                });
               }}
             />
-            
-            {solicitudesHorasExtras.length > 0 && (
-              <Card className="shadow-sm">
-                <CardHeader>
-                  <CardTitle className="text-lg">📋 Solicitudes Pendientes</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {solicitudesHorasExtras.map((solicitud, index) => (
-                      <div key={index} className="p-4 border rounded-lg bg-yellow-50 border-yellow-200">
-                        <div className="flex justify-between items-start mb-2">
-                          <div>
-                            <span className="font-medium">{solicitud.empleadoNombre}</span>
-                            <Badge className="ml-2" variant="outline">{solicitud.estado}</Badge>
-                          </div>
-                          <span className="text-sm text-gray-500">{solicitud.fecha}</span>
-                        </div>
-                        <div className="text-sm text-gray-600">
-                          <p><strong>Horario:</strong> {solicitud.horasInicio} - {solicitud.horasFin}</p>
-                          <p><strong>Tipo:</strong> {solicitud.tipoHoraExtra}</p>
-                          {solicitud.recargo && <p><strong>Recargo:</strong> {solicitud.recargo}</p>}
-                          <p><strong>Justificación:</strong> {solicitud.justificacion}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
           </div>
-        </TabsContent>
-      </Tabs>
+        </div>
+      )}
+
+      {/* Lista de solicitudes pendientes */}
+      {solicitudesHorasExtras.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">📋 Solicitudes de Horas Extras Pendientes</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {solicitudesHorasExtras.map((solicitud, index) => (
+                <div key={index} className="p-4 border rounded-lg bg-yellow-50 border-yellow-200">
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <span className="font-medium">{solicitud.empleadoNombre}</span>
+                      <Badge className="ml-2" variant="outline">{solicitud.estado}</Badge>
+                    </div>
+                    <span className="text-sm text-gray-500">{solicitud.fecha}</span>
+                  </div>
+                  <div className="text-sm text-gray-600">
+                    <p><strong>Horario:</strong> {solicitud.horasInicio} - {solicitud.horasFin}</p>
+                    <p><strong>Tipo:</strong> {solicitud.tipoHoraExtra}</p>
+                    {solicitud.recargo && <p><strong>Recargo:</strong> {solicitud.recargo}</p>}
+                    <p><strong>Justificación:</strong> {solicitud.justificacion}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
