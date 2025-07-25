@@ -605,22 +605,24 @@ export default function CalendarioPage() {
                   </div>
                 ))}
 
-                {dias.map((dia, index) => (
+                {dias.map((diaObj, index) => (
                   <div
                     key={index}
-                    className={`min-h-[160px] p-2 border-2 rounded ${getColorSemana(dia)}`}
+                    className={`min-h-[160px] p-2 border-2 rounded ${getColorSemana(diaObj.dia)} ${
+                      diaObj.esMesAnterior || diaObj.esMesSiguiente ? 'opacity-40' : ''
+                    }`}
                   >
-                    {dia && (
+                    {diaObj && (
                       <>
                         <div className="flex justify-between items-center mb-2">
-                          <span className="font-bold text-lg">{dia}</span>
-                          <Badge variant="outline" className={`text-xs ${getTipoSemanaColor(dia)}`}>
-                            {getTipoSemanaTexto(dia)}
+                          <span className="font-bold text-lg">{diaObj.dia}</span>
+                          <Badge variant="outline" className={`text-xs ${getTipoSemanaColor(diaObj.dia)}`}>
+                            {getTipoSemanaTexto(diaObj.dia)}
                           </Badge>
                         </div>
 
                         {Object.entries(TURNOS).map(([turnoKey, turnoInfo]) => {
-                          const empleadosTurno = getEmpleadosPorTurno(dia, turnoKey as TurnoType);
+                          const empleadosTurno = getEmpleadosPorTurno(diaObj.dia, turnoKey as TurnoType);
                           const sinCobertura = empleadosTurno.length === 0;
                           const atcCount = empleadosTurno.filter(a => {
                             const emp = equipoConHoras.find(e => e.id === a.empleadoId);
@@ -638,7 +640,7 @@ export default function CalendarioPage() {
                                 sinCobertura ? 'bg-red-100 border-red-300' : 'bg-white/70'
                               }`}
                               onDragOver={handleDragOver}
-                              onDrop={(e) => handleDrop(e, dia, turnoKey as TurnoType)}
+                              onDrop={(e) => handleDrop(e, diaObj.dia, turnoKey as TurnoType)}
                             >
                               <div className={`text-xs font-medium mb-1 px-1 py-0.5 rounded flex justify-between items-center ${turnoInfo.color}`}>
                                 <span>{turnoInfo.nombre}</span>
