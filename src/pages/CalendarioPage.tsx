@@ -23,17 +23,29 @@ export default function CalendarioPage() {
   const [empleadoArrastrado, setEmpleadoArrastrado] = useState<string | null>(null);
   const [equipoConHoras, setEquipoConHoras] = useState<Empleado[]>([...EQUIPO_COMPLETO]);
   const [solicitudesHorasExtras, setSolicitudesHorasExtras] = useState<any[]>([]);
+  const [editandoEmpleado, setEditandoEmpleado] = useState<string | null>(null);
 
-  // Actualizar horas asignadas cuando cambien las asignaciones
+  // Actualizar horas asignadas cuando cambien las asignaciones - SEMANAL
   useEffect(() => {
     const nuevoEquipo = EQUIPO_COMPLETO.map(empleado => {
-      const horasAsignadasEnMes = asignaciones
-        .filter(a => a.empleadoId === empleado.id)
+      // Calcular horas semanales del empleado
+      const fechaActual = new Date();
+      const inicioSemana = new Date(fechaActual);
+      inicioSemana.setDate(fechaActual.getDate() - fechaActual.getDay());
+      
+      const horasSemanales = asignaciones
+        .filter(a => {
+          if (a.empleadoId !== empleado.id) return false;
+          const fechaAsignacion = new Date(a.fecha);
+          const inicioSemanaAsignacion = new Date(fechaAsignacion);
+          inicioSemanaAsignacion.setDate(fechaAsignacion.getDate() - fechaAsignacion.getDay());
+          return inicioSemanaAsignacion.getTime() === inicioSemana.getTime();
+        })
         .reduce((total, a) => total + a.horas, 0);
       
       return {
         ...empleado,
-        horasAsignadas: horasAsignadasEnMes
+        horasAsignadas: horasSemanales
       };
     });
     setEquipoConHoras(nuevoEquipo);
@@ -46,12 +58,42 @@ export default function CalendarioPage() {
     const primerDiaSemana = primerDia.getDay();
 
     const dias = [];
-    for (let i = 0; i < primerDiaSemana; i++) {
-      dias.push(null);
+    
+    // Agregar días del mes anterior si es necesario para completar la semana
+    const mesAnterior = mesActual === 0 ? 11 : mesActual - 1;
+    const anoAnterior = mesActual === 0 ? anoActual - 1 : anoActual;
+    const ultimoDiaMesAnterior = new Date(anoAnterior, mesAnterior + 1, 0).getDate();
+    
+    for (let i = primerDiaSemana - 1; i >= 0; i--) {
+      dias.push({
+        dia: ultimoDiaMesAnterior - i,
+        esMesAnterior: true,
+        fecha: new Date(anoAnterior, mesAnterior, ultimoDiaMesAnterior - i)
+      });
     }
+    
     for (let dia = 1; dia <= diasEnMes; dia++) {
-      dias.push(dia);
+      dias.push({
+        dia,
+        esMesAnterior: false,
+        fecha: new Date(anoActual, mesActual, dia)
+      });
     }
+    
+    // Agregar días del mes siguiente para completar la última semana
+    const diasRestantes = 42 - dias.length; // 6 semanas * 7 días
+    const mesSiguiente = mesActual === 11 ? 0 : mesActual + 1;
+    const anoSiguiente = mesActual === 11 ? anoActual + 1 : anoActual;
+    
+    for (let dia = 1; dia <= diasRestantes; dia++) {
+      dias.push({
+        dia,
+        esMesAnterior: false,
+        esMesSiguiente: true,
+        fecha: new Date(anoSiguiente, mesSiguiente, dia)
+      });
+    }
+    
     return dias;
   };
 
@@ -187,12 +229,26 @@ export default function CalendarioPage() {
         const empleado = equipoConHoras.find(e => e.id === empleadoId);
         if (!empleado) return false;
         
-        let limiteHoras = 45; // default
+        let limiteHoras = 45; // default para Venezuela
         if (empleado.pais === 'Colombia') limiteHoras = 44;
         if (empleado.pais === 'México') limiteHoras = 44;
         
-        const horasActuales = horasMensualesPorEmpleado[empleadoId] || 0;
-        return (horasActuales + horas) <= limiteHoras;
+        // Calcular horas semanales actuales para este empleado
+        const fechaActual = new Date(anoActual, mesActual, dia);
+        const inicioSemana = new Date(fechaActual);
+        inicioSemana.setDate(fechaActual.getDate() - fechaActual.getDay());
+        const finSemana = new Date(inicioSemana);
+        finSemana.setDate(inicioSemana.getDate() + 6);
+        
+        const horasSemanalesActuales = nuevasAsignaciones
+          .filter(a => {
+            if (a.empleadoId !== empleadoId) return false;
+            const fechaAsignacion = new Date(a.fecha);
+            return fechaAsignacion >= inicioSemana && fechaAsignacion <= finSemana;
+          })
+          .reduce((sum, a) => sum + a.horas, 0);
+        
+        return (horasSemanalesActuales + horas) <= limiteHoras;
       };
 
       // Función helper para asignar y actualizar contador
@@ -233,9 +289,9 @@ export default function CalendarioPage() {
 
       // 2. SENIORS NOCTURNOS (18:00-01:00): Helen, José Manuel, Mayra - 2 días/semana cada uno
       const seniors = [
-        equipoConHoras.find(e => e.nombre === 'Helen Rodriguez'),
+        equipoConHoras.find(e => e.nombre === 'Helen Rodríguez'),
         equipoConHoras.find(e => e.nombre === 'José Manuel Torres'),
-        equipoConHoras.find(e => e.nombre === 'Mayra Gonzalez')
+        equipoConHoras.find(e => e.nombre === 'Mayra González')
       ].filter(Boolean);
       
       // Rotar seniors para turnos nocturnos (máximo 2 por semana)
@@ -256,7 +312,7 @@ export default function CalendarioPage() {
       }
 
       // 3. MAÑANAS (07:00-15:00): Máxima cobertura ATC + ONB
-      const ashley = equipoConHoras.find(e => e.nombre === 'Ashley Jimenez');
+      const ashley = equipoConHoras.find(e => e.nombre === 'Ashley Jiménez');
       let asignadosAM = 0;
 
       // Ashley fijo AM (Onboarding)
@@ -273,10 +329,11 @@ export default function CalendarioPage() {
       if (esDomingo) {
         // Domingos: Solo venezolanos/mexicanos
         const noColombianosAM = [
-          equipoConHoras.find(e => e.nombre === 'Helen Rodriguez'),
+          equipoConHoras.find(e => e.nombre === 'Helen Rodríguez'),
           equipoConHoras.find(e => e.nombre === 'José Manuel Torres'),
           equipoConHoras.find(e => e.nombre === 'Carmen Silva'),
-          equipoConHoras.find(e => e.nombre === 'Nerean Medina')
+          equipoConHoras.find(e => e.nombre === 'Nerean Medina'),
+          equipoConHoras.find(e => e.nombre === 'Belkis Ramírez')
         ].filter(Boolean).filter(e => e && puedeAsignarHoras(e.id, TURNOS.manana.horas));
 
         noColombianosAM.slice(0, Math.min(targetAM - asignadosAM, noColombianosAM.length)).forEach((emp, idx) => {
@@ -287,16 +344,16 @@ export default function CalendarioPage() {
       } else {
         // Días normales: Usar todos los disponibles
         const disponiblesAM = [
-          equipoConHoras.find(e => e.nombre === 'Helen Rodriguez'),
+          equipoConHoras.find(e => e.nombre === 'Helen Rodríguez'),
           equipoConHoras.find(e => e.nombre === 'José Manuel Torres'),
-          equipoConHoras.find(e => e.nombre === 'Stella Ramirez'),
+          equipoConHoras.find(e => e.nombre === 'Stella Morales'),
           equipoConHoras.find(e => e.nombre === 'Juan Carlos López'),
           equipoConHoras.find(e => e.nombre === 'Thalia Vargas'),
           equipoConHoras.find(e => e.nombre === 'Alejandra Ruiz'),
           equipoConHoras.find(e => e.nombre === 'Cristian Herrera'),
           equipoConHoras.find(e => e.nombre === 'Carmen Silva'),
           equipoConHoras.find(e => e.nombre === 'Nerean Medina'),
-          equipoConHoras.find(e => e.nombre === 'Delia Morales')
+          equipoConHoras.find(e => e.nombre === 'Belkis Ramírez')
         ].filter(Boolean).filter(e => e && puedeAsignarHoras(e.id, TURNOS.manana.horas));
 
         // Priorizar según utilización para equilibrar horas
@@ -331,7 +388,8 @@ export default function CalendarioPage() {
         // Domingos: Solo venezolanos/mexicanos
         const noColombianoPM = [
           equipoConHoras.find(e => e.nombre === 'Mayra González'),
-          equipoConHoras.find(e => e.nombre === 'Nerean Medina')
+          equipoConHoras.find(e => e.nombre === 'Nerean Medina'),
+          equipoConHoras.find(e => e.nombre === 'Belkis Ramírez')
         ].filter(Boolean).filter(e => e && puedeAsignarHoras(e.id, TURNOS.tarde.horas));
 
         noColombianoPM.slice(0, Math.min(targetPM - asignadosPM, noColombianoPM.length)).forEach((emp, idx) => {
@@ -427,7 +485,7 @@ export default function CalendarioPage() {
             📅 Calendario Customer Success
           </CardTitle>
           <p className="text-purple-100">
-            Gestión inteligente de horarios 24/7
+            Gestión inteligente de horarios semanales 24/7
           </p>
           <div className="flex justify-center gap-3 mt-4">
             <Button 
@@ -435,10 +493,10 @@ export default function CalendarioPage() {
               className="bg-white/20 hover:bg-white/30 text-white border-white/30"
               onClick={handleAutoAsignar}
             >
-              Auto-Asignar
+              Auto-Asignar Semanal
             </Button>
             <Button 
-              variant="outline" 
+              variant="outline"
               onClick={limpiarCalendario}
               className="bg-transparent hover:bg-white/20 text-white border-white/30"
             >
