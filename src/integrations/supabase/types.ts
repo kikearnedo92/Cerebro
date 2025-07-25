@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instanciate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "12.2.3 (519615d)"
+    PostgrestVersion: "12.2.12 (cd3cf9e)"
   }
   public: {
     Tables: {
@@ -706,6 +706,8 @@ export type Database = {
       profiles: {
         Row: {
           area: string
+          can_access_cerebro: boolean | null
+          can_access_nucleo: boolean | null
           created_at: string
           daily_query_limit: number | null
           department: string | null
@@ -723,6 +725,8 @@ export type Database = {
         }
         Insert: {
           area?: string
+          can_access_cerebro?: boolean | null
+          can_access_nucleo?: boolean | null
           created_at?: string
           daily_query_limit?: number | null
           department?: string | null
@@ -740,6 +744,8 @@ export type Database = {
         }
         Update: {
           area?: string
+          can_access_cerebro?: boolean | null
+          can_access_nucleo?: boolean | null
           created_at?: string
           daily_query_limit?: number | null
           department?: string | null
@@ -1253,6 +1259,10 @@ export type Database = {
       sparsevec_typmod_in: {
         Args: { "": unknown[] }
         Returns: number
+      }
+      user_can_access_product: {
+        Args: { _user_id: string; _product_name: string }
+        Returns: boolean
       }
       user_has_feature_access: {
         Args: { _user_id: string; _feature_name: string; _tenant_id?: string }
