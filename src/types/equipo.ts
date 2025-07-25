@@ -7,6 +7,10 @@ export interface Empleado {
   horasMax: number;
   lider: string;
   especialidad: string;
+  horasAsignadas?: number;
+  activo: boolean;
+  fechaIngreso: string;
+  nivel: 'Junior' | 'Semi-Senior' | 'Senior' | 'Lead';
 }
 
 export type TipoSemana = 'alta' | 'media' | 'valle';
@@ -30,7 +34,11 @@ export const EQUIPO_COMPLETO: Empleado[] = [
     tipo: 'Senior',
     horasMax: 45,
     lider: 'Edison Saldivia',
-    especialidad: 'Soporte avanzado + horarios nocturnos'
+    especialidad: 'Soporte avanzado + horarios nocturnos',
+    horasAsignadas: 0,
+    activo: true,
+    fechaIngreso: '2022-01-15',
+    nivel: 'Senior'
   },
   {
     id: 'mayra-gonzalez',
@@ -40,7 +48,11 @@ export const EQUIPO_COMPLETO: Empleado[] = [
     tipo: 'Senior',
     horasMax: 45,
     lider: 'Edison Saldivia',
-    especialidad: 'Gestión escalaciones + horarios nocturnos'
+    especialidad: 'Gestión escalaciones + horarios nocturnos',
+    horasAsignadas: 0,
+    activo: true,
+    fechaIngreso: '2022-03-20',
+    nivel: 'Senior'
   },
   {
     id: 'jose-torres',
@@ -50,7 +62,11 @@ export const EQUIPO_COMPLETO: Empleado[] = [
     tipo: 'Senior',
     horasMax: 45,
     lider: 'Edison Saldivia',
-    especialidad: 'Casos complejos + horarios nocturnos'
+    especialidad: 'Casos complejos + horarios nocturnos',
+    horasAsignadas: 0,
+    activo: true,
+    fechaIngreso: '2021-11-10',
+    nivel: 'Senior'
   },
 
   // ATC REGULARES (Colombia) - Líder: Edison Saldivia
@@ -62,7 +78,11 @@ export const EQUIPO_COMPLETO: Empleado[] = [
     tipo: 'Regular',
     horasMax: 46,
     lider: 'Edison Saldivia',
-    especialidad: 'Atención general'
+    especialidad: 'Atención general',
+    horasAsignadas: 0,
+    activo: true,
+    fechaIngreso: '2023-01-15',
+    nivel: 'Semi-Senior'
   },
   {
     id: 'diana-castillo',
@@ -72,7 +92,11 @@ export const EQUIPO_COMPLETO: Empleado[] = [
     tipo: 'Regular',
     horasMax: 46,
     lider: 'Edison Saldivia',
-    especialidad: 'Backup madrugadas (vie-sáb únicamente)'
+    especialidad: 'Backup madrugadas (vie-sáb únicamente)',
+    horasAsignadas: 0,
+    activo: true,
+    fechaIngreso: '2023-04-01',
+    nivel: 'Junior'
   },
   {
     id: 'juan-lopez',
@@ -82,7 +106,11 @@ export const EQUIPO_COMPLETO: Empleado[] = [
     tipo: 'Híbrido',
     horasMax: 46,
     lider: 'Edison Saldivia',
-    especialidad: 'ATC + Onboarding fines de semana'
+    especialidad: 'ATC + Onboarding fines de semana',
+    horasAsignadas: 0,
+    activo: true,
+    fechaIngreso: '2022-08-15',
+    nivel: 'Semi-Senior'
   },
   {
     id: 'thalia-vargas',
@@ -92,7 +120,11 @@ export const EQUIPO_COMPLETO: Empleado[] = [
     tipo: 'Regular',
     horasMax: 46,
     lider: 'Edison Saldivia',
-    especialidad: 'Atención general'
+    especialidad: 'Atención general',
+    horasAsignadas: 0,
+    activo: true,
+    fechaIngreso: '2023-02-20',
+    nivel: 'Junior'
   },
   {
     id: 'alejandra-ruiz',
@@ -102,7 +134,11 @@ export const EQUIPO_COMPLETO: Empleado[] = [
     tipo: 'Híbrido',
     horasMax: 46,
     lider: 'Edison Saldivia',
-    especialidad: 'ATC + Onboarding fines de semana'
+    especialidad: 'ATC + Onboarding fines de semana',
+    horasAsignadas: 0,
+    activo: true,
+    fechaIngreso: '2022-12-01',
+    nivel: 'Semi-Senior'
   },
   {
     id: 'cristian-herrera',
@@ -112,7 +148,11 @@ export const EQUIPO_COMPLETO: Empleado[] = [
     tipo: 'Regular',
     horasMax: 46,
     lider: 'Edison Saldivia',
-    especialidad: 'Atención general'
+    especialidad: 'Atención general',
+    horasAsignadas: 0,
+    activo: true,
+    fechaIngreso: '2023-05-10',
+    nivel: 'Junior'
   },
 
   // ATC OTROS PAÍSES - Líder: Edison Saldivia
@@ -124,7 +164,11 @@ export const EQUIPO_COMPLETO: Empleado[] = [
     tipo: 'Regular',
     horasMax: 44,
     lider: 'Edison Saldivia',
-    especialidad: 'Atención general + Onboarding domingos'
+    especialidad: 'Atención general + Onboarding domingos',
+    horasAsignadas: 0,
+    activo: true,
+    fechaIngreso: '2023-01-05',
+    nivel: 'Semi-Senior'
   },
   {
     id: 'nerean-medina',
@@ -134,7 +178,11 @@ export const EQUIPO_COMPLETO: Empleado[] = [
     tipo: 'Regular',
     horasMax: 45,
     lider: 'Edison Saldivia',
-    especialidad: 'Atención general'
+    especialidad: 'Atención general',
+    horasAsignadas: 0,
+    activo: true,
+    fechaIngreso: '2023-03-15',
+    nivel: 'Junior'
   },
   {
     id: 'belkis-ramirez',
@@ -144,7 +192,11 @@ export const EQUIPO_COMPLETO: Empleado[] = [
     tipo: 'Regular',
     horasMax: 45,
     lider: 'Edison Saldivia',
-    especialidad: 'Atención general'
+    especialidad: 'Atención general',
+    horasAsignadas: 0,
+    activo: true,
+    fechaIngreso: '2023-02-28',
+    nivel: 'Junior'
   },
   {
     id: 'sugli-martinez',
@@ -154,7 +206,11 @@ export const EQUIPO_COMPLETO: Empleado[] = [
     tipo: 'Madrugada',
     horasMax: 45,
     lider: 'Edison Saldivia',
-    especialidad: 'ÚNICA persona madrugadas 01:00-07:00'
+    especialidad: 'ÚNICA persona madrugadas 01:00-07:00',
+    horasAsignadas: 0,
+    activo: true,
+    fechaIngreso: '2022-06-01',
+    nivel: 'Senior'
   },
 
   // ONBOARDING - Líder: Jorge Carmona
@@ -166,7 +222,11 @@ export const EQUIPO_COMPLETO: Empleado[] = [
     tipo: 'AM Especialista',
     horasMax: 46,
     lider: 'Jorge Carmona',
-    especialidad: 'Onboarding turno mañana exclusivo'
+    especialidad: 'Onboarding turno mañana exclusivo',
+    horasAsignadas: 0,
+    activo: true,
+    fechaIngreso: '2022-10-15',
+    nivel: 'Semi-Senior'
   },
   {
     id: 'fernando-perez',
@@ -176,7 +236,11 @@ export const EQUIPO_COMPLETO: Empleado[] = [
     tipo: 'PM Especialista',
     horasMax: 46,
     lider: 'Jorge Carmona',
-    especialidad: 'Onboarding turno tarde exclusivo'
+    especialidad: 'Onboarding turno tarde exclusivo',
+    horasAsignadas: 0,
+    activo: true,
+    fechaIngreso: '2022-09-20',
+    nivel: 'Semi-Senior'
   }
 ];
 

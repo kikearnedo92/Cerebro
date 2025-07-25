@@ -177,7 +177,7 @@ const CerebroSidebar = () => {
                     className="cursor-pointer"
                   >
                     <Users />
-                    <span>Users</span>
+                    <span>Cerebro Users</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
