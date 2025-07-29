@@ -65,7 +65,7 @@ const CORRECTED_STAFFING_PLANS = {
   }
 };
 
-// ================ CORRECCIÓN 1: AUTO-ASIGNACIÓN COMPLETA ================
+// ================ CORRECCIÓN 1: SISTEMA DE HORAS EN TIEMPO REAL ================
 class WeeklyHoursManager {
   updateStaffHours(staffId: string, asignaciones: AsignacionTurno[]): number {
     const totalHours = this.calculateWeeklyHoursForStaff(staffId, asignaciones);
@@ -74,9 +74,25 @@ class WeeklyHoursManager {
   }
 
   calculateWeeklyHoursForStaff(staffId: string, asignaciones: AsignacionTurno[]): number {
+    const hoy = new Date();
+    const lunes = this.getWeekStart(hoy);
+    const domingo = new Date(lunes);
+    domingo.setDate(lunes.getDate() + 6);
+    
     return asignaciones
-      .filter(a => a.empleadoId === staffId)
+      .filter(a => {
+        if (a.empleadoId !== staffId) return false;
+        const fechaAsignacion = new Date(a.fecha);
+        return fechaAsignacion >= lunes && fechaAsignacion <= domingo;
+      })
       .reduce((total, a) => total + a.horas, 0);
+  }
+
+  getWeekStart(date: Date): Date {
+    const d = new Date(date);
+    const day = d.getDay();
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Lunes como primer día
+    return new Date(d.setDate(diff));
   }
 
   onStaffMoved(staffId: string, asignaciones: AsignacionTurno[]): number {
@@ -108,52 +124,92 @@ class CompleteAutoAssigner {
     
     // ASIGNAR 6 DÍAS DE TRABAJO (Lun-Sáb)
     for (let dayOffset = 0; dayOffset < 6; dayOffset++) {
-      const dia = weekStartDate.getDate() + dayOffset;
-      const fecha = `${anoActual}-${String(mesActual + 1).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
-      const fechaObj = new Date(anoActual, mesActual, dia);
-      const diaSemana = fechaObj.getDay();
+      const targetDate = new Date(weekStartDate);
+      targetDate.setDate(weekStartDate.getDate() + dayOffset);
+      
+      const fecha = `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}-${String(targetDate.getDate()).padStart(2, '0')}`;
+      const diaSemana = targetDate.getDay();
 
       // 1. ASIGNACIONES FIJAS OBLIGATORIAS
       this.assignFixedStaff(nuevasAsignaciones, equipoConHoras, fecha, diaSemana);
       
-      // 2. COMPLETAR CADA TURNO SEGÚN PLAN
+      // 2. ROTACIÓN DE SENIORS
+      this.assignSeniorRotation(nuevasAsignaciones, equipoConHoras, fecha, dayOffset);
+      
+      // 3. COMPLETAR CADA TURNO SEGÚN PLAN
       this.fillShiftCompletely(nuevasAsignaciones, equipoConHoras, fecha, 'manana', staffingPlan.AM);
       this.fillShiftCompletely(nuevasAsignaciones, equipoConHoras, fecha, 'tarde', staffingPlan.PM);
       this.fillShiftCompletely(nuevasAsignaciones, equipoConHoras, fecha, 'madrugada', staffingPlan.M);
+      this.fillShiftCompletely(nuevasAsignaciones, equipoConHoras, fecha, 'senior_nocturno', { total: 1, atcCount: 1, onbCount: 0 });
     }
     
     console.log('✅ Auto-asignación completada:', nuevasAsignaciones.length, 'asignaciones');
     return nuevasAsignaciones;
   }
 
+  autoAssignMonth(
+    mes: number,
+    ano: number,
+    equipoConHoras: Empleado[]
+  ): AsignacionTurno[] {
+    console.log('🗓️ Iniciando auto-asignación MENSUAL...');
+    
+    const primerDia = new Date(ano, mes, 1);
+    const ultimoDia = new Date(ano, mes + 1, 0);
+    const todasAsignaciones: AsignacionTurno[] = [];
+    
+    // Procesar semana por semana
+    for (let dia = 1; dia <= ultimoDia.getDate(); dia += 7) {
+      const fechaSemana = new Date(ano, mes, dia);
+      const lunes = this.getWeekStart(fechaSemana);
+      
+      const asignacionesSemana = this.autoAssignWeek(lunes, equipoConHoras, mes, ano);
+      todasAsignaciones.push(...asignacionesSemana);
+    }
+    
+    console.log('✅ Auto-asignación mensual completada:', todasAsignaciones.length, 'asignaciones');
+    return todasAsignaciones;
+  }
+
+  getWeekStart(date: Date): Date {
+    const d = new Date(date);
+    const day = d.getDay();
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+    return new Date(d.setDate(diff));
+  }
+
   assignFixedStaff(asignaciones: AsignacionTurno[], equipoConHoras: Empleado[], fecha: string, diaSemana: number): void {
-    // Ashley: Mañana ONB (fijo)
-    const ashley = equipoConHoras.find(e => e.nombre === 'Ashley Jiménez');
-    if (ashley) {
-      asignaciones.push({
-        id: `${ashley.id}-${fecha}-manana-onb`,
-        empleadoId: ashley.id,
-        fecha,
-        turno: 'manana',
-        horas: TURNOS.manana.horas
-      });
+    // Ashley: Mañana ONB (fijo) - solo días laborales
+    if (diaSemana >= 1 && diaSemana <= 6) {
+      const ashley = equipoConHoras.find(e => e.nombre.includes('Ashley'));
+      if (ashley) {
+        asignaciones.push({
+          id: `${ashley.id}-${fecha}-manana-onb`,
+          empleadoId: ashley.id,
+          fecha,
+          turno: 'manana',
+          horas: TURNOS.manana.horas
+        });
+      }
     }
 
-    // Fernando: Tarde ONB (fijo)
-    const fernando = equipoConHoras.find(e => e.nombre === 'Fernando Pérez');
-    if (fernando) {
-      asignaciones.push({
-        id: `${fernando.id}-${fecha}-tarde-onb`,
-        empleadoId: fernando.id,
-        fecha,
-        turno: 'tarde',
-        horas: TURNOS.tarde.horas
-      });
+    // Fernando: Tarde ONB (fijo) - solo días laborales
+    if (diaSemana >= 1 && diaSemana <= 6) {
+      const fernando = equipoConHoras.find(e => e.nombre.includes('Fernando'));
+      if (fernando) {
+        asignaciones.push({
+          id: `${fernando.id}-${fecha}-tarde-onb`,
+          empleadoId: fernando.id,
+          fecha,
+          turno: 'tarde',
+          horas: TURNOS.tarde.horas
+        });
+      }
     }
 
-    // Sugli: Madrugada ATC (excepto viernes)
-    if (diaSemana !== 5) { // No viernes
-      const sugli = equipoConHoras.find(e => e.nombre === 'Sugli Martinez');
+    // Sugli: Madrugada ATC (excepto viernes-sábado)
+    if (diaSemana >= 1 && diaSemana <= 4) {
+      const sugli = equipoConHoras.find(e => e.nombre.includes('Sugli'));
       if (sugli) {
         asignaciones.push({
           id: `${sugli.id}-${fecha}-madrugada`,
@@ -163,9 +219,9 @@ class CompleteAutoAssigner {
           horas: TURNOS.madrugada.horas
         });
       }
-    } else {
-      // Diana reemplaza a Sugli los viernes
-      const diana = equipoConHoras.find(e => e.nombre === 'Diana Castillo');
+    } else if (diaSemana === 5 || diaSemana === 6) {
+      // Diana reemplaza a Sugli viernes-sábado
+      const diana = equipoConHoras.find(e => e.nombre.includes('Diana'));
       if (diana) {
         asignaciones.push({
           id: `${diana.id}-${fecha}-madrugada-backup`,
@@ -176,6 +232,35 @@ class CompleteAutoAssigner {
         });
       }
     }
+  }
+
+  assignSeniorRotation(asignaciones: AsignacionTurno[], equipoConHoras: Empleado[], fecha: string, dayOffset: number): void {
+    const seniors = ['Helen', 'Mayra', 'José'];
+    const rotationPattern = [
+      [0, 2], // Lunes: Helen, José
+      [1], // Martes: Mayra
+      [0, 1], // Miércoles: Helen, Mayra
+      [2], // Jueves: José
+      [1, 2], // Viernes: Mayra, José
+      [0] // Sábado: Helen
+    ];
+    
+    const activeSeniors = rotationPattern[dayOffset % 6] || [];
+    
+    activeSeniors.forEach(seniorIndex => {
+      const seniorName = seniors[seniorIndex];
+      const senior = equipoConHoras.find(e => e.nombre.includes(seniorName));
+      
+      if (senior) {
+        asignaciones.push({
+          id: `${senior.id}-${fecha}-senior_nocturno`,
+          empleadoId: senior.id,
+          fecha,
+          turno: 'senior_nocturno',
+          horas: TURNOS.senior_nocturno.horas
+        });
+      }
+    });
   }
 
   fillShiftCompletely(
@@ -197,20 +282,36 @@ class CompleteAutoAssigner {
     let availableStaff = equipoConHoras.filter(emp => {
       const yaAsignado = asignaciones.some(a => a.empleadoId === emp.id && a.fecha === fecha);
       const esColombianoEnDomingo = emp.pais === 'Colombia' && diaSemana === 0;
+      const horasSemanales = this.calculateWeeklyHours(emp.id, asignaciones, fecha);
+      const maxHoras = emp.pais === 'Colombia' ? 44 : 45;
+      const excederiaLimite = horasSemanales + TURNOS[turno as TurnoType].horas > maxHoras;
       
-      return !yaAsignado && !esColombianoEnDomingo;
+      return !yaAsignado && !esColombianoEnDomingo && !excederiaLimite;
     });
 
-    // Separar por tipo
-    const availableATC = availableStaff.filter(s => 
-      s.departamento === 'Atención al Cliente' || s.departamento === 'Híbrido'
-    );
-    const availableONB = availableStaff.filter(s => 
-      s.departamento === 'Onboarding' || s.departamento === 'Híbrido'
-    );
+    // Separar por tipo y priorizar por disponibilidad
+    const availableATC = availableStaff
+      .filter(s => s.departamento === 'Atención al Cliente' || s.departamento === 'Híbrido')
+      .sort((a, b) => a.horasAsignadas - b.horasAsignadas);
     
-    // ASIGNAR FORZADAMENTE
-    const staffToAssign = [...availableATC, ...availableONB].slice(0, needed);
+    const availableONB = availableStaff
+      .filter(s => s.departamento === 'Onboarding' || s.departamento === 'Híbrido')
+      .sort((a, b) => a.horasAsignadas - b.horasAsignadas);
+    
+    // ASIGNAR SEGÚN NECESIDADES Y DISPONIBILIDAD
+    const neededATC = Math.min(config.atcCount - currentAssigned.filter(a => 
+      equipoConHoras.find(e => e.id === a.empleadoId)?.departamento?.includes('Atención')
+    ).length, availableATC.length);
+    
+    const neededONB = Math.min(config.onbCount - currentAssigned.filter(a => 
+      equipoConHoras.find(e => e.id === a.empleadoId)?.departamento?.includes('Onboarding')
+    ).length, availableONB.length);
+    
+    const staffToAssign = [
+      ...availableATC.slice(0, neededATC),
+      ...availableONB.slice(0, neededONB),
+      ...availableStaff.slice(0, Math.max(0, needed - neededATC - neededONB))
+    ].slice(0, needed);
     
     staffToAssign.forEach((staff, index) => {
       const turnoKey = turno as TurnoType;
@@ -223,6 +324,20 @@ class CompleteAutoAssigner {
       });
       console.log(`✅ AUTO: ${staff.nombre} → ${fecha} ${turno}`);
     });
+  }
+
+  calculateWeeklyHours(staffId: string, asignaciones: AsignacionTurno[], currentDate: string): number {
+    const weekStart = this.getWeekStart(new Date(currentDate));
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6);
+    
+    return asignaciones
+      .filter(a => {
+        if (a.empleadoId !== staffId) return false;
+        const fechaAsignacion = new Date(a.fecha);
+        return fechaAsignacion >= weekStart && fechaAsignacion <= weekEnd;
+      })
+      .reduce((total, a) => total + a.horas, 0);
   }
 }
 
@@ -288,6 +403,72 @@ export default function CalendarioPage() {
   const hoursManager = new WeeklyHoursManager();
   const autoAssigner = new CompleteAutoAssigner();
   const hoursCalculator = new StaffHoursCalculator();
+
+  // Nuevas funciones de auto-asignación y limpieza
+  const autoAsignarMes = () => {
+    if (confirm('¿Estás seguro de auto-asignar TODO el mes? Esto sobrescribirá asignaciones existentes.')) {
+      console.log('📅 Ejecutando auto-asignación mensual...');
+      
+      try {
+        // LIMPIAR MES COMPLETO PRIMERO
+        setAsignaciones(prev => {
+          const primerDia = new Date(anoActual, mesActual, 1);
+          const ultimoDia = new Date(anoActual, mesActual + 1, 0);
+          
+          return prev.filter(a => {
+            const fechaAsignacion = new Date(a.fecha);
+            return fechaAsignacion < primerDia || fechaAsignacion > ultimoDia;
+          });
+        });
+        
+        // EJECUTAR AUTO-ASIGNACIÓN MENSUAL
+        const nuevasAsignaciones = autoAssigner.autoAssignMonth(mesActual, anoActual, equipoConHoras);
+        
+        // AGREGAR NUEVAS ASIGNACIONES
+        setAsignaciones(prev => [...prev, ...nuevasAsignaciones]);
+        
+        // FORZAR ACTUALIZACIÓN DE HORAS
+        setTimeout(() => {
+          hoursCalculator.updateAllStaffHours(nuevasAsignaciones, EQUIPO_COMPLETO, setEquipoConHoras);
+        }, 200);
+        
+        toast({
+          title: "✅ Auto-asignación mensual completada",
+          description: `${MESES[mesActual]} con ${nuevasAsignaciones.length} asignaciones optimizadas`,
+        });
+        
+      } catch (error) {
+        console.error('❌ Error en auto-asignación mensual:', error);
+        toast({
+          title: "Error",
+          description: "Error al auto-asignar el mes completo",
+          variant: "destructive"
+        });
+      }
+    }
+  };
+
+  const limpiarMes = () => {
+    if (confirm('¿Estás seguro de limpiar TODAS las asignaciones del mes?')) {
+      setAsignaciones(prev => {
+        const primerDia = new Date(anoActual, mesActual, 1);
+        const ultimoDia = new Date(anoActual, mesActual + 1, 0);
+        
+        return prev.filter(a => {
+          const fechaAsignacion = new Date(a.fecha);
+          return fechaAsignacion < primerDia || fechaAsignacion > ultimoDia;
+        });
+      });
+      
+      // Actualizar horas
+      hoursCalculator.updateAllStaffHours([], EQUIPO_COMPLETO, setEquipoConHoras);
+      
+      toast({
+        title: "🗑️ Mes limpiado",
+        description: `Todas las asignaciones de ${MESES[mesActual]} han sido eliminadas`,
+      });
+    }
+  };
 
   // Calcular horas semanales - semana va de lunes a domingo
   useEffect(() => {
@@ -431,13 +612,14 @@ export default function CalendarioPage() {
     const empleado = equipoConHoras.find(emp => emp.id === empleadoArrastrado);
     if (!empleado) return;
 
-    // Validar restricciones
+    // Validaciones completas
     const fechaObj = new Date(fecha);
     const esDomingo = fechaObj.getDay() === 0;
     
+    // 1. Restricción de domingos para colombianos
     if (empleado.pais === 'Colombia' && esDomingo) {
       toast({
-        title: "Restricción",
+        title: "Restricción de País",
         description: "Los empleados de Colombia no pueden trabajar domingos",
         variant: "destructive"
       });
@@ -445,16 +627,42 @@ export default function CalendarioPage() {
       return;
     }
 
-    // Verificar si ya está asignado en esa fecha
-    const yaAsignado = asignaciones.some(a => 
+    // 2. Verificar duplicado en la misma fecha
+    const yaAsignadoMismaFecha = asignaciones.some(a => 
       a.empleadoId === empleado.id && 
       a.fecha === fecha
     );
 
-    if (yaAsignado) {
+    if (yaAsignadoMismaFecha) {
       toast({
-        title: "Conflicto",
-        description: "El empleado ya tiene asignación en esta fecha",
+        title: "Conflicto de Asignación",
+        description: "El empleado ya tiene un turno asignado en esta fecha",
+        variant: "destructive"
+      });
+      setEmpleadoArrastrado(null);
+      return;
+    }
+
+    // 3. Verificar límite de horas semanales
+    const horasSemanalesActuales = hoursManager.calculateWeeklyHoursForStaff(empleado.id, asignaciones);
+    const horasNuevoTurno = TURNOS[turno].horas;
+    const maxHoras = empleado.pais === 'Colombia' ? 44 : 45;
+
+    if (horasSemanalesActuales + horasNuevoTurno > maxHoras) {
+      toast({
+        title: "Límite de Horas Excedido",
+        description: `${empleado.nombre} excedería su límite semanal (${horasSemanalesActuales + horasNuevoTurno}h/${maxHoras}h)`,
+        variant: "destructive"
+      });
+      setEmpleadoArrastrado(null);
+      return;
+    }
+
+    // 4. Verificar restricciones específicas
+    if (empleado.nombre.includes('Sugli') && turno !== 'madrugada') {
+      toast({
+        title: "Restricción de Empleado",
+        description: "Sugli solo puede trabajar en turno de madrugada",
         variant: "destructive"
       });
       setEmpleadoArrastrado(null);
@@ -463,7 +671,7 @@ export default function CalendarioPage() {
 
     // Crear nueva asignación
     const nuevaAsignacion: AsignacionTurno = {
-      id: `${empleado.id}-${fecha}-${turno}`,
+      id: `${empleado.id}-${fecha}-${turno}-${Date.now()}`,
       empleadoId: empleado.id,
       fecha,
       turno,
@@ -475,15 +683,15 @@ export default function CalendarioPage() {
       // ACTUALIZAR HORAS INMEDIATAMENTE
       setTimeout(() => {
         hoursCalculator.updateAllStaffHours(updated, EQUIPO_COMPLETO, setEquipoConHoras);
-      }, 50);
+      }, 10);
       return updated;
     });
     
     setEmpleadoArrastrado(null);
     
     toast({
-      title: "✅ Asignación exitosa",
-      description: `${empleado.nombre} asignado a ${turno} el ${fecha}`,
+      title: "✅ Asignación Exitosa",
+      description: `${empleado.nombre} asignado a ${TURNOS[turno].nombre} el ${new Date(fecha).toLocaleDateString()}`,
     });
   };
 
@@ -521,21 +729,45 @@ export default function CalendarioPage() {
           </div>
           
           <div className="flex items-center gap-4">
-            <Button onClick={() => setMesActual(prev => prev === 0 ? 11 : prev - 1)}>
+            <Button onClick={() => {
+              const newMonth = mesActual === 0 ? 11 : mesActual - 1;
+              const newYear = mesActual === 0 ? anoActual - 1 : anoActual;
+              setMesActual(newMonth);
+              setAnoActual(newYear);
+            }}>
               <ChevronLeft className="w-4 h-4" />
             </Button>
             <span className="text-lg font-medium min-w-[200px] text-center">
               {MESES[mesActual]} {anoActual}
             </span>
-            <Button onClick={() => setMesActual(prev => prev === 11 ? 0 : prev + 1)}>
+            <Button onClick={() => {
+              const newMonth = mesActual === 11 ? 0 : mesActual + 1;
+              const newYear = mesActual === 11 ? anoActual + 1 : anoActual;
+              setMesActual(newMonth);
+              setAnoActual(newYear);
+            }}>
               <ChevronRight className="w-4 h-4" />
             </Button>
+            
+            {vistaActual === 'month' && (
+              <Button onClick={autoAsignarMes} className="bg-green-600 hover:bg-green-700">
+                📅 Auto-Asignar Mes Completo
+              </Button>
+            )}
+            
             <Button onClick={autoAsignarSemana} className="bg-primary text-primary-foreground hover:bg-primary/90">
               🎯 Auto-Asignar Semana
             </Button>
+            
             <Button onClick={limpiarSemana} variant="outline">
               🗑️ Limpiar Semana
             </Button>
+            
+            {vistaActual === 'month' && (
+              <Button onClick={limpiarMes} variant="outline" className="text-red-600 border-red-300">
+                🗑️ Limpiar Mes
+              </Button>
+            )}
           </div>
         </div>
 
@@ -555,12 +787,28 @@ export default function CalendarioPage() {
             return (
               <Card 
                 key={dia} 
-                className={`min-h-[120px] cursor-pointer transition-all hover:shadow-md ${
+                className={`min-h-[140px] cursor-pointer transition-all hover:shadow-md ${
                   weekType === 'alta' ? 'border-red-200 bg-red-50' :
                   weekType === 'media' ? 'border-yellow-200 bg-yellow-50' :
                   'border-green-200 bg-green-50'
                 }`}
                 onClick={() => switchToWeekView(getWeekStart(dia))}
+                onDragOver={onDragOver}
+                onDrop={(e) => {
+                  // Para vista mensual, simplificar drop a primer turno disponible
+                  e.preventDefault();
+                  if (empleadoArrastrado) {
+                    const turnos: TurnoType[] = ['manana', 'tarde', 'madrugada', 'senior_nocturno'];
+                    for (const turno of turnos) {
+                      const fechaStr = `${anoActual}-${String(mesActual + 1).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
+                      const asignacionesEnTurno = asignaciones.filter(a => a.fecha === fechaStr && a.turno === turno);
+                      if (asignacionesEnTurno.length === 0) {
+                        onDrop(e, fechaStr, turno);
+                        break;
+                      }
+                    }
+                  }
+                }}
               >
                 <CardContent className="p-2">
                   <div className="flex items-center justify-between mb-2">
@@ -574,11 +822,30 @@ export default function CalendarioPage() {
                   </div>
                   <div className="space-y-1 text-xs">
                     {Object.entries(TURNOS).map(([turno, config]) => {
-                      const count = asignacionesDia.filter(a => a.turno === turno).length;
+                      const asignacionesTurno = asignacionesDia.filter(a => a.turno === turno);
+                      const staffPlan = weekType === 'alta' ? 
+                        (turno === 'manana' ? 7 : turno === 'tarde' ? 5 : turno === 'madrugada' ? 2 : 1) :
+                        weekType === 'media' ?
+                        (turno === 'manana' ? 6 : turno === 'tarde' ? 4 : turno === 'madrugada' ? 2 : 1) :
+                        (turno === 'manana' ? 5 : turno === 'tarde' ? 3 : turno === 'madrugada' ? 1 : 1);
+                      
                       return (
-                        <div key={turno} className="flex justify-between">
-                          <span>{config.nombre}:</span>
-                          <span className="font-medium">{count}</span>
+                        <div key={turno} className="flex justify-between items-center">
+                          <span className="truncate">{config.nombre}:</span>
+                          <div className="flex gap-1 items-center">
+                            <span className={`font-medium ${
+                              asignacionesTurno.length >= staffPlan ? 'text-green-600' : 'text-red-600'
+                            }`}>
+                              {asignacionesTurno.length}/{staffPlan}
+                            </span>
+                            {asignacionesTurno.slice(0, 2).map(a => {
+                              const emp = equipoConHoras.find(e => e.id === a.empleadoId);
+                              return (
+                                <div key={a.id} className="w-1 h-1 bg-blue-500 rounded-full" 
+                                     title={emp?.nombre}></div>
+                              );
+                            })}
+                          </div>
                         </div>
                       );
                     })}
@@ -616,6 +883,37 @@ export default function CalendarioPage() {
             </h2>
             <Button onClick={autoAsignarSemana} className="bg-green-600 hover:bg-green-700">
               🎯 Auto-Asignar Semana Óptima
+            </Button>
+            <Button onClick={limpiarSemana} variant="outline">
+              🗑️ Limpiar Semana
+            </Button>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <Button 
+              onClick={() => {
+                const nuevaSemana = new Date(semanaSeleccionada);
+                nuevaSemana.setDate(nuevaSemana.getDate() - 7);
+                setSemanaSeleccionada(nuevaSemana);
+              }}
+              variant="outline"
+              size="sm"
+            >
+              <ChevronLeft className="w-4 h-4" />
+              Semana Anterior
+            </Button>
+            
+            <Button 
+              onClick={() => {
+                const nuevaSemana = new Date(semanaSeleccionada);
+                nuevaSemana.setDate(nuevaSemana.getDate() + 7);
+                setSemanaSeleccionada(nuevaSemana);
+              }}
+              variant="outline"
+              size="sm"
+            >
+              Semana Siguiente
+              <ChevronRight className="w-4 h-4" />
             </Button>
           </div>
         </div>
