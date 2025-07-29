@@ -66,7 +66,25 @@ const CORRECTED_STAFFING_PLANS = {
 };
 
 // ================ CORRECCIÓN 1: AUTO-ASIGNACIÓN COMPLETA ================
-class ShiftAutoAssigner {
+class WeeklyHoursManager {
+  updateStaffHours(staffId: string, asignaciones: AsignacionTurno[]): number {
+    const totalHours = this.calculateWeeklyHoursForStaff(staffId, asignaciones);
+    console.log(`🔄 Horas calculadas para ${staffId}: ${totalHours}h`);
+    return totalHours;
+  }
+
+  calculateWeeklyHoursForStaff(staffId: string, asignaciones: AsignacionTurno[]): number {
+    return asignaciones
+      .filter(a => a.empleadoId === staffId)
+      .reduce((total, a) => total + a.horas, 0);
+  }
+
+  onStaffMoved(staffId: string, asignaciones: AsignacionTurno[]): number {
+    return this.updateStaffHours(staffId, asignaciones);
+  }
+}
+
+class CompleteAutoAssigner {
   
   getWeekType(dayOfMonth: number): 'ALTA' | 'MEDIA' | 'VALLE' {
     if (REAL_DEMAND_ANALYSIS.monthlyPattern.alta.days.includes(dayOfMonth)) return 'ALTA';
@@ -76,20 +94,20 @@ class ShiftAutoAssigner {
 
   autoAssignWeek(
     weekStartDate: Date, 
-    setAsignaciones: Function, 
     equipoConHoras: Empleado[], 
     mesActual: number, 
     anoActual: number
   ): AsignacionTurno[] {
-    console.log('🚀 Iniciando auto-asignación completa...');
+    console.log('🚀 Iniciando auto-asignación COMPLETA...');
     
     const weekType = this.getWeekType(weekStartDate.getDate());
     const staffingPlan = CORRECTED_STAFFING_PLANS[weekType];
-    
     const nuevasAsignaciones: AsignacionTurno[] = [];
     
-    // Asignar toda una semana (7 días)
-    for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
+    console.log(`📊 Plan para semana ${weekType}:`, staffingPlan);
+    
+    // ASIGNAR 6 DÍAS DE TRABAJO (Lun-Sáb)
+    for (let dayOffset = 0; dayOffset < 6; dayOffset++) {
       const dia = weekStartDate.getDate() + dayOffset;
       const fecha = `${anoActual}-${String(mesActual + 1).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
       const fechaObj = new Date(anoActual, mesActual, dia);
@@ -98,16 +116,18 @@ class ShiftAutoAssigner {
       // 1. ASIGNACIONES FIJAS OBLIGATORIAS
       this.assignFixedStaff(nuevasAsignaciones, equipoConHoras, fecha, diaSemana);
       
-      // 2. COMPLETAR SEGÚN PLAN OPTIMIZADO
-      this.forceCompleteStaffing(nuevasAsignaciones, equipoConHoras, fecha, diaSemana, staffingPlan);
+      // 2. COMPLETAR CADA TURNO SEGÚN PLAN
+      this.fillShiftCompletely(nuevasAsignaciones, equipoConHoras, fecha, 'manana', staffingPlan.AM);
+      this.fillShiftCompletely(nuevasAsignaciones, equipoConHoras, fecha, 'tarde', staffingPlan.PM);
+      this.fillShiftCompletely(nuevasAsignaciones, equipoConHoras, fecha, 'madrugada', staffingPlan.M);
     }
     
-    console.log('✅ Auto-asignación completada');
+    console.log('✅ Auto-asignación completada:', nuevasAsignaciones.length, 'asignaciones');
     return nuevasAsignaciones;
   }
 
   assignFixedStaff(asignaciones: AsignacionTurno[], equipoConHoras: Empleado[], fecha: string, diaSemana: number): void {
-    // Ashley: AM fijo (ONB)
+    // Ashley: Mañana ONB (fijo)
     const ashley = equipoConHoras.find(e => e.nombre === 'Ashley Jiménez');
     if (ashley) {
       asignaciones.push({
@@ -119,7 +139,7 @@ class ShiftAutoAssigner {
       });
     }
 
-    // Fernando: PM fijo (ONB)
+    // Fernando: Tarde ONB (fijo)
     const fernando = equipoConHoras.find(e => e.nombre === 'Fernando Pérez');
     if (fernando) {
       asignaciones.push({
@@ -131,19 +151,8 @@ class ShiftAutoAssigner {
       });
     }
 
-    // Sugli: M fijo (excepto viernes-sábado cuando Diana reemplaza)
-    if (diaSemana === 5) { // Viernes
-      const diana = equipoConHoras.find(e => e.nombre === 'Diana Castillo');
-      if (diana) {
-        asignaciones.push({
-          id: `${diana.id}-${fecha}-madrugada-backup`,
-          empleadoId: diana.id,
-          fecha,
-          turno: 'madrugada',
-          horas: TURNOS.madrugada.horas
-        });
-      }
-    } else {
+    // Sugli: Madrugada ATC (excepto viernes)
+    if (diaSemana !== 5) { // No viernes
       const sugli = equipoConHoras.find(e => e.nombre === 'Sugli Martinez');
       if (sugli) {
         asignaciones.push({
@@ -154,38 +163,35 @@ class ShiftAutoAssigner {
           horas: TURNOS.madrugada.horas
         });
       }
+    } else {
+      // Diana reemplaza a Sugli los viernes
+      const diana = equipoConHoras.find(e => e.nombre === 'Diana Castillo');
+      if (diana) {
+        asignaciones.push({
+          id: `${diana.id}-${fecha}-madrugada-backup`,
+          empleadoId: diana.id,
+          fecha,
+          turno: 'madrugada',
+          horas: TURNOS.madrugada.horas
+        });
+      }
     }
   }
 
-  forceCompleteStaffing(
+  fillShiftCompletely(
     asignaciones: AsignacionTurno[], 
     equipoConHoras: Empleado[], 
     fecha: string, 
-    diaSemana: number, 
-    plan: any
-  ): void {
-    // AM: FORZAR plan.AM.total personas
-    this.fillShiftToExactTarget('manana', plan.AM.total, asignaciones, equipoConHoras, fecha, diaSemana);
-    
-    // PM: FORZAR plan.PM.total personas  
-    this.fillShiftToExactTarget('tarde', plan.PM.total, asignaciones, equipoConHoras, fecha, diaSemana);
-    
-    // M: FORZAR plan.M.total personas
-    this.fillShiftToExactTarget('madrugada', plan.M.total, asignaciones, equipoConHoras, fecha, diaSemana);
-  }
-
-  fillShiftToExactTarget(
-    turno: string, 
-    targetTotal: number, 
-    asignaciones: AsignacionTurno[], 
-    equipoConHoras: Empleado[], 
-    fecha: string, 
-    diaSemana: number
+    turno: string,
+    config: {total: number, atcCount: number, onbCount: number}
   ): void {
     const currentAssigned = asignaciones.filter(a => a.fecha === fecha && a.turno === turno);
-    const needed = targetTotal - currentAssigned.length;
+    const needed = config.total - currentAssigned.length;
     
     if (needed <= 0) return;
+    
+    const fechaObj = new Date(fecha);
+    const diaSemana = fechaObj.getDay();
     
     // Obtener staff disponible
     let availableStaff = equipoConHoras.filter(emp => {
@@ -195,14 +201,17 @@ class ShiftAutoAssigner {
       return !yaAsignado && !esColombianoEnDomingo;
     });
 
-    // Priorizar por área y rol
-    const seniors = availableStaff.filter(s => s.nivel === 'Senior' && s.departamento === 'Atención al Cliente');
-    const atcStaff = availableStaff.filter(s => s.departamento === 'Atención al Cliente' && s.nivel !== 'Senior');
-    const hybridStaff = availableStaff.filter(s => s.departamento === 'Híbrido');
+    // Separar por tipo
+    const availableATC = availableStaff.filter(s => 
+      s.departamento === 'Atención al Cliente' || s.departamento === 'Híbrido'
+    );
+    const availableONB = availableStaff.filter(s => 
+      s.departamento === 'Onboarding' || s.departamento === 'Híbrido'
+    );
     
-    const staffToAssign = [...seniors, ...atcStaff, ...hybridStaff].slice(0, needed);
+    // ASIGNAR FORZADAMENTE
+    const staffToAssign = [...availableATC, ...availableONB].slice(0, needed);
     
-    // ASIGNAR FORZOSAMENTE
     staffToAssign.forEach((staff, index) => {
       const turnoKey = turno as TurnoType;
       asignaciones.push({
@@ -212,7 +221,7 @@ class ShiftAutoAssigner {
         turno: turnoKey,
         horas: TURNOS[turnoKey].horas
       });
-      console.log(`✅ Asignado: ${staff.nombre} → ${fecha} ${turno}`);
+      console.log(`✅ AUTO: ${staff.nombre} → ${fecha} ${turno}`);
     });
   }
 }
@@ -276,7 +285,8 @@ export default function CalendarioPage() {
   const [semanaSeleccionada, setSemanaSeleccionada] = useState<Date>(new Date());
 
   // Instancias de clases
-  const shiftAssigner = new ShiftAutoAssigner();
+  const hoursManager = new WeeklyHoursManager();
+  const autoAssigner = new CompleteAutoAssigner();
   const hoursCalculator = new StaffHoursCalculator();
 
   // Calcular horas semanales - semana va de lunes a domingo
@@ -330,43 +340,75 @@ export default function CalendarioPage() {
   };
 
   const autoAsignarSemana = () => {
+    console.log('🎯 Ejecutando auto-asignación corregida...');
+    
     const weekStart = vistaActual === 'week' ? semanaSeleccionada : getWeekStart(new Date().getDate());
     
     try {
-      const nuevasAsignaciones = shiftAssigner.autoAssignWeek(
+      // LIMPIAR ASIGNACIONES DE LA SEMANA PRIMERO
+      setAsignaciones(prev => {
+        const fechaInicio = new Date(weekStart);
+        const fechaFin = new Date(weekStart);
+        fechaFin.setDate(weekStart.getDate() + 6);
+        
+        return prev.filter(a => {
+          const fechaAsignacion = new Date(a.fecha);
+          return fechaAsignacion < fechaInicio || fechaAsignacion > fechaFin;
+        });
+      });
+      
+      // EJECUTAR AUTO-ASIGNACIÓN COMPLETA
+      const nuevasAsignaciones = autoAssigner.autoAssignWeek(
         weekStart, 
-        setAsignaciones, 
         equipoConHoras, 
         mesActual, 
         anoActual
       );
       
-      setAsignaciones(prev => [
-        ...prev.filter(a => {
-          const fechaAsignacion = new Date(a.fecha);
-          const weekEnd = new Date(weekStart);
-          weekEnd.setDate(weekStart.getDate() + 6);
-          return fechaAsignacion < weekStart || fechaAsignacion > weekEnd;
-        }),
-        ...nuevasAsignaciones
-      ]);
+      // AGREGAR NUEVAS ASIGNACIONES
+      setAsignaciones(prev => [...prev, ...nuevasAsignaciones]);
       
-      // FORZAR ACTUALIZACIÓN DE HORAS
+      // FORZAR ACTUALIZACIÓN DE HORAS INMEDIATAMENTE
       setTimeout(() => {
-        hoursCalculator.updateAllStaffHours(asignaciones.concat(nuevasAsignaciones), EQUIPO_COMPLETO, setEquipoConHoras);
+        hoursCalculator.updateAllStaffHours(nuevasAsignaciones, EQUIPO_COMPLETO, setEquipoConHoras);
       }, 100);
       
       toast({
-        title: "Auto-asignación completada",
-        description: `Semana ${shiftAssigner.getWeekType(weekStart.getDate())} asignada correctamente`,
+        title: "✅ Auto-asignación completada",
+        description: `Semana ${autoAssigner.getWeekType(weekStart.getDate())} con ${nuevasAsignaciones.length} asignaciones`,
       });
       
     } catch (error) {
-      console.error('Error en auto-asignación:', error);
+      console.error('❌ Error en auto-asignación:', error);
       toast({
         title: "Error",
         description: "Error al auto-asignar la semana",
         variant: "destructive"
+      });
+    }
+  };
+
+  const limpiarSemana = () => {
+    if (confirm('¿Estás seguro de limpiar todas las asignaciones de esta semana?')) {
+      const weekStart = vistaActual === 'week' ? semanaSeleccionada : getWeekStart(new Date().getDate());
+      
+      setAsignaciones(prev => {
+        const fechaInicio = new Date(weekStart);
+        const fechaFin = new Date(weekStart);
+        fechaFin.setDate(weekStart.getDate() + 6);
+        
+        return prev.filter(a => {
+          const fechaAsignacion = new Date(a.fecha);
+          return fechaAsignacion < fechaInicio || fechaAsignacion > fechaFin;
+        });
+      });
+      
+      // Actualizar horas
+      hoursCalculator.updateAllStaffHours([], EQUIPO_COMPLETO, setEquipoConHoras);
+      
+      toast({
+        title: "🗑️ Semana limpiada",
+        description: "Todas las asignaciones han sido eliminadas",
       });
     }
   };
@@ -428,11 +470,19 @@ export default function CalendarioPage() {
       horas: TURNOS[turno].horas
     };
 
-    setAsignaciones(prev => [...prev, nuevaAsignacion]);
+    setAsignaciones(prev => {
+      const updated = [...prev, nuevaAsignacion];
+      // ACTUALIZAR HORAS INMEDIATAMENTE
+      setTimeout(() => {
+        hoursCalculator.updateAllStaffHours(updated, EQUIPO_COMPLETO, setEquipoConHoras);
+      }, 50);
+      return updated;
+    });
+    
     setEmpleadoArrastrado(null);
     
     toast({
-      title: "Asignación exitosa",
+      title: "✅ Asignación exitosa",
       description: `${empleado.nombre} asignado a ${turno} el ${fecha}`,
     });
   };
@@ -479,6 +529,12 @@ export default function CalendarioPage() {
             </span>
             <Button onClick={() => setMesActual(prev => prev === 11 ? 0 : prev + 1)}>
               <ChevronRight className="w-4 h-4" />
+            </Button>
+            <Button onClick={autoAsignarSemana} className="bg-primary text-primary-foreground hover:bg-primary/90">
+              🎯 Auto-Asignar Semana
+            </Button>
+            <Button onClick={limpiarSemana} variant="outline">
+              🗑️ Limpiar Semana
             </Button>
           </div>
         </div>
@@ -544,7 +600,7 @@ export default function CalendarioPage() {
       weekDays.push(fecha);
     }
     
-    const weekType = shiftAssigner.getWeekType(semanaSeleccionada.getDate());
+    const weekType = autoAssigner.getWeekType(semanaSeleccionada.getDate());
     
     return (
       <div className="space-y-6">
