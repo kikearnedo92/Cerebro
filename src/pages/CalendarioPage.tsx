@@ -39,8 +39,27 @@ const DEMAND_CONFIG = {
 };
 
 export default function CalendarioPage() {
-  const [mesActual, setMesActual] = useState(new Date().getMonth());
-  const [anoActual, setAnoActual] = useState(new Date().getFullYear());
+  // Inicializar con la semana actual
+  const getCurrentWeekStart = () => {
+    const today = new Date();
+    const currentDay = today.getDay();
+    const startOfWeek = new Date(today);
+    startOfWeek.setDate(today.getDate() - currentDay);
+    return startOfWeek;
+  };
+
+  const getCurrentWeekMonth = () => {
+    const weekStart = getCurrentWeekStart();
+    return weekStart.getMonth();
+  };
+
+  const getCurrentWeekYear = () => {
+    const weekStart = getCurrentWeekStart();
+    return weekStart.getFullYear();
+  };
+
+  const [mesActual, setMesActual] = useState(getCurrentWeekMonth());
+  const [anoActual, setAnoActual] = useState(getCurrentWeekYear());
   const [asignaciones, setAsignaciones] = useState<AsignacionTurno[]>([]);
   const [empleadoArrastrado, setEmpleadoArrastrado] = useState<string | null>(null);
   const [showStaffEditor, setShowStaffEditor] = useState(false);
@@ -142,8 +161,20 @@ export default function CalendarioPage() {
 
     const horasDelTurno = customHours[`${fecha.toDateString()}-${turno}-${empleadoArrastrado}`] || 8;
     
-    // Verificar límite de horas
-    if (empleado.horasAsignadas + horasDelTurno > empleado.horasMax) {
+    // Verificar límite de horas semanales
+    const currentWeekStart = getCurrentWeekStart();
+    const currentWeekDays = [];
+    for (let i = 0; i < 7; i++) {
+      const day = new Date(currentWeekStart);
+      day.setDate(currentWeekStart.getDate() + i);
+      currentWeekDays.push(day.toISOString().split('T')[0]);
+    }
+    
+    const horasSemanales = asignaciones
+      .filter(asig => asig.empleadoId === empleadoArrastrado && currentWeekDays.includes(asig.fecha))
+      .reduce((total, asig) => total + asig.horas, 0);
+    
+    if (horasSemanales + horasDelTurno > empleado.horasMax) {
       toast({
         title: "Error",
         description: `${empleado.nombre} excedería su límite de ${empleado.horasMax}h semanales`,
@@ -181,10 +212,13 @@ export default function CalendarioPage() {
 
   // Auto-asignación inteligente
   const autoAssignWeek = (weekStart: Date, weekDays: Date[]) => {
-    if (!canAutoAssignWeek(weekDays)) {
+    // Permitir auto-asignar en cualquier semana, solo filtrar días pasados
+    const availableDays = weekDays.filter(day => !isDateInPast(day));
+    
+    if (availableDays.length === 0) {
       toast({
         title: "Error",
-        description: "No se puede auto-asignar en fechas pasadas",
+        description: "No hay días disponibles para auto-asignar",
         variant: "destructive"
       });
       return;
@@ -206,9 +240,9 @@ export default function CalendarioPage() {
       
       const dayName = DIAS_SEMANA[day.getDay()];
       
-      // Asignaciones fijas
+      // Asignaciones fijas para todos los turnos y personas
+      // Madrugada
       if (dayName !== 'Vie') {
-        // Sugli en madrugada (excepto viernes)
         nuevasAsignaciones.push({
           id: `sugli-${day.toISOString()}-madrugada`,
           empleadoId: 'sugli',
@@ -217,7 +251,6 @@ export default function CalendarioPage() {
           horas: 8
         });
       } else {
-        // Diana reemplaza a Sugli los viernes
         nuevasAsignaciones.push({
           id: `diana-${day.toISOString()}-madrugada`,
           empleadoId: 'diana',
@@ -227,33 +260,37 @@ export default function CalendarioPage() {
         });
       }
 
-      // Ashley en mañana (ONB fijo)
-      nuevasAsignaciones.push({
-        id: `ashley-${day.toISOString()}-manana`,
-        empleadoId: 'ashley',
-        fecha: day.toISOString().split('T')[0],
-        turno: 'manana' as TurnoType,
-        horas: 8
-      });
-
-      // Fernando en tarde (ONB fijo)
-      nuevasAsignaciones.push({
-        id: `fernando-${day.toISOString()}-tarde`,
-        empleadoId: 'fernando',
-        fecha: day.toISOString().split('T')[0],
-        turno: 'tarde' as TurnoType,
-        horas: 8
-      });
-
-      // Senior nocturno rotativo (solo lunes a sábado)
-      if (dayName !== 'Dom') {
-        const seniors = ['helen', 'mayra', 'jose'];
-        const seniorIndex = dayIndex % 3;
-        const seniorId = seniors[seniorIndex];
-        
+      // Mañana - Completar según demanda
+      const demandaManana = config.manana;
+      const empleadosManana = ['ashley', 'helen', 'mayra', 'jose', 'stella', 'juan', 'thalia'];
+      for (let i = 0; i < Math.min(demandaManana.total, empleadosManana.length); i++) {
         nuevasAsignaciones.push({
-          id: `${seniorId}-${day.toISOString()}-senior_nocturno`,
-          empleadoId: seniorId,
+          id: `${empleadosManana[i]}-${day.toISOString()}-manana`,
+          empleadoId: empleadosManana[i],
+          fecha: day.toISOString().split('T')[0],
+          turno: 'manana' as TurnoType,
+          horas: 8
+        });
+      }
+
+      // Tarde - Completar según demanda
+      const demandaTarde = config.tarde;
+      const empleadosTarde = ['fernando', 'alejandra', 'cristian', 'carmen', 'nerean'];
+      for (let i = 0; i < Math.min(demandaTarde.total, empleadosTarde.length); i++) {
+        nuevasAsignaciones.push({
+          id: `${empleadosTarde[i]}-${day.toISOString()}-tarde`,
+          empleadoId: empleadosTarde[i],
+          fecha: day.toISOString().split('T')[0],
+          turno: 'tarde' as TurnoType,
+          horas: 8
+        });
+      }
+
+      // Senior nocturno (solo lunes a sábado)
+      if (dayName !== 'Dom') {
+        nuevasAsignaciones.push({
+          id: `nocturno-${day.toISOString()}-senior_nocturno`,
+          empleadoId: 'nocturno',
           fecha: day.toISOString().split('T')[0],
           turno: 'senior_nocturno' as TurnoType,
           horas: 8
@@ -274,8 +311,17 @@ export default function CalendarioPage() {
 
   const recalcularHorasEquipo = () => {
     setEquipoConHoras(prev => prev.map(empleado => {
+      // Calcular horas solo para la semana actual
+      const currentWeekStart = getCurrentWeekStart();
+      const currentWeekDays = [];
+      for (let i = 0; i < 7; i++) {
+        const day = new Date(currentWeekStart);
+        day.setDate(currentWeekStart.getDate() + i);
+        currentWeekDays.push(day.toISOString().split('T')[0]);
+      }
+      
       const horasAsignadas = asignaciones
-        .filter(asig => asig.empleadoId === empleado.id)
+        .filter(asig => asig.empleadoId === empleado.id && currentWeekDays.includes(asig.fecha))
         .reduce((total, asig) => total + asig.horas, 0);
       
       return { ...empleado, horasAsignadas };
