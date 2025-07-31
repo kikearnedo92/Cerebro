@@ -17,8 +17,8 @@ const Index = () => {
       return
     }
 
-    // Redirect authenticated users to chat
-    navigate('/chat', { replace: true })
+    // Redirect authenticated users to cerebro
+    navigate('/cerebro', { replace: true })
   }, [user, loading, navigate])
 
   return (
