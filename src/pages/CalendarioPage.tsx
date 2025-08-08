@@ -210,11 +210,11 @@ export default function CalendarioPage() {
     });
   };
 
-  // Auto-asignación inteligente
+  // Auto-asignación basada en plantilla diaria (como el ejemplo compartido)
   const autoAssignWeek = (weekStart: Date, weekDays: Date[]) => {
-    // Permitir auto-asignar en cualquier semana, solo filtrar días pasados
+    // Días disponibles (no pasados)
     const availableDays = weekDays.filter(day => !isDateInPast(day));
-    
+
     if (availableDays.length === 0) {
       toast({
         title: "Error",
@@ -224,91 +224,109 @@ export default function CalendarioPage() {
       return;
     }
 
-    const weekType = determineWeekType(weekStart);
-    const config = DEMAND_CONFIG[weekType];
-    
-    // Limpiar asignaciones existentes de esta semana
-    const weekId = weekStart.toISOString().split('T')[0];
-    setAsignaciones(prev => prev.filter(asig => 
+    // Plantilla fija por turno con los nombres exactos
+    const TEMPLATE: Record<TurnoType, string[]> = {
+      // NOC
+      madrugada: ['sugli', 'nocturno'],
+      // AM
+      manana: [
+        // Multicanal (CM)
+        'stella',
+        // TECH Support
+        'jose',
+        // ATC AM
+        'mayra', 'nerean', 'belkis', 'carmen',
+        // ONB AM
+        'ashley', 'juan'
+      ],
+      // PM
+      tarde: [
+        // ATC PM
+        'helen', 'cristian', 'thalia', 'diana',
+        // ONB PM
+        'fernando', 'alejandra'
+      ],
+      // Senior nocturno de respaldo
+      senior_nocturno: []
+    };
+
+    // Quitar asignaciones existentes de la semana (para re-aplicar la plantilla)
+    setAsignaciones(prev => prev.filter(asig =>
       !weekDays.some(day => day.toISOString().split('T')[0] === asig.fecha)
     ));
 
     const nuevasAsignaciones: AsignacionTurno[] = [];
-    
-    weekDays.forEach((day, dayIndex) => {
-      if (isDateInPast(day)) return;
-      
+
+    // Utilidad: devuelve el arreglo de fechas (YYYY-MM-DD) de la semana de una fecha dada
+    const getWeekDates = (date: Date) => {
+      const start = new Date(date);
+      start.setDate(date.getDate() - start.getDay()); // domingo
+      const days: string[] = [];
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(start);
+        d.setDate(start.getDate() + i);
+        days.push(d.toISOString().split('T')[0]);
+      }
+      return days;
+    };
+
+    availableDays.forEach(day => {
+      (Object.keys(TEMPLATE) as TurnoType[]).forEach(turno => {
+        const lista = TEMPLATE[turno];
+        lista.forEach(empId => {
+          // Respetar el límite semanal del empleado
+          const empleado = equipoConHoras.find(e => e.id === empId);
+          if (!empleado) return;
+
+          const weekDates = getWeekDates(day);
+          const horasYa = asignaciones
+            .filter(a => a.empleadoId === empId && weekDates.includes(a.fecha))
+            .reduce((acc, a) => acc + a.horas, 0);
+
+          const horasTurno = 8; // por defecto
+          if (horasYa + horasTurno > empleado.horasMax) return; // no exceder
+
+          nuevasAsignaciones.push({
+            id: `${empId}-${day.toISOString()}-${turno}`,
+            empleadoId: empId,
+            fecha: day.toISOString().split('T')[0],
+            turno,
+            horas: horasTurno
+          });
+        });
+      });
+
+      // Senior nocturno solo lunes a sábado
       const dayName = DIAS_SEMANA[day.getDay()];
-      
-      // Asignaciones fijas para todos los turnos y personas
-      // Madrugada
-      if (dayName !== 'Vie') {
-        nuevasAsignaciones.push({
-          id: `sugli-${day.toISOString()}-madrugada`,
-          empleadoId: 'sugli',
-          fecha: day.toISOString().split('T')[0],
-          turno: 'madrugada' as TurnoType,
-          horas: 8
-        });
-      } else {
-        nuevasAsignaciones.push({
-          id: `diana-${day.toISOString()}-madrugada`,
-          empleadoId: 'diana',
-          fecha: day.toISOString().split('T')[0],
-          turno: 'madrugada' as TurnoType,
-          horas: 8
-        });
-      }
-
-      // Mañana - Completar según demanda
-      const demandaManana = config.manana;
-      const empleadosManana = ['ashley', 'helen', 'mayra', 'jose', 'stella', 'juan', 'thalia'];
-      for (let i = 0; i < Math.min(demandaManana.total, empleadosManana.length); i++) {
-        nuevasAsignaciones.push({
-          id: `${empleadosManana[i]}-${day.toISOString()}-manana`,
-          empleadoId: empleadosManana[i],
-          fecha: day.toISOString().split('T')[0],
-          turno: 'manana' as TurnoType,
-          horas: 8
-        });
-      }
-
-      // Tarde - Completar según demanda
-      const demandaTarde = config.tarde;
-      const empleadosTarde = ['fernando', 'alejandra', 'cristian', 'carmen', 'nerean'];
-      for (let i = 0; i < Math.min(demandaTarde.total, empleadosTarde.length); i++) {
-        nuevasAsignaciones.push({
-          id: `${empleadosTarde[i]}-${day.toISOString()}-tarde`,
-          empleadoId: empleadosTarde[i],
-          fecha: day.toISOString().split('T')[0],
-          turno: 'tarde' as TurnoType,
-          horas: 8
-        });
-      }
-
-      // Senior nocturno (solo lunes a sábado)
       if (dayName !== 'Dom') {
-        nuevasAsignaciones.push({
-          id: `nocturno-${day.toISOString()}-senior_nocturno`,
-          empleadoId: 'nocturno',
-          fecha: day.toISOString().split('T')[0],
-          turno: 'senior_nocturno' as TurnoType,
-          horas: 8
-        });
+        const empId = 'nocturno';
+        const empleado = equipoConHoras.find(e => e.id === empId);
+        if (empleado) {
+          const weekDates = getWeekDates(day);
+          const horasYa = asignaciones
+            .filter(a => a.empleadoId === empId && weekDates.includes(a.fecha))
+            .reduce((acc, a) => acc + a.horas, 0);
+          if (horasYa + 8 <= empleado.horasMax) {
+            nuevasAsignaciones.push({
+              id: `${empId}-${day.toISOString()}-senior_nocturno`,
+              empleadoId: empId,
+              fecha: day.toISOString().split('T')[0],
+              turno: 'senior_nocturno',
+              horas: 8
+            });
+          }
+        }
       }
     });
 
     setAsignaciones(prev => [...prev, ...nuevasAsignaciones]);
-    
-    // Recalcular horas de todos los empleados
     recalcularHorasEquipo();
-    
+
     toast({
-      title: "Auto-asignación completada",
-      description: `Semana ${weekType} configurada correctamente`
+      title: "Auto-asignación aplicada",
+      description: `Plantilla asignada para ${availableDays.length} día(s)`
     });
   };
-
   const recalcularHorasEquipo = () => {
     setEquipoConHoras(prev => prev.map(empleado => {
       // Calcular horas solo para la semana actual
@@ -603,10 +621,20 @@ export default function CalendarioPage() {
         open={showRulesEditor}
         onOpenChange={setShowRulesEditor}
         onSave={(rules) => {
-          console.log('Nuevas reglas guardadas:', rules);
+          // Aplicar horas máximas por país al personal actual
+          setEquipoConHoras(prev => prev.map(emp => {
+            let horasMax = emp.horasMax;
+            if (emp.pais === 'Venezuela') horasMax = rules.horasMaxVenezuela;
+            else if (emp.pais === 'Colombia') horasMax = rules.horasMaxColombia;
+            else if (emp.pais === 'México') horasMax = rules.horasMaxMexico;
+            else if (emp.pais === 'Italia') horasMax = rules.horasMaxItalia;
+            else if (emp.pais === 'Europa') horasMax = rules.horasMaxEuropa;
+            return { ...emp, horasMax };
+          }));
+
           toast({
             title: "Reglas actualizadas",
-            description: "Las reglas de negocio han sido guardadas correctamente"
+            description: "Horas máximas aplicadas por país"
           });
         }}
       />
