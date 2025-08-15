@@ -1,9 +1,12 @@
-
 import React from 'react'
-import KnowledgeBaseManager from '@/components/knowledge/KnowledgeBaseManager'
+import KnowledgeBaseManager from '@/components/admin/KnowledgeBaseManager'
 
 const KnowledgeBasePage = () => {
-  return <KnowledgeBaseManager />
+  return (
+    <div className="container mx-auto p-6">
+      <KnowledgeBaseManager />
+    </div>
+  )
 }
 
 export default KnowledgeBasePage
