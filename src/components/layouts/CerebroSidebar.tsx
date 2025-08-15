@@ -57,7 +57,15 @@ const CerebroSidebar = () => {
     navigate(`/cerebro${path}`)
   }
 
-  const isAdmin = profile?.role_system === 'admin' || profile?.role_system === 'super_admin'
+  const isAdmin = profile?.role_system === 'admin' || profile?.role_system === 'super_admin' || profile?.is_super_admin
+  
+  // Debug admin status
+  console.log('CerebroSidebar - User profile:', { 
+    role_system: profile?.role_system, 
+    is_super_admin: profile?.is_super_admin,
+    email: profile?.email,
+    isAdmin 
+  })
 
   const navigationItems = [
     {
