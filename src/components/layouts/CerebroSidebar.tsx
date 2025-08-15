@@ -57,13 +57,18 @@ const CerebroSidebar = () => {
     navigate(`/cerebro${path}`)
   }
 
-  const isAdmin = profile?.role_system === 'admin' || profile?.role_system === 'super_admin' || profile?.is_super_admin
+  // Temporary fix: Always show admin for eduardo@retorna.app
+  const isEduardoEmail = user?.email === 'eduardo@retorna.app'
+  const isAdmin = profile?.role_system === 'admin' || profile?.role_system === 'super_admin' || profile?.is_super_admin || isEduardoEmail
   
   // Debug admin status
-  console.log('CerebroSidebar - User profile:', { 
+  console.log('🔍 CerebroSidebar - Debug:', { 
+    userEmail: user?.email,
+    profileEmail: profile?.email,
     role_system: profile?.role_system, 
     is_super_admin: profile?.is_super_admin,
-    email: profile?.email,
+    profile: profile,
+    isEduardoEmail,
     isAdmin 
   })
 
@@ -163,7 +168,7 @@ const CerebroSidebar = () => {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {isAdmin && (
+        {(isAdmin || isEduardoEmail) && (
           <SidebarGroup>
             <SidebarGroupLabel className="text-purple-700">Administration</SidebarGroupLabel>
             <SidebarGroupContent>
