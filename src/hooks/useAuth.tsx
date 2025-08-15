@@ -15,6 +15,26 @@ export const useAuth = (): AuthContextType => {
   const isAdmin = profile?.role_system === 'admin' || profile?.role_system === 'super_admin'
   const isSuperAdmin = profile?.is_super_admin || profile?.email === 'eduardo@retorna.app'
 
+  const fetchProfile = async (userId: string) => {
+    try {
+      console.log('🔍 Fetching profile for user:', userId)
+      const { data: profileData, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single()
+
+      if (error) {
+        console.error('❌ Profile fetch error:', error)
+      } else {
+        console.log('✅ Profile loaded:', profileData)
+        setProfile(profileData)
+      }
+    } catch (error) {
+      console.error('❌ Profile error:', error)
+    }
+  }
+
   // Determine current app based on URL
   const getCurrentApp = () => {
     const path = window.location.pathname
@@ -32,24 +52,8 @@ export const useAuth = (): AuthContextType => {
         setUser(session?.user ?? null)
         
         if (session?.user) {
-          // Fetch user profile
-          setTimeout(async () => {
-            try {
-              const { data: profileData, error } = await supabase
-                .from('profiles')
-                .select('*')
-                .eq('id', session.user.id)
-                .single()
-
-              if (error) {
-                console.error('Profile fetch error:', error)
-              } else {
-                setProfile(profileData)
-              }
-            } catch (error) {
-              console.error('Profile error:', error)
-            }
-          }, 0)
+          // Fetch user profile immediately
+          fetchProfile(session.user.id)
         } else {
           setProfile(null)
         }
@@ -62,6 +66,9 @@ export const useAuth = (): AuthContextType => {
       console.log('🔍 Initial session check:', !!session)
       setSession(session)
       setUser(session?.user ?? null)
+      if (session?.user) {
+        fetchProfile(session.user.id)
+      }
       setLoading(false)
     })
 
