@@ -7,10 +7,10 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instanciate createClient with right options
+  // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "12.2.12 (cd3cf9e)"
+    PostgrestVersion: "13.0.4"
   }
   public: {
     Tables: {
@@ -1145,11 +1145,11 @@ export type Database = {
       get_knowledge_base_stats: {
         Args: Record<PropertyKey, never>
         Returns: {
-          total_documents: number
           active_documents: number
+          most_common_tags: string[]
+          total_documents: number
           total_projects: number
           total_size_mb: number
-          most_common_tags: string[]
         }[]
       }
       halfvec_avg: {
@@ -1210,7 +1210,7 @@ export type Database = {
       }
       l2_normalize: {
         Args: { "": string } | { "": unknown } | { "": unknown }
-        Returns: unknown
+        Returns: string
       }
       reset_daily_query_limits: {
         Args: Record<PropertyKey, never>
@@ -1218,34 +1218,34 @@ export type Database = {
       }
       search_documents: {
         Args: {
+          match_count?: number
           query_embedding: string
           similarity_threshold?: number
-          match_count?: number
         }
         Returns: {
-          title: string
           chunk_text: string
-          similarity: number
           project: string
+          similarity: number
+          title: string
         }[]
       }
       search_knowledge_semantic: {
         Args: {
-          query_text: string
-          project_filter?: string
           active_only?: boolean
           match_count?: number
+          project_filter?: string
+          query_text: string
         }
         Returns: {
-          id: string
-          title: string
           content: string
-          project: string
-          tags: string[]
+          created_at: string
           file_type: string
           file_url: string
-          created_at: string
+          id: string
+          project: string
           relevance_score: number
+          tags: string[]
+          title: string
         }[]
       }
       sparsevec_out: {
@@ -1261,11 +1261,11 @@ export type Database = {
         Returns: number
       }
       user_can_access_product: {
-        Args: { _user_id: string; _product_name: string }
+        Args: { _product_name: string; _user_id: string }
         Returns: boolean
       }
       user_has_feature_access: {
-        Args: { _user_id: string; _feature_name: string; _tenant_id?: string }
+        Args: { _feature_name: string; _tenant_id?: string; _user_id: string }
         Returns: boolean
       }
       vector_avg: {
