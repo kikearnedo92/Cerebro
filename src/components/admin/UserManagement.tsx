@@ -23,23 +23,26 @@ const UserManagement = () => {
   const fetchUsers = async () => {
     setLoading(true)
     try {
-      console.log('🔍 Fetching users...')
+      console.log('🔍 Fetching users from profiles table...')
       
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .order('created_at', { ascending: false })
 
+      console.log('🔍 Raw query result:', { data, error })
+
       if (error) {
-        console.error('Error fetching users:', error)
+        console.error('❌ Error fetching users:', error)
         setUsers([])
         return
       }
 
+      console.log('✅ Users loaded successfully:', data?.length || 0)
+      console.log('📊 Users data:', data)
       setUsers(data || [])
-      console.log('✅ Users loaded:', data?.length || 0)
     } catch (error) {
-      console.error('Error fetching users:', error)
+      console.error('❌ Unexpected error fetching users:', error)
       setUsers([])
     } finally {
       setLoading(false)
