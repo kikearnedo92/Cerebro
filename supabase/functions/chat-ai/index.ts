@@ -40,66 +40,51 @@ serve(async (req) => {
     
     if (useKnowledgeBase) {
       try {
-        console.log('🔍 Searching CEREBRO knowledge base...');
+        console.log('🔍 Searching CEREBRO knowledge base with semantic search...');
         
-        // Get all active documents first
-        const { data: allDocs, error: allDocsError } = await supabase
-          .from('knowledge_base')
-          .select('id, title, content, project, file_type, created_at')
-          .eq('active', true)
-          .order('created_at', { ascending: false });
-        
-        console.log(`📊 Total active documents found: ${allDocs?.length || 0}`);
-        
-        if (allDocsError) {
-          console.error('Error fetching documents:', allDocsError);
-        }
-        
-        if (allDocs && allDocs.length > 0) {
-          // Simple keyword matching for better results
-          const searchTerms = message.toLowerCase().split(' ')
-            .filter(term => term.length > 2)
-            .filter(term => !['que', 'como', 'para', 'por', 'con', 'una', 'del', 'las', 'los', 'the', 'and', 'for'].includes(term));
+        // Use the new semantic search function
+        const { data: searchResults, error: searchError } = await supabase.rpc('search_knowledge_semantic', {
+          query_text: message,
+          project_filter: null,
+          active_only: true,
+          match_count: 8
+        });
+
+        if (searchError) {
+          console.error('Semantic search error:', searchError);
+          // Fallback to simple query if semantic search fails
+          const { data: fallbackDocs, error: fallbackError } = await supabase
+            .from('knowledge_base')
+            .select('id, title, content, project, file_type, created_at')
+            .eq('active', true)
+            .order('created_at', { ascending: false })
+            .limit(5);
           
-          console.log('🔍 Search terms:', searchTerms);
-          
-          // Score documents based on keyword matches
-          const scoredDocs = allDocs.map(doc => {
-            const content = (doc.content || '').toLowerCase();
-            const title = (doc.title || '').toLowerCase();
-            
-            let score = 0;
-            searchTerms.forEach(term => {
-              // Title matches are more important
-              if (title.includes(term)) score += 10;
-              // Content matches
-              if (content.includes(term)) score += 3;
-              // Partial matches
-              if (content.includes(term.substring(0, 4))) score += 1;
-            });
-            
-            return { ...doc, score };
-          });
-          
-          // Sort by score and take top results
-          relevantDocs = scoredDocs
-            .filter(doc => doc.score > 0)
-            .sort((a, b) => b.score - a.score)
-            .slice(0, 8);
-          
-          // If no scored matches, use recent documents
-          if (relevantDocs.length === 0) {
-            relevantDocs = allDocs.slice(0, 6);
-            console.log('📄 No keyword matches, using recent documents');
+          if (!fallbackError && fallbackDocs) {
+            relevantDocs = fallbackDocs.map(doc => ({ ...doc, relevance_score: 0.5 }));
           }
+        } else if (searchResults && searchResults.length > 0) {
+          relevantDocs = searchResults;
+          console.log(`📊 Semantic search found ${relevantDocs.length} relevant documents`);
+        } else {
+          console.log('📄 No semantic matches found, fetching recent documents');
+          // Fallback to recent docs if no semantic matches
+          const { data: recentDocs, error: recentError } = await supabase
+            .from('knowledge_base')
+            .select('id, title, content, project, file_type, created_at')
+            .eq('active', true)
+            .order('created_at', { ascending: false })
+            .limit(3);
           
-          console.log(`📚 Selected ${relevantDocs.length} relevant documents`);
-          
-          // Log selected documents
-          relevantDocs.forEach((doc, index) => {
-            console.log(`📄 Doc ${index + 1}: "${doc.title}" (score: ${doc.score || 'recent'}) - ${doc.content?.length || 0} chars`);
-          });
+          if (!recentError && recentDocs) {
+            relevantDocs = recentDocs.map(doc => ({ ...doc, relevance_score: 0.3 }));
+          }
         }
+        
+        // Log selected documents with relevance scores
+        relevantDocs.forEach((doc, index) => {
+          console.log(`📄 Doc ${index + 1}: "${doc.title}" (relevance: ${doc.relevance_score?.toFixed(3) || 'N/A'}) - ${doc.content?.length || 0} chars`);
+        });
         
       } catch (error) {
         console.error('CEREBRO knowledge base search error:', error);
@@ -109,21 +94,22 @@ serve(async (req) => {
       let context = '';
       if (relevantDocs.length > 0) {
         context = relevantDocs.map((doc, index) => 
-          `**DOCUMENTO ${index + 1}: ${doc.title}** (${doc.project || 'General'} - ${doc.file_type || 'documento'}):\n${doc.content?.substring(0, 4000) || 'Sin contenido'}${doc.content?.length > 4000 ? '\n[... contenido truncado]' : ''}`
+          `**DOCUMENTO ${index + 1}: ${doc.title}** (${doc.project || 'General'} - ${doc.file_type || 'documento'} - Relevancia: ${doc.relevance_score?.toFixed(3) || 'N/A'}):\n${doc.content?.substring(0, 4000) || 'Sin contenido'}${doc.content?.length > 4000 ? '\n[... contenido truncado]' : ''}`
         ).join('\n\n' + '='.repeat(80) + '\n\n');
         
         sources = relevantDocs.map(doc => doc.title);
       }
 
-      // Enhanced system prompt for CEREBRO
+      // Enhanced system prompt for CEREBRO with better search context
       systemPrompt = `Eres CEREBRO, el asistente inteligente especializado en el conocimiento interno de Retorna.
 
 INFORMACIÓN CONTEXTUAL DISPONIBLE:
-${context || 'No se encontraron documentos específicamente relevantes en la base de conocimiento para esta consulta, pero tienes acceso a conocimiento general de la empresa.'}
+${context || 'No se encontraron documentos específicamente relevantes en la base de conocimiento para esta consulta.'}
 
 ESTADÍSTICAS DE BÚSQUEDA:
-- Total de documentos encontrados: ${relevantDocs.length}
+- Documentos encontrados con búsqueda semántica: ${relevantDocs.length}
 - Fuentes consultadas: ${sources.length > 0 ? sources.join(', ') : 'Ninguna específica'}
+- Método de búsqueda: ${relevantDocs.some(d => d.relevance_score > 0.5) ? 'Semántica exitosa' : 'Fallback a documentos recientes'}
 
 TU ROL Y RESPONSABILIDADES:
 - Eres el asistente interno de Retorna con acceso completo a la documentación empresarial
@@ -135,18 +121,19 @@ INSTRUCCIONES DE RESPUESTA:
 1. Responde SIEMPRE en español
 2. Usa PRIORITARIAMENTE la información de los documentos disponibles arriba
 3. Si tienes información específica de documentos, cítala claramente mencionando el nombre del documento
-4. Si no tienes información suficiente en los documentos, indícalo claramente
+4. Si no tienes información suficiente en los documentos, indícalo claramente y sugiere contactar al área correspondiente
 5. Mantén respuestas concisas pero completas
 6. Sugiere próximos pasos cuando sea relevante
 7. SIEMPRE menciona las fuentes específicas cuando uses información de los documentos
+8. Si la información está desactualizada o no es completa, hazlo saber
 
 FORMATO DE RESPUESTA:
 - Respuesta directa y útil basada en los documentos
 - Cita de fuentes: "Según el documento [Nombre del documento]..."
-- Si consultaste múltiples documentos, menciona cuántos
+- Si consultaste múltiples documentos, menciona cuántos y su relevancia
 - Sugerencias de acción si es relevante
 
-IMPORTANTE: Si encontraste ${relevantDocs.length} documentos, úsalos activamente en tu respuesta y menciona específicamente cuáles consultaste.`;
+IMPORTANTE: Encontré ${relevantDocs.length} documentos, úsalos activamente en tu respuesta y menciona específicamente cuáles consultaste y qué tan relevantes fueron para la consulta.`;
 
     } else {
       // OpenAI general mode for CEREBRO
@@ -216,7 +203,7 @@ INSTRUCCIONES:
             title: doc.title, 
             project: doc.project || 'General',
             file_type: doc.file_type || 'unknown',
-            score: doc.score || 0
+            relevance_score: doc.relevance_score || 0
           })) : null,
           ai_provider: 'openai',
           response_time: 2000,
@@ -233,7 +220,10 @@ INSTRUCCIONES:
       foundRelevantContent: relevantDocs.length > 0,
       searchStats: {
         totalDocuments: relevantDocs.length,
-        usedKnowledgeBase: useKnowledgeBase
+        usedKnowledgeBase: useKnowledgeBase,
+        semanticSearch: true,
+        averageRelevance: relevantDocs.length > 0 ? 
+          (relevantDocs.reduce((sum, doc) => sum + (doc.relevance_score || 0), 0) / relevantDocs.length).toFixed(3) : 0
       }
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

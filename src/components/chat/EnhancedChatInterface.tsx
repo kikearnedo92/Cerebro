@@ -133,9 +133,8 @@ const EnhancedChatInterface = () => {
   }
 
   const hasLowConfidence = (content: string, sources: any[]) => {
-    const confidence = sources?.length || 0
-    const hasKeywords = /no sé|no tengo información|no encuentro|disculpa/i.test(content)
-    return confidence < 2 || hasKeywords
+    // Disable escalation engine by default - user must enable it explicitly
+    return false
   }
 
   const handleEscalationApply = (suggestion: any) => {

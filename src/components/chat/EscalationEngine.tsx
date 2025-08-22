@@ -34,41 +34,47 @@ const EscalationEngine: React.FC<EscalationEngineProps> = ({ message, onSuggesti
     const newSuggestions: EscalationSuggestion[] = []
 
     // Treasury-related keywords
-    if (message.toLowerCase().includes('saldo') || 
+    if (message.toLowerCase().includes('precio') || 
+        message.toLowerCase().includes('tasa') || 
+        message.toLowerCase().includes('comisión') ||
+        message.toLowerCase().includes('tarifa') ||
+        message.toLowerCase().includes('saldo') || 
         message.toLowerCase().includes('transferencia') || 
         message.toLowerCase().includes('dinero') ||
         message.toLowerCase().includes('pago')) {
       newSuggestions.push({
         trigger: 'treasury_query',
         contact: {
-          name: 'Joel Martinez',
-          role: 'Tesorero',
+          name: 'Joel Campos',
+          role: 'Head de Tesorería',
           department: 'Tesorería',
-          email: 'joel@retorna.app',
+          email: 'joel.campos@retorna.app',
           phone: '+57 300 123 4567'
         },
-        template: 'Para consultas específicas sobre saldos, transferencias y movimientos financieros, te recomiendo contactar directamente a Joel Martinez (joel@retorna.app), nuestro Tesorero. Él puede ayudarte con revisiones de saldos, movimientos pendientes y conciliaciones bancarias.',
+        template: 'Para consultas específicas sobre precios, tasas, comisiones y movimientos financieros, te recomiendo contactar directamente a Joel Campos (joel.campos@retorna.app), nuestro Head de Tesorería. Él puede ayudarte con información sobre tarifas, saldos y conciliaciones bancarias.',
         priority: 'high',
         reason: 'Consulta relacionada con tesorería detectada'
       })
     }
 
-    // Customer service escalation
-    if (message.toLowerCase().includes('problema') || 
-        message.toLowerCase().includes('error') || 
-        message.toLowerCase().includes('no funciona') ||
-        message.toLowerCase().includes('ayuda')) {
+    // Compliance related escalation
+    if (message.toLowerCase().includes('compliance') || 
+        message.toLowerCase().includes('regulación') || 
+        message.toLowerCase().includes('normativa') ||
+        message.toLowerCase().includes('aml') ||
+        message.toLowerCase().includes('kyc') ||
+        message.toLowerCase().includes('lavado de activos')) {
       newSuggestions.push({
-        trigger: 'customer_support',
+        trigger: 'compliance_query',
         contact: {
-          name: 'María Rodriguez',
-          role: 'Customer Success Manager',
-          department: 'Atención al Cliente',
-          email: 'maria@retorna.app'
+          name: 'Daniela Zanotti',
+          role: 'Head de Compliance',
+          department: 'Compliance',
+          email: 'daniela.zanotti@retorna.app'
         },
-        template: 'Para problemas más complejos o que requieren seguimiento personalizado, puedes contactar a María Rodriguez (maria@retorna.app), nuestra Customer Success Manager. Ella se especializa en resolver casos escalados y puede brindarte atención personalizada.',
-        priority: 'medium',
-        reason: 'Problema de soporte detectado'
+        template: 'Para consultas relacionadas con compliance, regulaciones AML, KYC o normativas financieras, puedes contactar a Daniela Zanotti (daniela.zanotti@retorna.app), nuestra Head de Compliance. Ella puede ayudarte con temas normativos y procedimientos de cumplimiento.',
+        priority: 'high',
+        reason: 'Consulta relacionada con compliance detectada'
       })
     }
 
