@@ -32,11 +32,13 @@ import { useKnowledgeBase } from '@/hooks/useKnowledgeBase'
 import { toast } from '@/hooks/use-toast'
 import FileUpload from '@/components/admin/FileUpload'
 import EscalationEngine from '@/components/chat/EscalationEngine'
+import SmartEscalationEngine from '@/components/chat/SmartEscalationEngine'
 
 const EnhancedChatInterface = () => {
   const [input, setInput] = useState('')
   const [selectedImage, setSelectedImage] = useState<string>()
   const [showKnowledgeBase, setShowKnowledgeBase] = useState(false)
+  const [smartEscalationEnabled, setSmartEscalationEnabled] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const [lastUserMessage, setLastUserMessage] = useState('')
@@ -471,12 +473,14 @@ const EnhancedChatInterface = () => {
                           </div>
                         )}
 
-                        {/* Smart Escalation - only show if low confidence */}
-                        {message.role === 'assistant' && hasLowConfidence(message.content, message.sources || []) && (
+                        {/* Smart Escalation Engine - Always shown with toggle */}
+                        {message.role === 'assistant' && (
                           <div className="mt-3 pt-3 border-t border-border/50">
-                            <EscalationEngine 
+                            <SmartEscalationEngine 
                               message={lastUserMessage}
                               onSuggestionApply={handleEscalationApply}
+                              enabled={smartEscalationEnabled}
+                              onEnabledChange={setSmartEscalationEnabled}
                             />
                           </div>
                         )}
