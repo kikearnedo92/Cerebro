@@ -174,23 +174,29 @@ export const useEnhancedChat = () => {
         prev.map(c => c.id === conversation!.id ? updatedConversation : c)
       )
 
-      // Llamar a la edge function chat-ai
-      console.log('🧠 Sending message to CEREBRO chat-ai...')
-      
-      const { data, error } = await supabase.functions.invoke('chat-ai', {
-        body: {
+      // Llamar a la API de chat (Vercel serverless function)
+      console.log('🧠 Sending message to CEREBRO API...')
+
+      const chatResponse = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           message: content,
           useKnowledgeBase,
           imageData: selectedImage
-        }
+        }),
+        signal: abortControllerRef.current?.signal
       })
 
-      if (error) {
-        console.error('Edge function error:', error)
-        throw new Error(`Error en CEREBRO: ${error.message}`)
+      if (!chatResponse.ok) {
+        const errorData = await chatResponse.json().catch(() => null)
+        console.error('Chat API error:', errorData)
+        throw new Error(`Error en CEREBRO: ${errorData?.error || chatResponse.statusText}`)
       }
 
-      if (!data) {
+      const data = await chatResponse.json()
+
+      if (!data?.response) {
         throw new Error('No se recibió respuesta de CEREBRO')
       }
 
