@@ -3,7 +3,7 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.50.0';
 
-const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
+const anthropicApiKey = Deno.env.get('ANTHROPIC_API_KEY');
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
@@ -19,30 +19,30 @@ serve(async (req) => {
 
   try {
     const { message, useKnowledgeBase, imageData } = await req.json();
-    
-    console.log(`🤖 Processing CEREBRO chat message:`, message);
+
+    console.log(`🧠 Processing CEREBRO chat message:`, message);
     console.log(`📚 Using knowledge base:`, useKnowledgeBase);
-    
+
     if (!message?.trim()) {
       throw new Error('Message is required');
     }
 
-    if (!openAIApiKey) {
-      throw new Error('OpenAI API key not configured');
+    if (!anthropicApiKey) {
+      throw new Error('Anthropic API key not configured. Set ANTHROPIC_API_KEY in Supabase secrets.');
     }
 
     // Initialize Supabase client
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
-    
+
     let relevantDocs: any[] = [];
     let sources: string[] = [];
     let systemPrompt = '';
-    
+
     if (useKnowledgeBase) {
       try {
-        console.log('🔍 Searching CEREBRO knowledge base with semantic search...');
-        
-        // Use the new semantic search function
+        console.log('🔍 Searching knowledge base...');
+
+        // Semantic search
         const { data: searchResults, error: searchError } = await supabase.rpc('search_knowledge_semantic', {
           query_text: message,
           project_filter: null,
@@ -52,146 +52,137 @@ serve(async (req) => {
 
         if (searchError) {
           console.error('Semantic search error:', searchError);
-          // Fallback to simple query if semantic search fails
+          // Fallback to simple query
           const { data: fallbackDocs, error: fallbackError } = await supabase
             .from('knowledge_base')
             .select('id, title, content, project, file_type, created_at')
             .eq('active', true)
             .order('created_at', { ascending: false })
             .limit(5);
-          
+
           if (!fallbackError && fallbackDocs) {
             relevantDocs = fallbackDocs.map(doc => ({ ...doc, relevance_score: 0.5 }));
           }
         } else if (searchResults && searchResults.length > 0) {
           relevantDocs = searchResults;
-          console.log(`📊 Semantic search found ${relevantDocs.length} relevant documents`);
+          console.log(`📊 Found ${relevantDocs.length} relevant documents`);
         } else {
-          console.log('📄 No semantic matches found, fetching recent documents');
-          // Fallback to recent docs if no semantic matches
+          console.log('📄 No semantic matches, fetching recent documents');
           const { data: recentDocs, error: recentError } = await supabase
             .from('knowledge_base')
             .select('id, title, content, project, file_type, created_at')
             .eq('active', true)
             .order('created_at', { ascending: false })
             .limit(3);
-          
+
           if (!recentError && recentDocs) {
             relevantDocs = recentDocs.map(doc => ({ ...doc, relevance_score: 0.3 }));
           }
         }
-        
-        // Log selected documents with relevance scores
+
         relevantDocs.forEach((doc, index) => {
-          console.log(`📄 Doc ${index + 1}: "${doc.title}" (relevance: ${doc.relevance_score?.toFixed(3) || 'N/A'}) - ${doc.content?.length || 0} chars`);
+          console.log(`📄 Doc ${index + 1}: "${doc.title}" (relevance: ${doc.relevance_score?.toFixed(3) || 'N/A'})`);
         });
-        
+
       } catch (error) {
-        console.error('CEREBRO knowledge base search error:', error);
+        console.error('Knowledge base search error:', error);
       }
 
-      // Build enhanced context from relevant documents
+      // Build context from documents
       let context = '';
       if (relevantDocs.length > 0) {
-        context = relevantDocs.map((doc, index) => 
-          `**DOCUMENTO ${index + 1}: ${doc.title}** (${doc.project || 'General'} - ${doc.file_type || 'documento'} - Relevancia: ${doc.relevance_score?.toFixed(3) || 'N/A'}):\n${doc.content?.substring(0, 4000) || 'Sin contenido'}${doc.content?.length > 4000 ? '\n[... contenido truncado]' : ''}`
-        ).join('\n\n' + '='.repeat(80) + '\n\n');
-        
+        context = relevantDocs.map((doc, index) =>
+          `**DOCUMENTO ${index + 1}: ${doc.title}** (${doc.project || 'General'} - Relevancia: ${doc.relevance_score?.toFixed(3) || 'N/A'}):\n${doc.content?.substring(0, 4000) || 'Sin contenido'}${doc.content?.length > 4000 ? '\n[... contenido truncado]' : ''}`
+        ).join('\n\n---\n\n');
+
         sources = relevantDocs.map(doc => doc.title);
       }
 
-      // Enhanced system prompt for CEREBRO with better search context
-      systemPrompt = `Eres CEREBRO, el asistente inteligente especializado en el conocimiento interno de Retorna.
+      systemPrompt = `Eres CEREBRO, el asistente de conocimiento inteligente de la empresa.
 
-INFORMACIÓN CONTEXTUAL DISPONIBLE:
-${context || 'No se encontraron documentos específicamente relevantes en la base de conocimiento para esta consulta.'}
+DOCUMENTOS DE LA BASE DE CONOCIMIENTO:
+${context || 'No se encontraron documentos relevantes para esta consulta.'}
 
-ESTADÍSTICAS DE BÚSQUEDA:
-- Documentos encontrados con búsqueda semántica: ${relevantDocs.length}
-- Fuentes consultadas: ${sources.length > 0 ? sources.join(', ') : 'Ninguna específica'}
-- Método de búsqueda: ${relevantDocs.some(d => d.relevance_score > 0.5) ? 'Semántica exitosa' : 'Fallback a documentos recientes'}
+ESTADÍSTICAS:
+- Documentos encontrados: ${relevantDocs.length}
+- Fuentes: ${sources.length > 0 ? sources.join(', ') : 'Ninguna'}
 
-TU ROL Y RESPONSABILIDADES:
-- Eres el asistente interno de Retorna con acceso completo a la documentación empresarial
-- Ayudas a empleados con procedimientos, políticas, información técnica y operativa
-- Proporcionas respuestas precisas basadas en documentos oficiales de la empresa
-- Mantienes un tono profesional pero cercano y accesible
-
-INSTRUCCIONES DE RESPUESTA:
-1. Responde SIEMPRE en español
-2. Usa PRIORITARIAMENTE la información de los documentos disponibles arriba
-3. Si tienes información específica de documentos, cítala claramente mencionando el nombre del documento
-4. Si no tienes información suficiente en los documentos, indícalo claramente y sugiere contactar al área correspondiente
-5. Mantén respuestas concisas pero completas
-6. Sugiere próximos pasos cuando sea relevante
-7. SIEMPRE menciona las fuentes específicas cuando uses información de los documentos
-8. Si la información está desactualizada o no es completa, hazlo saber
-
-FORMATO DE RESPUESTA:
-- Respuesta directa y útil basada en los documentos
-- Cita de fuentes: "Según el documento [Nombre del documento]..."
-- Si consultaste múltiples documentos, menciona cuántos y su relevancia
-- Sugerencias de acción si es relevante
-
-IMPORTANTE: Encontré ${relevantDocs.length} documentos, úsalos activamente en tu respuesta y menciona específicamente cuáles consultaste y qué tan relevantes fueron para la consulta.`;
-
-    } else {
-      // OpenAI general mode for CEREBRO
-      systemPrompt = `Eres CEREBRO, el asistente de conocimiento interno de Retorna. Aunque no estás consultando la base de conocimiento específica, mantén tu rol como asistente empresarial interno.
+TU ROL:
+- Asistente interno con acceso a la documentación de la empresa
+- Ayudas con procedimientos, políticas, información técnica y operativa
+- Respuestas precisas basadas en documentos oficiales
 
 INSTRUCCIONES:
 1. Responde SIEMPRE en español
-2. Mantén un tono profesional pero accesible
-3. Ayuda con consultas generales relacionadas con trabajo y productividad
+2. Usa PRIORITARIAMENTE la información de los documentos disponibles
+3. Cita las fuentes: "Según el documento [Nombre]..."
+4. Si no tienes información suficiente, indícalo claramente
+5. Respuestas concisas pero completas
+6. Sugiere próximos pasos cuando sea relevante`;
+
+    } else {
+      systemPrompt = `Eres CEREBRO, el asistente de conocimiento inteligente de la empresa. No estás consultando la base de conocimiento en esta consulta.
+
+INSTRUCCIONES:
+1. Responde SIEMPRE en español
+2. Tono profesional pero accesible
+3. Ayuda con consultas generales de trabajo y productividad
 4. Si necesitas información específica de la empresa, sugiere activar la base de conocimiento`;
     }
 
-    // Prepare messages for OpenAI
-    const messages = [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: message }
-    ];
+    // Build messages for Claude API
+    const userContent: any[] = [];
 
-    // Add image analysis if provided
     if (imageData) {
-      messages[1] = {
-        role: 'user',
-        content: [
-          { type: 'text', text: message },
-          { type: 'image_url', image_url: { url: imageData } }
-        ]
-      };
+      // Extract base64 data and media type from data URL
+      const matches = imageData.match(/^data:(image\/\w+);base64,(.+)$/);
+      if (matches) {
+        userContent.push({
+          type: 'image',
+          source: {
+            type: 'base64',
+            media_type: matches[1],
+            data: matches[2]
+          }
+        });
+      }
     }
 
-    // Call OpenAI API
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    userContent.push({ type: 'text', text: message });
+
+    // Call Claude API (Anthropic)
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${openAIApiKey}`,
+        'x-api-key': anthropicApiKey,
+        'anthropic-version': '2023-06-01',
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: imageData ? 'gpt-4o' : 'gpt-5-2025-08-07',
-        messages: messages,
-        max_completion_tokens: 3000,
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 3000,
+        system: systemPrompt,
+        messages: [
+          { role: 'user', content: userContent }
+        ]
       }),
     });
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => null);
-      console.error('OpenAI API error:', errorData);
-      throw new Error(`OpenAI API error: ${response.statusText}`);
+      console.error('Claude API error:', response.status, errorData);
+      throw new Error(`Claude API error: ${response.statusText} - ${JSON.stringify(errorData)}`);
     }
 
     const data = await response.json();
-    const aiResponse = data.choices?.[0]?.message?.content;
+    const aiResponse = data.content?.[0]?.text;
 
     if (!aiResponse) {
-      throw new Error('No response from AI');
+      throw new Error('No response from Claude');
     }
 
-    console.log('✅ CEREBRO AI response generated successfully');
-    console.log(`📊 Response used ${relevantDocs.length} documents from knowledge base`);
+    console.log('✅ CEREBRO response generated via Claude API');
+    console.log(`📊 Used ${relevantDocs.length} documents from knowledge base`);
 
     // Log analytics
     try {
@@ -199,13 +190,13 @@ INSTRUCCIONES:
         .from('usage_analytics')
         .insert({
           query: message,
-          sources_used: relevantDocs.length > 0 ? relevantDocs.map(doc => ({ 
-            title: doc.title, 
+          sources_used: relevantDocs.length > 0 ? relevantDocs.map(doc => ({
+            title: doc.title,
             project: doc.project || 'General',
             file_type: doc.file_type || 'unknown',
             relevance_score: doc.relevance_score || 0
           })) : null,
-          ai_provider: 'openai',
+          ai_provider: 'anthropic',
           response_time: 2000,
           found_relevant_content: relevantDocs.length > 0
         });
@@ -213,7 +204,7 @@ INSTRUCCIONES:
       console.error('Analytics logging failed:', analyticsError);
     }
 
-    return new Response(JSON.stringify({ 
+    return new Response(JSON.stringify({
       response: aiResponse,
       sources: sources.length > 0 ? sources : undefined,
       documentsFound: relevantDocs.length,
@@ -222,7 +213,7 @@ INSTRUCCIONES:
         totalDocuments: relevantDocs.length,
         usedKnowledgeBase: useKnowledgeBase,
         semanticSearch: true,
-        averageRelevance: relevantDocs.length > 0 ? 
+        averageRelevance: relevantDocs.length > 0 ?
           (relevantDocs.reduce((sum, doc) => sum + (doc.relevance_score || 0), 0) / relevantDocs.length).toFixed(3) : 0
       }
     }), {
@@ -230,10 +221,10 @@ INSTRUCCIONES:
     });
 
   } catch (error) {
-    console.error('❌ Error in CEREBRO chat-ai function:', error);
-    return new Response(JSON.stringify({ 
+    console.error('❌ Error in CEREBRO chat-ai:', error);
+    return new Response(JSON.stringify({
       error: error.message,
-      response: 'Lo siento, hubo un error procesando tu mensaje en CEREBRO. Por favor intenta de nuevo.' 
+      response: 'Lo siento, hubo un error procesando tu mensaje. Por favor intenta de nuevo.'
     }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
