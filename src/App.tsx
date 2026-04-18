@@ -15,6 +15,7 @@ import ChatPage from './pages/ChatPage'
 import KnowledgePage from './pages/KnowledgePage'
 import UsersPage from './pages/UsersPage'
 import SettingsPage from './pages/SettingsPage'
+import IntegrationsPage from './pages/IntegrationsPage'
 import ProfilePage from './pages/ProfilePage'
 import NotFound from './pages/NotFound'
 
@@ -50,6 +51,7 @@ function App() {
             <Route path="chat" element={<ChatPage />} />
             <Route path="knowledge" element={<KnowledgePage />} />
             <Route path="users" element={<UsersPage />} />
+            <Route path="integrations" element={<IntegrationsPage />} />
             <Route path="settings" element={<SettingsPage />} />
             <Route path="profile" element={<ProfilePage />} />
           </Route>

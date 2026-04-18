@@ -1,43 +1,37 @@
+// AI Chat Engine for Cerebro
+// Will migrate to Claude API (Anthropic) via Supabase Edge Functions
+// For now: client-side placeholder that returns helpful messages
 
-import OpenAI from 'openai'
+export interface ChatMessage {
+  role: 'system' | 'user' | 'assistant'
+  content: string
+}
 
-const openai = new OpenAI({
-  apiKey: import.meta.env.VITE_OPENAI_API_KEY,
-  dangerouslyAllowBrowser: true
-})
+// System prompt template for Cerebro (used by Edge Function)
+export const getSystemPrompt = (companyName?: string, knowledgeContext?: any[]) => {
+  let prompt = `Eres CEREBRO, el asistente de conocimiento inteligente${companyName ? ` de ${companyName}` : ''}.
 
-export const createChatCompletion = async (messages: any[], fileContent?: string, knowledgeContext?: any[]) => {
-  let systemPrompt = `Eres CEREBRO, la plataforma de conocimiento inteligente de Retorna (fintech de remesas).
+Tu función es ayudar al equipo con información basada en la base de conocimiento de la empresa:
+- Responder preguntas sobre procesos y procedimientos internos
+- Proporcionar información de documentos y wikis conectados
+- Ayudar con búsquedas en herramientas integradas (Notion, Slack, Drive, etc.)
+- Generar resúmenes y análisis basados en datos disponibles
 
-Tu función es ayudar al equipo interno con información sobre:
-- Atención al cliente y resolución de casos
-- Investigaciones y análisis de mercado
-- Políticas específicas por país (Chile, Colombia, España, Venezuela, Brasil, Perú)
-- Procedimientos operativos internos
-- Scripts de respuesta para diferentes situaciones
-- Normativas y compliance
-- Conocimiento organizacional y mejores prácticas
-
-IDENTIDAD - CEREBRO:
-- Eres la plataforma de conocimiento definitiva de Retorna
-- Tu nombre es CEREBRO, no "Retorna AI"
-- Tienes acceso a toda la base de conocimiento interna
-- Eres experto en todos los procesos y políticas de Retorna
+IDENTIDAD:
+- Tu nombre es CEREBRO
+- Tienes acceso a toda la base de conocimiento conectada
 - Respondes de forma inteligente, precisa y útil
+- Si no tienes información, lo dices claramente
 
 INSTRUCCIONES:
 1. Responde de forma concisa pero completa
 2. Mantén un tono profesional pero accesible
-3. Si no tienes información suficiente, indica qué información específica necesitas
-4. Para temas de ATC, sugiere scripts de respuesta cuando sea apropiado
-5. Para research, proporciona contexto y metodología cuando esté disponible
-6. SIEMPRE cita las fuentes cuando uses información específica de documentos
-7. Si la información viene de la base de conocimiento, mencionalo claramente`
+3. Cita las fuentes cuando uses información de documentos
+4. Si la información viene de una integración, menciona cuál`
 
-  // Agregar contexto de la base de conocimiento si está disponible
   if (knowledgeContext && knowledgeContext.length > 0) {
-    systemPrompt += `\n\nCONTEXTO DE LA BASE DE CONOCIMIENTO:
-${knowledgeContext.map((doc, index) => 
+    prompt += `\n\nCONTEXTO DE LA BASE DE CONOCIMIENTO:
+${knowledgeContext.map((doc, index) =>
   `\n[DOCUMENTO ${index + 1}] ${doc.title} (Proyecto: ${doc.project})
 Contenido: ${doc.content}
 Fuente: ${doc.source}
@@ -45,25 +39,36 @@ Relevancia: ${Math.round(doc.relevance * 100)}%`
 ).join('\n')}`
   }
 
-  // Agregar archivo adjunto si está disponible
-  if (fileContent) {
-    systemPrompt += `\n\nArchivo adjunto para analizar:\n${fileContent}`
-  }
-
-  const chatMessages = [
-    { role: 'system', content: systemPrompt },
-    ...messages
-  ]
-
-  const completion = await openai.chat.completions.create({
-    model: 'gpt-4o-mini',
-    messages: chatMessages,
-    max_tokens: 2000,
-    temperature: 0.3,
-    stream: true
-  })
-
-  return completion
+  return prompt
 }
 
-export { openai }
+// Placeholder chat completion (will be replaced by Claude API Edge Function)
+export const createChatCompletion = async (messages: any[], fileContent?: string, knowledgeContext?: any[]) => {
+  // TODO: Replace with Supabase Edge Function call to Claude API
+  // const response = await supabase.functions.invoke('chat', { body: { messages, knowledgeContext } })
+
+  console.warn('Chat API not yet configured. Connect Claude API via Supabase Edge Functions.')
+
+  // Return a simulated async iterator for streaming compatibility
+  return {
+    [Symbol.asyncIterator]() {
+      let done = false
+      return {
+        async next() {
+          if (done) return { done: true, value: undefined }
+          done = true
+          return {
+            done: false,
+            value: {
+              choices: [{
+                delta: {
+                  content: 'Para activar el chat con IA, configura tu API key de Claude (Anthropic) en las variables de entorno del proyecto. Ve a Configuración > API para más detalles.'
+                }
+              }]
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -92,7 +92,7 @@ const KnowledgeBase: React.FC = () => {
         archivo_url: '/files/manual-atc-v2.1.pdf',
         tags: ['manual', 'atención', 'procedimientos'],
         fecha_creacion: new Date(Date.now() - 86400000),
-        creado_por: 'admin@retorna.com',
+        creado_por: 'admin@empresa.com',
         activo: true,
         version: 1,
         project: mockProjects[0]
@@ -105,7 +105,7 @@ const KnowledgeBase: React.FC = () => {
         tipo_contenido: 'manual',
         tags: ['colombia', 'regulaciones', '2024', 'remesas'],
         fecha_creacion: new Date(Date.now() - 172800000),
-        creado_por: 'admin@retorna.com',
+        creado_por: 'admin@empresa.com',
         activo: true,
         version: 1,
         project: mockProjects[4]
@@ -119,7 +119,7 @@ const KnowledgeBase: React.FC = () => {
         archivo_url: '/files/scripts-comunes.docx',
         tags: ['scripts', 'respuestas', 'atención'],
         fecha_creacion: new Date(Date.now() - 259200000),
-        creado_por: 'supervisor@retorna.com',
+        creado_por: 'supervisor@empresa.com',
         activo: true,
         version: 2,
         project: mockProjects[7]
@@ -133,7 +133,7 @@ const KnowledgeBase: React.FC = () => {
         archivo_url: '/files/estudio-q4-2024.pdf',
         tags: ['estudio', 'mercado', 'q4', '2024', 'análisis'],
         fecha_creacion: new Date(Date.now() - 345600000),
-        creado_por: 'research@retorna.com',
+        creado_por: 'research@empresa.com',
         activo: true,
         version: 1,
         project: mockProjects[1]
@@ -183,7 +183,7 @@ const KnowledgeBase: React.FC = () => {
       archivo_url: formData.archivo_url,
       tags: formData.tags,
       fecha_creacion: new Date(),
-      creado_por: 'admin@retorna.com',
+      creado_por: 'admin@empresa.com',
       activo: true,
       version: 1,
       project: projects.find(p => p.id === formData.project_id)

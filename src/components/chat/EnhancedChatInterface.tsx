@@ -371,16 +371,16 @@ const EnhancedChatInterface = () => {
                       ¡Hola! Soy CEREBRO
                     </h3>
                     <p className="text-sm md:text-base text-muted-foreground mb-4 max-w-md mx-auto">
-                      Tu plataforma de conocimiento inteligente. Pregúntame sobre procesos de Retorna, 
-                      políticas por país, ATC, compliance, o cualquier tema de la base de conocimiento.
+                      Tu asistente de conocimiento inteligente. Pregúntame sobre procesos,
+                      documentos, políticas o cualquier tema de tu base de conocimiento.
                     </p>
                     <div className="flex flex-wrap gap-2 justify-center">
-                      <Badge variant="secondary" className="text-xs">🇨🇱 Chile</Badge>
-                      <Badge variant="secondary" className="text-xs">🇨🇴 Colombia</Badge>
-                      <Badge variant="secondary" className="text-xs">🇵🇪 Perú</Badge>
-                      <Badge variant="secondary" className="text-xs">🇪🇸 España</Badge>
-                      <Badge variant="secondary" className="text-xs">📞 ATC</Badge>
-                      <Badge variant="secondary" className="text-xs">📋 Compliance</Badge>
+                      <Badge variant="secondary" className="text-xs">📝 Documentos</Badge>
+                      <Badge variant="secondary" className="text-xs">💬 Slack</Badge>
+                      <Badge variant="secondary" className="text-xs">📁 Drive</Badge>
+                      <Badge variant="secondary" className="text-xs">📝 Notion</Badge>
+                      <Badge variant="secondary" className="text-xs">✉️ Email</Badge>
+                      <Badge variant="secondary" className="text-xs">📅 Calendario</Badge>
                     </div>
                   </div>
                 </div>
@@ -517,7 +517,7 @@ const EnhancedChatInterface = () => {
               ref={inputRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder={knowledgeEnabled ? "Pregunta sobre Retorna..." : "Escribe tu mensaje..."}
+              placeholder={knowledgeEnabled ? "Pregunta sobre tu empresa..." : "Escribe tu mensaje..."}
               disabled={isLoading}
               className="flex-1 text-sm md:text-base"
             />

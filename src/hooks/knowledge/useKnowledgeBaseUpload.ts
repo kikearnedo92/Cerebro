@@ -39,7 +39,7 @@ export const useKnowledgeBaseUpload = (
       const filePath = `documents/${fileName}`
 
       const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('retorna-files')
+        .from('cerebro-files')
         .upload(filePath, file)
 
       if (uploadError) {
@@ -52,7 +52,7 @@ export const useKnowledgeBaseUpload = (
       // Process file with REAL edge function
       const { data: processData, error: processError } = await supabase.functions.invoke('process-document', {
         body: {
-          fileUrl: `${supabase.storage.from('retorna-files').getPublicUrl(uploadData.path).data.publicUrl}`,
+          fileUrl: `${supabase.storage.from('cerebro-files').getPublicUrl(uploadData.path).data.publicUrl}`,
           fileName: file.name,
           fileType: file.type,
           title: metadata.title || file.name.replace(/\.[^/.]+$/, ""),

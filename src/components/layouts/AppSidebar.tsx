@@ -9,6 +9,7 @@ import {
   LogOut,
   Brain,
   LayoutDashboard,
+  Plug,
 } from 'lucide-react'
 
 import {
@@ -53,6 +54,7 @@ const AppSidebar = () => {
   const mainItems = [
     { title: 'Chat', url: '/chat', icon: MessageSquare },
     { title: 'Base de Conocimiento', url: '/knowledge', icon: BookOpen },
+    { title: 'Integraciones', url: '/integrations', icon: Plug },
   ]
 
   const adminItems = [

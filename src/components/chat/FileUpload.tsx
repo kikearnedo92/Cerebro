@@ -49,7 +49,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileUpload }) => {
       // Upload to Supabase Storage
       const fileName = `${Date.now()}-${selectedFile.name}`
       const { data, error } = await supabase.storage
-        .from('retorna-files')
+        .from('cerebro-files')
         .upload(`uploads/${fileName}`, selectedFile)
 
       if (error) throw error

@@ -77,7 +77,7 @@ const ProfilePage = () => {
       return <Badge className="bg-red-600">Super Admin</Badge>
     }
     if (isAdmin) {
-      return <Badge className="bg-purple-600">Admin</Badge>
+      return <Badge className="bg-indigo-600">Admin</Badge>
     }
     return <Badge variant="secondary">Usuario</Badge>
   }
@@ -103,8 +103,8 @@ const ProfilePage = () => {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center gap-4">
-              <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center">
-                <span className="text-2xl font-medium text-purple-600">
+              <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center">
+                <span className="text-2xl font-medium text-indigo-600">
                   {profile?.full_name?.charAt(0).toUpperCase()}
                 </span>
               </div>
@@ -243,15 +243,15 @@ const ProfilePage = () => {
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="text-center p-4 bg-gray-50 rounded-lg">
-              <p className="text-2xl font-bold text-purple-600">{profile?.queries_used_today || 0}</p>
+              <p className="text-2xl font-bold text-indigo-600">{profile?.queries_used_today || 0}</p>
               <p className="text-sm text-gray-600">Consultas hoy</p>
             </div>
             <div className="text-center p-4 bg-gray-50 rounded-lg">
-              <p className="text-2xl font-bold text-purple-600">{profile?.daily_query_limit || 50}</p>
+              <p className="text-2xl font-bold text-indigo-600">{profile?.daily_query_limit || 50}</p>
               <p className="text-sm text-gray-600">Límite diario</p>
             </div>
             <div className="text-center p-4 bg-gray-50 rounded-lg">
-              <p className="text-2xl font-bold text-purple-600">
+              <p className="text-2xl font-bold text-indigo-600">
                 {Math.round(((profile?.queries_used_today || 0) / (profile?.daily_query_limit || 50)) * 100)}%
               </p>
               <p className="text-sm text-gray-600">Uso del límite</p>
