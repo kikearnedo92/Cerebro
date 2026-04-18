@@ -30,7 +30,7 @@ import { useEnhancedChat } from '@/hooks/useEnhancedChat'
 import { useAuth } from '@/hooks/useAuth'
 import { useKnowledgeBase } from '@/hooks/useKnowledgeBase'
 import { toast } from '@/hooks/use-toast'
-import FileUpload from '@/components/admin/FileUpload'
+import FileUpload from '@/components/chat/FileUpload'
 import EscalationEngine from '@/components/chat/EscalationEngine'
 import SmartEscalationEngine from '@/components/chat/SmartEscalationEngine'
 

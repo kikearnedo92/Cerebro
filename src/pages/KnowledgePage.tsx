@@ -1,8 +1,8 @@
 import React from 'react'
-import KnowledgeBaseManager from '@/components/admin/KnowledgeBaseManager'
+import KnowledgeBase from '@/components/KnowledgeBase'
 
 const KnowledgePage = () => {
-  return <KnowledgeBaseManager />
+  return <KnowledgeBase />
 }
 
 export default KnowledgePage

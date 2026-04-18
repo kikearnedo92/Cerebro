@@ -1,58 +1,69 @@
-
 import { useState, useEffect, createContext, useContext } from 'react'
 import { User, Session } from '@supabase/supabase-js'
 import { supabase } from '@/integrations/supabase/client'
-import type { AuthState, AuthContextType, SignUpData } from './auth/types'
+
+// Super admin emails - add yours here
+const SUPER_ADMIN_EMAILS = ['eduardo@retorna.app', 'kike@usacerebro.com']
+
+interface AuthContextType {
+  user: User | null
+  session: Session | null
+  profile: any
+  loading: boolean
+  isAdmin: boolean
+  isSuperAdmin: boolean
+  signUp: (email: string, password: string, userData: any) => Promise<void>
+  signIn: (email: string, password: string) => Promise<void>
+  signOut: () => Promise<void>
+}
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export const useAuth = (): AuthContextType => {
+  const context = useContext(AuthContext)
+
+  // If we're outside the provider, create standalone auth
   const [user, setUser] = useState<User | null>(null)
   const [session, setSession] = useState<Session | null>(null)
   const [profile, setProfile] = useState<any>(null)
   const [loading, setLoading] = useState(true)
 
-  const isAdmin = profile?.role_system === 'admin' || profile?.role_system === 'super_admin'
-  const isSuperAdmin = profile?.is_super_admin || profile?.email === 'eduardo@retorna.app'
+  const currentUser = context?.user ?? user
+  const currentProfile = context?.profile ?? profile
+
+  const isAdmin = currentProfile?.role_system === 'admin' ||
+    currentProfile?.role_system === 'super_admin' ||
+    currentProfile?.is_super_admin ||
+    SUPER_ADMIN_EMAILS.includes(currentUser?.email || '')
+
+  const isSuperAdmin = currentProfile?.is_super_admin ||
+    SUPER_ADMIN_EMAILS.includes(currentUser?.email || '')
+
+  if (context) return { ...context, isAdmin, isSuperAdmin }
 
   const fetchProfile = async (userId: string) => {
     try {
-      console.log('🔍 Fetching profile for user:', userId)
       const { data: profileData, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
         .single()
 
-      if (error) {
-        console.error('❌ Profile fetch error:', error)
-      } else {
-        console.log('✅ Profile loaded:', profileData)
+      if (!error && profileData) {
         setProfile(profileData)
       }
     } catch (error) {
-      console.error('❌ Profile error:', error)
+      console.error('Profile fetch error:', error)
     }
   }
 
-  // Determine current app based on URL
-  const getCurrentApp = () => {
-    const path = window.location.pathname
-    if (path.startsWith('/cerebro')) return 'cerebro'
-    if (path.startsWith('/nucleo')) return 'nucleo'
-    return null
-  }
-
   useEffect(() => {
-    // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log('🔐 Auth state changed:', event, !!session)
+      async (_event, session) => {
         setSession(session)
         setUser(session?.user ?? null)
-        
+
         if (session?.user) {
-          // Fetch user profile immediately
           fetchProfile(session.user.id)
         } else {
           setProfile(null)
@@ -61,9 +72,7 @@ export const useAuth = (): AuthContextType => {
       }
     )
 
-    // Check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
-      console.log('🔍 Initial session check:', !!session)
       setSession(session)
       setUser(session?.user ?? null)
       if (session?.user) {
@@ -75,27 +84,26 @@ export const useAuth = (): AuthContextType => {
     return () => subscription.unsubscribe()
   }, [])
 
-  const signUp = async (email: string, password: string, userData: SignUpData) => {
-    const redirectUrl = `${window.location.origin}/`
-    
+  const signUp = async (email: string, password: string, userData: any) => {
+    const redirectUrl = `${window.location.origin}/app`
+
     const { error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         emailRedirectTo: redirectUrl,
-        data: userData
+        data: {
+          full_name: userData.full_name,
+          company_name: userData.company_name,
+        }
       }
     })
-    
+
     if (error) throw error
   }
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password
-    })
-    
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) throw error
   }
 
