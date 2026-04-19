@@ -7,6 +7,8 @@ import { useAuth } from './hooks/useAuth'
 import LandingPage from './pages/LandingPage'
 import PricingPage from './pages/PricingPage'
 import AuthPage from './pages/AuthPage'
+import PrivacyPage from './pages/PrivacyPage'
+import TermsPage from './pages/TermsPage'
 
 // Protected layout & pages
 import AppLayout from './components/layouts/AppLayout'
@@ -44,6 +46,8 @@ function App() {
           <Route path="/" element={<LandingPage />} />
           <Route path="/pricing" element={<PricingPage />} />
           <Route path="/auth" element={<AuthPage />} />
+          <Route path="/privacy" element={<PrivacyPage />} />
+          <Route path="/terms" element={<TermsPage />} />
 
           {/* Protected app routes */}
           <Route path="/app" element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
