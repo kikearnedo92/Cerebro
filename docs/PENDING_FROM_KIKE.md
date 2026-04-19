@@ -19,13 +19,30 @@
 
 ---
 
-## 🔴 BLOQUEANTE CRÍTICO descubierto 2026-04-19 noche
+## 🔴 BLOQUEANTE CRÍTICO — Anthropic credits (abierto desde 2026-04-19)
 
-**Anthropic API credit balance = 0.** Smoke test de `/api/chat` en prod devuelve 400 de Anthropic: `"Your credit balance is too low"`. Hasta que se cargue crédito, **el chat está caído en prod** y los tests E2E del Día 1 (Notion RAG citando fuentes) no pueden correr.
+**Anthropic API credit balance = 0.** Smoke test de `/api/chat` en prod devuelve 400 de Anthropic: `"Your credit balance is too low"`. Hasta que se cargue crédito, **el chat está caído en prod** y los tests E2E del Día 1 (Notion RAG citando fuentes) no pueden correr. Re-verificado 2026-04-19 23:00 UTC y 2026-04-20 00:15 UTC — sigue igual.
 
 - **Acción:** ir a https://console.anthropic.com/settings/billing y cargar al menos USD 20 (alcanza sobrado para todo el periodo de vacaciones).
 - **Urgencia:** hacer antes del lunes 20 abril, idealmente desde el iPhone esta noche.
-- **Validación:** cuando esté cargado, `curl -X POST -H "Content-Type: application/json" -d '{"message":"hola","useKnowledgeBase":false}' https://cerebro-ivory.vercel.app/api/chat` debería devolver un JSON con `response` no vacío. La scheduled task del Día 1 lo va a reintentar automáticamente.
+- **Validación:** cuando esté cargado, `curl -X POST -H "Content-Type: application/json" -d '{"message":"hola","useKnowledgeBase":false}' https://cerebro-ivory.vercel.app/api/chat` debería devolver un JSON con `response` no vacío.
+
+## 🟡 Decisión pendiente — proveedor de embeddings
+
+El chat usa hoy `search_knowledge_semantic` (text search vía ILIKE + pg_trgm). Funcional para MVP pero pierde matices semánticos. Para cerrar el “RAG real” del Día 1 necesito una de:
+
+- **OpenAI `text-embedding-3-small`** (recomendada): ~$0.02 por millón de tokens, 1536 dims. Necesito `OPENAI_API_KEY` en Vercel.
+- **Voyage `voyage-3-lite`**: ~$0.02–0.06/M tokens, mejor calidad en ES. Necesito `VOYAGE_API_KEY`.
+
+Si no tomás decisión, sigo con text search — chat funciona, solo menos "smart" en queries abstractas.
+
+## 🟡 Conexión Notion pendiente
+
+Los endpoints están desplegados y validados (auth OK, 401/404 predecibles). Para validar la ruta end-to-end (sync real → filas en `knowledge_base` → chat citando páginas) necesito que conectes tu workspace personal de Notion desde `/app/integrations` → botón "Conectar Notion". El flujo completo corre desde el iPhone.
+
+## 🟢 Pro-tip — considerar upgrade a Vercel Pro
+
+Pasamos rozando dos límites de Hobby hoy (12 functions/deploy, 1 cron/day). Mientras agregamos Google + Slack OAuth más días de esta semana, podríamos volver a chocar. Pro = $20/mes, da holgura real. Decisión tuya, documentado.
 
 ---
 

@@ -68,3 +68,55 @@ Commit del Día 0 → ver `git log` del main después del push (al final de este
 - ⏭️ Día 1 puede arrancar con Notion sync, pero cualquier validación que dispare Claude fallará hasta que Kike cargue créditos.
 
 ---
+
+## Día 1 — Lunes 20 abril 2026 (sesión nocturna del 19, arranque anticipado)
+
+**Plan original (DAILY_PLAN):** Notion end-to-end con embeddings.
+**Plan ejecutado (ajustado):** Notion sync robusto + dos incidentes de infra resueltos en el camino. Embeddings quedan pendientes de decisión de proveedor (sin `OPENAI_API_KEY` hoy; text-RAG cubre MVP).
+
+### ✅ Completado
+
+- **Migración `20260420000000_notion_sync_fixes.sql`** aplicada vía `/api/admin/migrate`:
+  - Unique partial index `knowledge_base_tenant_source_uniq` sobre `(tenant_id, source) WHERE source IS NOT NULL` — **fix de bug latente**: la versión anterior de `sync.js` hacía `upsert(..., {onConflict:'source'})` sin constraint respaldando ese upsert; la segunda corrida habría explotado.
+  - Columna `metadata JSONB` en `knowledge_base` para guardar `notion_url`, `last_edited_time`, `database_id`.
+  - Índice de `file_type`.
+  - Respuesta: `ok:true, applied: [20260420000000_notion_sync_fixes.sql], skipped: 38, failed: null`.
+- **`api/integrations/notion/sync.js` reescrito** (commit `2e86d4c`):
+  - Sincroniza **pages + databases + database_rows** (antes solo pages).
+  - Extrae **properties** de cada página (`title, status, multi_select, date, people, url, …`) y las concatena al contenido — hace que filas de databases sean encontrables por text-RAG aunque el body esté vacío.
+  - **Tombstone** de rows sincronizadas previamente que ya no aparecen en Notion (pages eliminadas o dejadas de compartir): se marcan `active=false` en `knowledge_base`.
+  - `onConflict: 'tenant_id,source'` compound — coincide con el nuevo índice único.
+  - Response enriquecida: `items_synced`, `breakdown {pages, databases, database_rows}`, `tombstoned`, `error_count`, `errors[]`.
+- **Dos incidentes de infra que bloqueaban prod:**
+  - **Incidente A (root cause):** Vercel NO había desplegado los 5 commits posteriores a `fad3971` porque `vercel.json` definía 3 crons sub-diarios (`0 */6`, `0 */4`, `*/15`) y el plan Hobby solo permite crons diarios. Cada push devolvía `cron_jobs_limits_reached` silenciosamente. **Fix:** commit `76350fc` — schedules diarios a 12/13/14 UTC.
+  - **Incidente B:** al re-deployar, Vercel devolvió `exceeded_serverless_functions_per_deployment` (13 funciones, Hobby cap = 12). **Fix:** commit `856cf43` — colapsé `apply-migrations + sync-integrations + healthcheck` en `/api/cron/daily.js` (un solo dispatcher) y bajé a 11 funciones, 1 cron. Mismo comportamiento.
+- **Deploy final:** `856cf43` READY en prod.
+
+### 🔍 Smoke tests
+
+```bash
+# 1. Sync alive sin auth → 401 Not authenticated  ✅
+curl -X POST https://cerebro-ivory.vercel.app/api/integrations/notion/sync -d '{}'
+
+# 2. Sync con internal token + integrationId inválido → 404 Integration not found  ✅
+#    (confirma que auth pasa, lookup corre, respuesta controlada)
+curl -H "x-internal-sync-token: $INTERNAL_SYNC_TOKEN" -d '{"integrationId":"00000000-…"}' \
+     https://cerebro-ivory.vercel.app/api/integrations/notion/sync
+
+# 3. Chat → 500, Anthropic 400 "credit balance too low"  🔴 (Kike-side)
+#    request_id req_011CaDvjHw91t8eZAPAjnUn4
+```
+
+### ⚠️ Pendiente para Día 2
+
+- **E2E real:** cuando Kike conecte su Notion workspace (desde `/app/integrations` → "Conectar Notion" en el iPhone), la primera `/callback` dispara `sync` automáticamente. En ese momento quiero verificar en logs Vercel: `items_synced > 0`, breakdown consistente, 0 errores. No puedo validarlo sin su workspace conectado.
+- **Decisión de proveedor de embeddings** (OpenAI `text-embedding-3-small` vs Voyage). Mientras no exista, seguimos con `search_knowledge_semantic` (text/pg_trgm) — funcional para MVP pero pierde matices semánticos. Registrado en `PENDING_FROM_KIKE.md`.
+- **Anthropic credits** sigue bloqueante para cualquier validación que toque Claude (chat, evals).
+
+### 📊 Commits del día
+
+- `2e86d4c` feat(day-1): Notion sync — databases, properties, tombstone, safe upsert
+- `76350fc` fix(vercel): cron schedules to 1x/day (Hobby plan limit)
+- `856cf43` fix(vercel): collapse 3 crons into single daily dispatcher
+
+---
