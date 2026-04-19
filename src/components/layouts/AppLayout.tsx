@@ -10,8 +10,11 @@ const AppLayout = () => {
   const { isSuperAdmin } = useAuth()
   const location = useLocation()
 
+  // Chat uses a fullscreen layout (input anchored, no padding/card wrapper)
+  const path = location.pathname.replace('/app', '')
+  const isChat = path === '' || path === '/' || path === '/chat'
+
   const getPageTitle = () => {
-    const path = location.pathname.replace('/app', '')
     switch (path) {
       case '':
       case '/':
@@ -21,20 +24,22 @@ const AppLayout = () => {
         return 'Base de Conocimiento'
       case '/users':
         return 'Usuarios'
+      case '/integrations':
+        return 'Integraciones'
       case '/settings':
         return 'Configuracion'
       case '/profile':
         return 'Perfil'
       default:
-        return 'Chat'
+        return 'Cerebro'
     }
   }
 
   return (
     <SidebarProvider>
-      <div className="min-h-screen flex w-full bg-slate-50">
+      <div className="h-screen flex w-full bg-slate-50 overflow-hidden">
         <AppSidebar />
-        <SidebarInset className="flex-1">
+        <SidebarInset className="flex-1 flex flex-col min-h-0">
           <header className="flex h-14 shrink-0 items-center gap-2 border-b bg-white px-4">
             <SidebarTrigger className="-ml-1" />
             <div className="flex flex-1 items-center justify-between">
@@ -58,11 +63,18 @@ const AppLayout = () => {
               </div>
             </div>
           </header>
-          <div className="flex flex-1 flex-col p-4">
-            <div className="flex-1 rounded-xl bg-white p-6 shadow-sm border border-slate-100">
+          {isChat ? (
+            // Chat: fullscreen, no padding, no card — input always anchored
+            <div className="flex-1 min-h-0 bg-white">
               <Outlet />
             </div>
-          </div>
+          ) : (
+            <div className="flex flex-1 flex-col p-4 overflow-auto">
+              <div className="flex-1 rounded-xl bg-white p-6 shadow-sm border border-slate-100">
+                <Outlet />
+              </div>
+            </div>
+          )}
         </SidebarInset>
       </div>
     </SidebarProvider>

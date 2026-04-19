@@ -5,33 +5,71 @@ import {
   IntegrationId,
   ConnectedIntegration,
   IntegrationStatus,
-  getOAuthUrl,
 } from '@/lib/integrations'
 import { toast } from '@/hooks/use-toast'
+
+// Maps our IntegrationId to the OAuth endpoint path and optional query
+function oauthPathFor(id: IntegrationId): string {
+  switch (id) {
+    case 'notion':
+      return '/api/integrations/notion/authorize'
+    case 'google_drive':
+      return '/api/integrations/google/authorize?service=drive'
+    case 'gmail':
+      return '/api/integrations/google/authorize?service=gmail'
+    case 'google_calendar':
+      return '/api/integrations/google/authorize?service=calendar'
+    case 'slack':
+      return '/api/integrations/slack/authorize'
+    default:
+      return ''
+  }
+}
+
+// Maps our IntegrationId to the disconnect endpoint (one provider per id for MVP)
+function disconnectPathFor(id: IntegrationId): string {
+  switch (id) {
+    case 'notion':
+      return '/api/integrations/notion/disconnect'
+    default:
+      return ''
+  }
+}
+
+function syncPathFor(id: IntegrationId): string {
+  switch (id) {
+    case 'notion':
+      return '/api/integrations/notion/sync'
+    default:
+      return ''
+  }
+}
 
 export function useIntegrations() {
   const { user, profile } = useAuth()
   const [connections, setConnections] = useState<ConnectedIntegration[]>([])
   const [loading, setLoading] = useState(true)
 
-  const tenantId = profile?.tenant_id || user?.id || ''
+  const tenantId = profile?.tenant_id || ''
 
-  // Fetch all connections for this tenant
   const fetchConnections = useCallback(async () => {
-    if (!tenantId) return
+    if (!tenantId) {
+      setLoading(false)
+      return
+    }
 
     try {
+      // Prefer tenant_uuid (new column from migration 2026-04-19); fallback to tenant_id TEXT
       const { data, error } = await supabase
         .from('integrations')
         .select('*')
-        .eq('tenant_id', tenantId)
+        .or(`tenant_uuid.eq.${tenantId},tenant_id.eq.${tenantId}`)
 
       if (error) {
-        // Table might not exist yet — that's OK for MVP
-        console.warn('Integrations table not found, using local state:', error.message)
+        console.warn('Could not fetch integrations:', error.message)
         setConnections([])
       } else {
-        setConnections(data || [])
+        setConnections((data || []) as unknown as ConnectedIntegration[])
       }
     } catch (err) {
       console.warn('Could not fetch integrations:', err)
@@ -43,20 +81,38 @@ export function useIntegrations() {
 
   useEffect(() => {
     fetchConnections()
+
+    // On mount, check URL for ?connected=xxx or ?error=xxx (OAuth callback result)
+    const params = new URLSearchParams(window.location.search)
+    const connected = params.get('connected')
+    const errorCode = params.get('error')
+    if (connected) {
+      toast({
+        title: `${connected} conectado`,
+        description: 'Integración conectada exitosamente. Sincronizando datos...',
+      })
+      // Clean URL
+      window.history.replaceState({}, '', window.location.pathname)
+    } else if (errorCode) {
+      toast({
+        title: 'Error al conectar',
+        description: `Código: ${errorCode}. Revisa que las credenciales OAuth estén configuradas.`,
+        variant: 'destructive',
+      })
+      window.history.replaceState({}, '', window.location.pathname)
+    }
   }, [fetchConnections])
 
-  // Get status for a specific integration
   const getStatus = (integrationId: IntegrationId): IntegrationStatus => {
-    const conn = connections.find(c => c.integration_id === integrationId)
+    const conn = connections.find((c) => c.integration_id === integrationId)
     return conn?.status || 'disconnected'
   }
 
-  // Get connection details
   const getConnection = (integrationId: IntegrationId): ConnectedIntegration | undefined => {
-    return connections.find(c => c.integration_id === integrationId)
+    return connections.find((c) => c.integration_id === integrationId)
   }
 
-  // Start OAuth flow
+  // Start OAuth flow — redirects to provider
   const connect = async (integrationId: IntegrationId) => {
     if (!tenantId) {
       toast({
@@ -67,140 +123,145 @@ export function useIntegrations() {
       return
     }
 
-    try {
-      // For MVP: create a pending connection record
-      const { error } = await supabase.from('integrations').upsert({
-        tenant_id: tenantId,
-        integration_id: integrationId,
-        status: 'connecting',
-        connected_by: user?.id,
-        metadata: {},
-      }, {
-        onConflict: 'tenant_id,integration_id',
+    const path = oauthPathFor(integrationId)
+    if (!path) {
+      toast({
+        title: 'Próximamente',
+        description: `La integración de ${integrationId} estará disponible pronto.`,
       })
+      return
+    }
 
-      if (error) {
-        console.warn('Could not save integration state:', error.message)
+    // Get session token and pass it so the backend can authenticate the user
+    const { data: { session } } = await supabase.auth.getSession()
+    const token = session?.access_token
+
+    if (!token) {
+      toast({
+        title: 'Error',
+        description: 'Sesión expirada. Vuelve a iniciar sesión.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    try {
+      // Ask backend for the OAuth URL (JSON mode so we can send Bearer token)
+      const separator = path.includes('?') ? '&' : '?'
+      const res = await fetch(`${path}${separator}format=json`, {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+      })
+      const data = await res.json()
+
+      if (res.ok && data.url) {
+        // Navigate to provider's OAuth page
+        window.location.href = data.url
+      } else {
+        toast({
+          title: 'Error de conexión',
+          description: data.error || 'No se pudo iniciar el OAuth.',
+          variant: 'destructive',
+        })
       }
-
-      // Open OAuth window
-      const oauthUrl = getOAuthUrl(integrationId, tenantId)
-
-      // For now, simulate OAuth since Edge Functions aren't deployed yet
-      // In production: window.open(oauthUrl, '_blank', 'width=600,height=700')
-      simulateOAuth(integrationId)
-
     } catch (err) {
       console.error('Connect error:', err)
       toast({
         title: 'Error de conexión',
-        description: 'No se pudo iniciar la conexión. Intenta de nuevo.',
+        description: 'No se pudo iniciar el OAuth. Intenta de nuevo.',
         variant: 'destructive',
       })
     }
   }
 
-  // Simulate OAuth for MVP demo (replace with real OAuth later)
-  const simulateOAuth = async (integrationId: IntegrationId) => {
-    // Update local state immediately
-    const newConn: ConnectedIntegration = {
-      id: `local-${integrationId}`,
-      tenant_id: tenantId,
-      integration_id: integrationId,
-      status: 'connected',
-      connected_at: new Date().toISOString(),
-      connected_by: user?.id || null,
-      access_token_encrypted: null,
-      refresh_token_encrypted: null,
-      token_expires_at: null,
-      metadata: { simulated: true },
-      last_sync_at: null,
-      sync_status: 'idle',
-      items_synced: 0,
-    }
-
-    setConnections(prev => {
-      const filtered = prev.filter(c => c.integration_id !== integrationId)
-      return [...filtered, newConn]
-    })
-
-    toast({
-      title: `${integrationId.charAt(0).toUpperCase() + integrationId.slice(1)} conectado`,
-      description: 'Integración conectada exitosamente. Configura la sincronización.',
-    })
-
-    // Try to persist
-    try {
-      await supabase.from('integrations').upsert({
-        tenant_id: tenantId,
-        integration_id: integrationId,
-        status: 'connected',
-        connected_at: new Date().toISOString(),
-        connected_by: user?.id,
-        metadata: { simulated: true },
-      }, {
-        onConflict: 'tenant_id,integration_id',
-      })
-    } catch (err) {
-      // Silently fail - local state is enough for MVP
-    }
-  }
-
-  // Disconnect an integration
   const disconnect = async (integrationId: IntegrationId) => {
-    setConnections(prev => prev.filter(c => c.integration_id !== integrationId))
+    const { data: { session } } = await supabase.auth.getSession()
+    const token = session?.access_token
+    if (!token) return
 
-    try {
+    const path = disconnectPathFor(integrationId)
+    if (path) {
+      try {
+        await fetch(path, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({}),
+        })
+      } catch (err) {
+        console.warn('Disconnect endpoint failed, falling back to DB delete:', err)
+      }
+    } else {
+      // Fallback: update row directly
       await supabase
         .from('integrations')
-        .delete()
-        .eq('tenant_id', tenantId)
+        .update({ status: 'disconnected', access_token_encrypted: null })
+        .or(`tenant_uuid.eq.${tenantId},tenant_id.eq.${tenantId}`)
         .eq('integration_id', integrationId)
-    } catch (err) {
-      console.warn('Could not delete integration record:', err)
     }
 
-    toast({
-      title: 'Desconectado',
-      description: 'La integración fue desconectada.',
-    })
+    await fetchConnections()
+    toast({ title: 'Desconectado', description: 'La integración fue desconectada.' })
   }
 
-  // Trigger sync for an integration
   const syncNow = async (integrationId: IntegrationId) => {
-    const conn = connections.find(c => c.integration_id === integrationId)
+    const conn = connections.find((c) => c.integration_id === integrationId)
     if (!conn || conn.status !== 'connected') return
 
-    // Update sync status
-    setConnections(prev => prev.map(c =>
-      c.integration_id === integrationId
-        ? { ...c, sync_status: 'syncing' as const }
-        : c
-    ))
+    const path = syncPathFor(integrationId)
+    if (!path) {
+      toast({
+        title: 'Sync no disponible',
+        description: `El sync de ${integrationId} aún no está implementado.`,
+      })
+      return
+    }
+
+    const { data: { session } } = await supabase.auth.getSession()
+    const token = session?.access_token
+    if (!token) return
+
+    // Optimistic UI
+    setConnections((prev) =>
+      prev.map((c) =>
+        c.integration_id === integrationId ? { ...c, sync_status: 'syncing' as const } : c
+      )
+    )
 
     toast({
       title: 'Sincronizando...',
-      description: `Importando datos de ${integrationId}. Esto puede tardar unos minutos.`,
+      description: `Importando datos de ${integrationId}. Esto puede tardar un par de minutos.`,
     })
 
-    // Simulate sync (replace with real Edge Function call)
-    setTimeout(() => {
-      setConnections(prev => prev.map(c =>
-        c.integration_id === integrationId
-          ? {
-              ...c,
-              sync_status: 'idle' as const,
-              last_sync_at: new Date().toISOString(),
-              items_synced: Math.floor(Math.random() * 50) + 10,
-            }
-          : c
-      ))
-
-      toast({
-        title: 'Sincronización completa',
-        description: `Datos de ${integrationId} importados a tu Cerebro.`,
+    try {
+      const res = await fetch(path, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
       })
-    }, 3000)
+      const data = await res.json()
+
+      if (res.ok && data.ok) {
+        toast({
+          title: 'Sincronización completa',
+          description: `${data.items_synced} items importados de ${integrationId}.`,
+        })
+      } else {
+        toast({
+          title: 'Error de sincronización',
+          description: data.error || 'Algo falló sincronizando.',
+          variant: 'destructive',
+        })
+      }
+    } catch (err) {
+      console.error('Sync error:', err)
+      toast({
+        title: 'Error de sincronización',
+        description: 'Revisa logs de Vercel.',
+        variant: 'destructive',
+      })
+    } finally {
+      await fetchConnections()
+    }
   }
 
   return {

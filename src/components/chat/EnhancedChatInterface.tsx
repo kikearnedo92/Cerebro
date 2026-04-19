@@ -1,50 +1,41 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
-import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import {
+  Sheet,
+  SheetContent,
+  SheetTrigger,
+} from '@/components/ui/sheet'
 import ReactMarkdown from 'react-markdown'
-import { 
-  Send, 
-  Brain, 
-  FileText, 
-  Sparkles, 
-  MessageSquare, 
+import {
+  Send,
+  Brain,
+  Sparkles,
+  MessageSquare,
   Plus,
   Trash2,
   Copy,
-  CheckCircle,
-  XCircle,
   Zap,
-  BookOpen,
-  Target,
   StopCircle,
-  ExternalLink
+  ExternalLink,
+  History,
 } from 'lucide-react'
 import { useEnhancedChat } from '@/hooks/useEnhancedChat'
 import { useAuth } from '@/hooks/useAuth'
-import { useKnowledgeBase } from '@/hooks/useKnowledgeBase'
 import { toast } from '@/hooks/use-toast'
-import FileUpload from '@/components/chat/FileUpload'
-import EscalationEngine from '@/components/chat/EscalationEngine'
-import SmartEscalationEngine from '@/components/chat/SmartEscalationEngine'
 
 const EnhancedChatInterface = () => {
   const [input, setInput] = useState('')
-  const [selectedImage, setSelectedImage] = useState<string>()
-  const [showKnowledgeBase, setShowKnowledgeBase] = useState(false)
-  const [smartEscalationEnabled, setSmartEscalationEnabled] = useState(false)
+  const [showHistory, setShowHistory] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
-  const [lastUserMessage, setLastUserMessage] = useState('')
-  
+  const inputRef = useRef<HTMLTextAreaElement>(null)
+  const scrollAreaRef = useRef<HTMLDivElement>(null)
+
   const { user } = useAuth()
-  const { items: knowledgeItems, deleteItem, toggleActive } = useKnowledgeBase()
   const {
     conversations,
     currentConversation,
@@ -56,484 +47,385 @@ const EnhancedChatInterface = () => {
     createNewConversation,
     selectConversation,
     deleteConversation,
-    stopGeneration
+    stopGeneration,
   } = useEnhancedChat()
 
+  // Auto-scroll to bottom on new messages
   useEffect(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' })
     }
-  }, [currentConversation?.messages])
+  }, [currentConversation?.messages, isLoading])
+
+  // Autofocus the input on mount + every time the conversation changes
+  useEffect(() => {
+    const t = setTimeout(() => inputRef.current?.focus(), 50)
+    return () => clearTimeout(t)
+  }, [currentConversation?.id])
+
+  // Autosize textarea based on content (up to max height)
+  const autosize = (el: HTMLTextAreaElement | null) => {
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = Math.min(el.scrollHeight, 200) + 'px'
+  }
 
   useEffect(() => {
-    if (inputRef.current) {
-      inputRef.current.focus()
-    }
-  }, [])
+    autosize(inputRef.current)
+  }, [input])
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!input.trim() || isLoading) return
-
+  const handleSubmit = async (e?: React.FormEvent) => {
+    e?.preventDefault()
     const message = input.trim()
+    if (!message || isLoading) return
+
     setInput('')
-    setLastUserMessage(message)
-    
     try {
-      await sendMessage(message, selectedImage)
-      setSelectedImage(undefined)
+      await sendMessage(message)
     } catch (error) {
       console.error('Error sending message:', error)
+      toast({
+        title: 'Error enviando mensaje',
+        description: 'Intenta de nuevo en unos segundos',
+        variant: 'destructive',
+      })
+    }
+    // Re-focus after send so you can keep typing
+    inputRef.current?.focus()
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Enter = send; Shift+Enter = new line
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleSubmit()
     }
   }
 
   const handleNewConversation = async () => {
     await createNewConversation()
-    inputRef.current?.focus()
-  }
-
-  const handleDelete = async (id: string) => {
-    try {
-      await deleteItem(id)
-      toast({
-        title: "🗑️ Documento Eliminado",
-        description: "Removido de la base de conocimiento"
-      })
-    } catch (error) {
-      console.error('Error deleting item:', error)
-      toast({
-        title: "Error",
-        description: "No se pudo eliminar el documento",
-        variant: "destructive"
-      })
-    }
-  }
-
-  const handleToggleActive = async (id: string, currentActive: boolean) => {
-    try {
-      await toggleActive(id, !currentActive)
-      toast({
-        title: currentActive ? "📴 Documento Desactivado" : "✅ Documento Activado",
-        description: currentActive ? "Ya no se usará en búsquedas" : "Disponible para búsquedas"
-      })
-    } catch (error) {
-      console.error('Error toggling active:', error)
-      toast({
-        title: "Error",
-        description: "No se pudo cambiar el estado",
-        variant: "destructive"
-      })
-    }
+    setShowHistory(false)
+    setTimeout(() => inputRef.current?.focus(), 50)
   }
 
   const handleCopyMessage = (content: string) => {
     navigator.clipboard.writeText(content)
-    toast({
-      title: "✅ Copiado",
-      description: "Mensaje copiado al portapapeles"
-    })
-  }
-
-  const hasLowConfidence = (content: string, sources: any[]) => {
-    // Disable escalation engine by default - user must enable it explicitly
-    return false
-  }
-
-  const handleEscalationApply = (suggestion: any) => {
-    const escalationText = suggestion.template
-    setInput(escalationText)
-    inputRef.current?.focus()
-    toast({
-      title: "Sugerencia aplicada",
-      description: `Template de escalación para ${suggestion.contact.name} añadido`
-    })
+    toast({ title: 'Copiado al portapapeles' })
   }
 
   if (isLoadingConversations) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      <div className="flex items-center justify-center h-full">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
         <span className="ml-3 text-muted-foreground">Cargando conversaciones...</span>
       </div>
     )
   }
 
-  return (
-    <div className="flex h-screen bg-background">
-      {/* Sidebar - Mobile responsive */}
-      <div className="w-80 md:w-80 hidden md:flex border-r bg-muted/20 flex-col">
-        <div className="p-4 border-b bg-background flex-shrink-0">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold text-lg flex items-center gap-2">
-              <Brain className="w-5 h-5 text-primary" />
-              CEREBRO Memory
-            </h2>
-            <div className="flex gap-1">
-              <Button size="sm" variant="ghost" onClick={() => setShowKnowledgeBase(!showKnowledgeBase)}>
-                <BookOpen className="w-4 h-4" />
-              </Button>
-              <Button size="sm" onClick={handleNewConversation}>
-                <Plus className="w-4 h-4" />
-              </Button>
+  const ConversationsList = () => (
+    <div className="flex flex-col h-full">
+      <div className="p-3 border-b flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 text-sm font-medium">
+          <MessageSquare className="w-4 h-4 text-indigo-600" />
+          Conversaciones
+        </div>
+        <Button size="sm" variant="outline" onClick={handleNewConversation}>
+          <Plus className="w-4 h-4 mr-1" />
+          Nueva
+        </Button>
+      </div>
+      <div className="px-3 py-2 border-b flex items-center gap-2">
+        <Switch
+          id="kb-toggle"
+          checked={knowledgeEnabled}
+          onCheckedChange={setUseKnowledgeBase}
+        />
+        <Label htmlFor="kb-toggle" className="text-xs text-slate-600">
+          Usar base de conocimiento
+        </Label>
+        {knowledgeEnabled && (
+          <Badge variant="outline" className="text-[10px] ml-auto">
+            <Sparkles className="w-3 h-3 mr-1" />
+            Activo
+          </Badge>
+        )}
+      </div>
+      <ScrollArea className="flex-1">
+        <div className="p-2">
+          {conversations.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-50" />
+              <p className="text-sm">No hay conversaciones</p>
             </div>
+          ) : (
+            conversations.map((conv) => (
+              <div
+                key={conv.id}
+                className={`p-2.5 rounded-lg cursor-pointer mb-1 transition-colors group ${
+                  currentConversation?.id === conv.id
+                    ? 'bg-indigo-50 border border-indigo-200'
+                    : 'hover:bg-slate-100'
+                }`}
+                onClick={() => {
+                  selectConversation(conv)
+                  setShowHistory(false)
+                }}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{conv.title}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {conv.messages.length} mensajes · {conv.updated_at.toLocaleDateString()}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="opacity-0 group-hover:opacity-100"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      deleteConversation(conv.id)
+                    }}
+                  >
+                    <Trash2 className="w-3 h-3 text-destructive" />
+                  </Button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </ScrollArea>
+    </div>
+  )
+
+  const isEmpty = !currentConversation || currentConversation.messages.length === 0
+
+  return (
+    <div className="flex h-full w-full bg-white">
+      {/* Desktop: conversations sidebar */}
+      <aside className="hidden md:flex w-72 border-r flex-col bg-slate-50">
+        <ConversationsList />
+      </aside>
+
+      {/* Main chat */}
+      <main className="flex-1 flex flex-col min-h-0 min-w-0">
+        {/* Mobile top bar with history drawer */}
+        <div className="md:hidden flex items-center justify-between px-3 py-2 border-b">
+          <Sheet open={showHistory} onOpenChange={setShowHistory}>
+            <SheetTrigger asChild>
+              <Button size="sm" variant="ghost">
+                <History className="w-4 h-4 mr-1" />
+                Historial
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left" className="p-0 w-80">
+              <ConversationsList />
+            </SheetContent>
+          </Sheet>
+          <div className="text-sm font-medium truncate max-w-[50%]">
+            {currentConversation?.title || 'Nueva conversación'}
           </div>
-          
-          <div className="flex items-center space-x-2">
-            <Switch
-              id="knowledge-base"
-              checked={knowledgeEnabled}
-              onCheckedChange={setUseKnowledgeBase}
-            />
-            <Label htmlFor="knowledge-base" className="text-sm">
-              Usar base de conocimiento
-            </Label>
-            {knowledgeEnabled && (
-              <Badge variant="outline" className="text-xs">
-                <Sparkles className="w-3 h-3 mr-1" />
-                Activo
-              </Badge>
-            )}
-          </div>
+          <Button size="sm" variant="outline" onClick={handleNewConversation}>
+            <Plus className="w-4 h-4" />
+          </Button>
         </div>
 
-        <ScrollArea className="flex-1">
-          <div className="p-2">
-            {showKnowledgeBase ? (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-medium text-foreground">Base de Conocimiento</h3>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground">{knowledgeItems.length} docs</span>
-                    <FileUpload 
-                      maxFiles={5}
-                      onUploadComplete={() => {
-                        window.location.reload()
-                      }}
-                    />
-                  </div>
+        {/* Messages — scrollable area */}
+        <div className="flex-1 min-h-0 overflow-y-auto" ref={scrollAreaRef}>
+          <div className="max-w-3xl mx-auto w-full px-4 py-6">
+            {isEmpty ? (
+              <div className="flex flex-col items-center justify-center text-center py-16">
+                <div className="w-14 h-14 bg-gradient-to-br from-indigo-500 to-indigo-700 rounded-2xl flex items-center justify-center mb-4 shadow-lg">
+                  <Brain className="w-7 h-7 text-white" />
                 </div>
-                {knowledgeItems.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <FileText className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                    <p className="text-sm">No hay documentos</p>
-                    <p className="text-xs">Agrega contenido para empezar</p>
-                  </div>
-                ) : (
-                  knowledgeItems.map((item) => (
-                    <div
-                      key={item.id}
-                      className="p-3 rounded-lg bg-background hover:bg-muted/50 transition-colors group border"
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <FileText className="w-3 h-3 text-primary" />
-                            <p className="text-sm font-medium truncate">
-                              {item.title}
-                            </p>
-                          </div>
-                          <p className="text-xs text-muted-foreground mb-1">
-                            Proyecto: {item.project}
-                          </p>
-                          <div className="flex items-center gap-2">
-                            <div className={`w-2 h-2 rounded-full ${item.active ? 'bg-green-500' : 'bg-red-500'}`} />
-                            <span className="text-xs text-muted-foreground">
-                              {item.active ? 'Activo' : 'Inactivo'}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleToggleActive(item.id, item.active)}
-                            title={item.active ? 'Desactivar' : 'Activar'}
-                          >
-                            {item.active ? (
-                              <XCircle className="w-3 h-3 text-orange-500" />
-                            ) : (
-                              <CheckCircle className="w-3 h-3 text-green-500" />
-                            )}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleDelete(item.id)}
-                            title="Eliminar documento"
-                          >
-                            <Trash2 className="w-3 h-3 text-destructive" />
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                )}
+                <h2 className="text-2xl font-semibold text-slate-900 mb-2">
+                  Hola{user?.email ? `, ${user.email.split('@')[0]}` : ''}
+                </h2>
+                <p className="text-slate-500 max-w-md">
+                  Pregúntame lo que necesites. Puedo consultar tu base de conocimiento
+                  e integraciones conectadas.
+                </p>
+                <div className="flex flex-wrap gap-2 justify-center mt-6">
+                  {[
+                    '📝 Notion',
+                    '💬 Slack',
+                    '📁 Drive',
+                    '✉️ Gmail',
+                    '📅 Calendar',
+                  ].map((label) => (
+                    <Badge key={label} variant="secondary" className="text-xs">
+                      {label}
+                    </Badge>
+                  ))}
+                </div>
               </div>
             ) : (
-              <>
-                {conversations.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                    <p className="text-sm">No hay conversaciones</p>
-                    <p className="text-xs">Crea una nueva para empezar</p>
-                  </div>
-                ) : (
-                  conversations.map((conversation) => (
+              <div className="space-y-6">
+                {currentConversation!.messages.map((message) => (
+                  <div
+                    key={message.id}
+                    className={`flex ${
+                      message.role === 'user' ? 'justify-end' : 'justify-start'
+                    } group`}
+                  >
                     <div
-                      key={conversation.id}
-                      className={`p-3 rounded-lg cursor-pointer mb-2 transition-colors group ${
-                        currentConversation?.id === conversation.id
-                          ? 'bg-primary/10 border border-primary/20'
-                          : 'bg-background hover:bg-muted/50'
+                      className={`max-w-[90%] rounded-2xl px-4 py-3 ${
+                        message.role === 'user'
+                          ? 'bg-indigo-600 text-white'
+                          : 'bg-slate-100 text-slate-900'
                       }`}
-                      onClick={() => selectConversation(conversation)}
                     >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">
-                            {conversation.title}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {conversation.messages.length} mensajes
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {conversation.updated_at.toLocaleDateString()}
-                          </p>
+                      {message.role === 'assistant' &&
+                        message.knowledgeUsed &&
+                        message.knowledgeUsed.length > 0 && (
+                          <Badge variant="outline" className="text-[10px] mb-2">
+                            <Zap className="w-3 h-3 mr-1" />
+                            {message.knowledgeUsed.length} fuentes
+                          </Badge>
+                        )}
+                      <div className="prose prose-sm max-w-none prose-p:my-2 prose-pre:my-2">
+                        <ReactMarkdown>{message.content}</ReactMarkdown>
+                      </div>
+
+                      {message.sources && message.sources.length > 0 && (
+                        <div className="mt-3 pt-3 border-t border-slate-200/40">
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <Badge
+                                variant="outline"
+                                className="cursor-pointer hover:bg-slate-200/50 text-[10px]"
+                              >
+                                📄 Ver fuentes ({message.sources.length})
+                              </Badge>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                              <DialogHeader>
+                                <DialogTitle>Fuentes consultadas</DialogTitle>
+                              </DialogHeader>
+                              <div className="space-y-3">
+                                {message.sources.map((source: any, index: number) => (
+                                  <div
+                                    key={index}
+                                    className="bg-slate-50 rounded p-4 border"
+                                  >
+                                    <div className="font-medium text-indigo-600 mb-2">
+                                      {typeof source === 'string'
+                                        ? source
+                                        : source?.title || 'Fuente'}
+                                    </div>
+                                    {typeof source === 'object' && source?.content && (
+                                      <div className="text-sm text-slate-600">
+                                        {source.content}
+                                      </div>
+                                    )}
+                                    {typeof source === 'object' && source?.file_url && (
+                                      <div className="flex items-center gap-2 mt-2 text-xs text-slate-500">
+                                        <span>Proyecto: {source.project || 'General'}</span>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-auto p-1"
+                                          onClick={() => window.open(source.file_url, '_blank')}
+                                        >
+                                          <ExternalLink className="w-3 h-3" />
+                                        </Button>
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </DialogContent>
+                          </Dialog>
                         </div>
+                      )}
+
+                      <div className="flex items-center justify-between mt-2">
+                        <span
+                          className={`text-[10px] ${
+                            message.role === 'user'
+                              ? 'text-indigo-100'
+                              : 'text-slate-400'
+                          }`}
+                        >
+                          {message.timestamp.toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </span>
                         <Button
                           size="sm"
                           variant="ghost"
-                          className="opacity-0 group-hover:opacity-100 transition-opacity"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            deleteConversation(conversation.id)
-                          }}
+                          className="opacity-0 group-hover:opacity-100 h-6 w-6 p-0"
+                          onClick={() => handleCopyMessage(message.content)}
                         >
-                          <Trash2 className="w-3 h-3 text-destructive" />
+                          <Copy className="w-3 h-3" />
                         </Button>
                       </div>
                     </div>
-                  ))
-                )}
-              </>
-            )}
-          </div>
-        </ScrollArea>
-      </div>
+                  </div>
+                ))}
 
-      {/* Chat principal */}
-      <div className="flex-1 flex flex-col">
-        {/* Header */}
-        <div className="p-2 md:p-4 border-b bg-background flex-shrink-0">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-lg md:text-xl font-bold flex items-center gap-2">
-                <Brain className="w-5 h-5 md:w-6 md:h-6 text-primary" />
-                {currentConversation?.title || 'Nueva Conversación'}
-              </h1>
-              <div className="flex items-center gap-2 mt-1">
-                <Badge variant="outline" className="text-xs">
-                  <Target className="w-3 h-3 mr-1" />
-                  Demo Ready
-                </Badge>
-                {knowledgeEnabled && (
-                  <Badge variant="outline" className="text-xs">
-                    <BookOpen className="w-3 h-3 mr-1" />
-                    KB Active
-                  </Badge>
-                )}
-              </div>
-            </div>
-            
-            {isLoading && (
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={stopGeneration}
-                className="text-destructive"
-              >
-                <StopCircle className="w-4 h-4 mr-1" />
-                Detener
-              </Button>
-            )}
-          </div>
-        </div>
-
-        {/* Messages Area - Mobile responsive */}
-        <div className="flex-1 overflow-hidden flex flex-col">
-          <ScrollArea className="flex-1 p-2 md:p-4">
-            <div className="space-y-4 min-h-full">
-              {!currentConversation || currentConversation.messages.length === 0 ? (
-                <div className="flex items-center justify-center h-full min-h-[300px] md:min-h-[400px]">
-                  <div className="text-center px-4">
-                    <Brain className="w-12 h-12 md:w-16 md:h-16 mx-auto mb-4 text-primary opacity-50" />
-                    <h3 className="text-lg font-medium text-foreground mb-2">
-                      ¡Hola! Soy CEREBRO
-                    </h3>
-                    <p className="text-sm md:text-base text-muted-foreground mb-4 max-w-md mx-auto">
-                      Tu asistente de conocimiento inteligente. Pregúntame sobre procesos,
-                      documentos, políticas o cualquier tema de tu base de conocimiento.
-                    </p>
-                    <div className="flex flex-wrap gap-2 justify-center">
-                      <Badge variant="secondary" className="text-xs">📝 Documentos</Badge>
-                      <Badge variant="secondary" className="text-xs">💬 Slack</Badge>
-                      <Badge variant="secondary" className="text-xs">📁 Drive</Badge>
-                      <Badge variant="secondary" className="text-xs">📝 Notion</Badge>
-                      <Badge variant="secondary" className="text-xs">✉️ Email</Badge>
-                      <Badge variant="secondary" className="text-xs">📅 Calendario</Badge>
+                {isLoading && (
+                  <div className="flex justify-start">
+                    <div className="bg-slate-100 px-4 py-3 rounded-2xl flex items-center gap-2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-indigo-600" />
+                      <span className="text-sm text-slate-500">Pensando...</span>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="ml-2 h-6"
+                        onClick={stopGeneration}
+                      >
+                        <StopCircle className="w-3 h-3 mr-1" />
+                        Detener
+                      </Button>
                     </div>
                   </div>
-                </div>
-              ) : (
-                <>
-                  {currentConversation.messages.map((message) => (
-                    <div
-                      key={message.id}
-                      className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'} group`}
-                    >
-                      <div
-                        className={`max-w-[90%] md:max-w-[80%] p-3 md:p-4 rounded-lg ${
-                          message.role === 'user'
-                            ? 'bg-primary text-primary-foreground'
-                            : 'bg-muted'
-                        }`}
-                      >
-                        <div className="flex items-start justify-between mb-2">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium">
-                              {message.role === 'user' ? 'Tú' : 'CEREBRO'}
-                            </span>
-                            {message.role === 'assistant' && message.knowledgeUsed && message.knowledgeUsed.length > 0 && (
-                              <Badge variant="outline" className="text-xs">
-                                <Zap className="w-3 h-3 mr-1" />
-                                {message.knowledgeUsed.length} fuentes
-                              </Badge>
-                            )}
-                          </div>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleCopyMessage(message.content)}
-                            className="opacity-0 group-hover:opacity-100 transition-opacity"
-                          >
-                            <Copy className="w-3 h-3" />
-                          </Button>
-                        </div>
-                        
-                        <div className="text-sm prose prose-sm max-w-none dark:prose-invert">
-                          <ReactMarkdown>
-                            {message.content}
-                          </ReactMarkdown>
-                        </div>
+                )}
 
-                        {/* Compact sources with modal */}
-                        {message.sources && message.sources.length > 0 && (
-                          <div className="mt-3 pt-3 border-t border-border/50">
-                            <div className="flex items-center gap-2">
-                              <Dialog>
-                                <DialogTrigger asChild>
-                                  <Badge variant="outline" className="cursor-pointer hover:bg-muted">
-                                    📄 Ver fuentes ({message.sources.length})
-                                  </Badge>
-                                </DialogTrigger>
-                                <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-                                  <DialogHeader>
-                                    <DialogTitle>Fuentes consultadas</DialogTitle>
-                                  </DialogHeader>
-                                  <div className="space-y-3">
-                                     {message.sources.map((source, index) => (
-                                       <div key={index} className="bg-muted/50 rounded p-4">
-                                         <div className="font-medium text-primary mb-2">
-                                           {typeof source === 'string' ? source : (source as any)?.title || 'Fuente'}
-                                         </div>
-                                         {typeof source === 'object' && source && (source as any).content && (
-                                           <div className="text-sm text-muted-foreground">
-                                             {(source as any).content}
-                                           </div>
-                                         )}
-                                         {typeof source === 'object' && source && (source as any).file_url && (
-                                           <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
-                                             <span>Proyecto: {(source as any).project || 'General'}</span>
-                                             <Button
-                                               variant="ghost"
-                                               size="sm"
-                                               className="h-auto p-1"
-                                               onClick={() => window.open((source as any).file_url, '_blank')}
-                                             >
-                                               <ExternalLink className="w-3 h-3" />
-                                             </Button>
-                                           </div>
-                                         )}
-                                       </div>
-                                     ))}
-                                  </div>
-                                </DialogContent>
-                              </Dialog>
-                            </div>
-                          </div>
-                        )}
+                <div ref={messagesEndRef} />
+              </div>
+            )}
+          </div>
+        </div>
 
-                        {/* Smart Escalation Engine - Always shown with toggle */}
-                        {message.role === 'assistant' && (
-                          <div className="mt-3 pt-3 border-t border-border/50">
-                            <SmartEscalationEngine 
-                              message={lastUserMessage}
-                              onSuggestionApply={handleEscalationApply}
-                              enabled={smartEscalationEnabled}
-                              onEnabledChange={setSmartEscalationEnabled}
-                            />
-                          </div>
-                        )}
-
-                        <div className="text-xs text-muted-foreground mt-2 opacity-70">
-                          {message.timestamp.toLocaleTimeString()}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-
-                  {isLoading && (
-                    <div className="flex justify-start">
-                      <div className="bg-muted p-4 rounded-lg">
-                        <div className="flex items-center gap-2">
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
-                          <span className="text-sm text-muted-foreground">CEREBRO está pensando...</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  
-                  <div ref={messagesEndRef} />
-                </>
-              )}
+        {/* Input — always anchored at the bottom */}
+        <div className="shrink-0 border-t bg-white">
+          <form
+            onSubmit={handleSubmit}
+            className="max-w-3xl mx-auto w-full px-4 py-3"
+          >
+            <div className="flex items-end gap-2 rounded-2xl border border-slate-300 bg-white focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500 px-3 py-2 shadow-sm">
+              <textarea
+                ref={inputRef}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                rows={1}
+                autoFocus
+                placeholder={
+                  knowledgeEnabled
+                    ? 'Pregúntame sobre tu empresa...'
+                    : 'Escribe un mensaje... (Enter para enviar, Shift+Enter para salto de línea)'
+                }
+                disabled={isLoading}
+                className="flex-1 resize-none bg-transparent outline-none text-sm md:text-base placeholder:text-slate-400 max-h-[200px] py-1"
+              />
+              <Button
+                type="submit"
+                size="sm"
+                disabled={!input.trim() || isLoading}
+                className="h-8 w-8 p-0 rounded-full"
+              >
+                <Send className="w-4 h-4" />
+              </Button>
             </div>
-          </ScrollArea>
-        </div>
-
-        {/* Input Area - Mobile responsive */}
-        <div className="p-2 md:p-4 border-t bg-background flex-shrink-0">
-          <form onSubmit={handleSubmit} className="flex gap-2">
-            <Input
-              ref={inputRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder={knowledgeEnabled ? "Pregunta sobre tu empresa..." : "Escribe tu mensaje..."}
-              disabled={isLoading}
-              className="flex-1 text-sm md:text-base"
-            />
-            <Button type="submit" disabled={!input.trim() || isLoading} size="sm" className="md:size-default">
-              <Send className="w-4 h-4" />
-            </Button>
-          </form>
-          
-          {knowledgeEnabled && (
-            <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
-              <Sparkles className="w-3 h-3" />
-              Respuestas enriquecidas con la base de conocimiento
+            <p className="text-[10px] text-slate-400 mt-1 text-center">
+              Cerebro puede cometer errores. Verifica información importante.
             </p>
-          )}
+          </form>
         </div>
-      </div>
+      </main>
     </div>
   )
 }
