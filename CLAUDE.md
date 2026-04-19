@@ -52,6 +52,8 @@ Variables disponibles:
 - `ANTHROPIC_API_KEY` — para `/api/chat.js`
 - `TOKEN_ENCRYPTION_KEY` — 32-byte hex para cifrar OAuth tokens
 - `NOTION_CLIENT_ID`, `NOTION_CLIENT_SECRET` — OAuth de Notion (ya creada en notion.so/my-integrations)
+- `MIGRATE_SECRET` — header `x-admin-migrate-secret` para `POST /api/admin/migrate`
+- `INTERNAL_SYNC_TOKEN` — auth entre endpoints internos (callback OAuth → sync worker)
 
 **Credenciales aún no obtenidas (Kike las genera cuando toque):**
 - Google OAuth (Drive+Gmail+Calendar)
@@ -92,16 +94,21 @@ Cerebro/
 └── supabase/migrations/   # Schema DB, fuente de verdad
 ```
 
-## Estado al 2026-04-19
+## Estado al 2026-04-19 (noche — pre-vacaciones, commit `7f83d8f`)
 
 ### ✅ Funcionando en producción
 - Landing, pricing, auth básica (signup/login/email confirm)
-- Chat con Claude + contexto de knowledge base (RLS corregida 2026-04-19)
+- Chat con Claude + contexto de knowledge base (RLS corregida 2026-04-19) — **ver bloqueante Anthropic credits abajo**
 - Knowledge Base (upload + búsqueda semántica)
 - Multi-tenant schema completo (tenants, tenant_invitations, usage_counters, RLS con SECURITY DEFINER helpers)
 - Endpoints OAuth reales para Notion, Google, Slack (código desplegado)
 - Cerebro es Public integration en Notion OAuth
 - Kike es super_admin en la DB
+- **Runner de migraciones operativo:** `/api/admin/migrate` + tabla `public._migrations` con 38 filas históricas. Próximas migraciones solo requieren subir el `.sql` al repo y disparar el endpoint.
+- **Vercel env vars auditadas 7/7:** SUPABASE_SERVICE_ROLE_KEY, TOKEN_ENCRYPTION_KEY, NOTION_CLIENT_ID, NOTION_CLIENT_SECRET, MIGRATE_SECRET, INTERNAL_SYNC_TOKEN, ANTHROPIC_API_KEY.
+
+### 🔴 Bloqueante activo — Anthropic credits
+`/api/chat` devuelve 400 `"Your credit balance is too low"`. Código OK, falta cargar saldo en https://console.anthropic.com/settings/billing. Validación: curl a `/api/chat` con `{"message":"hola","useKnowledgeBase":false}` debe devolver `response` no vacío.
 
 ### ⏳ Por implementar durante vacaciones de Kike (20 abr - 4 may)
 Ver `docs/DAILY_PLAN.md` para el detalle día-por-día. Prioridad:
@@ -119,20 +126,32 @@ Ver `docs/DAILY_PLAN.md` para el detalle día-por-día. Prioridad:
 ## Flujos de trabajo comunes
 
 ### Correr migración SQL
+
+**Opción preferida — endpoint `/api/admin/migrate`** (disponible desde 2026-04-19):
 ```bash
 source ~/.cerebro/credentials.env
-cd /path/to/Cerebro
-# Opción A: vía Supabase CLI (si está instalado)
-supabase db push --db-url "postgresql://postgres.begnklspqjxwkvwhuefr:[DB_PASSWORD]@aws-0-us-east-1.pooler.supabase.com:5432/postgres"
-
-# Opción B: vía psql directo
-psql "postgresql://postgres.begnklspqjxwkvwhuefr:[DB_PASSWORD]@aws-0-us-east-1.pooler.supabase.com:5432/postgres" -f supabase/migrations/20260419000003_fix_rls_recursion.sql
-
-# Opción C: vía API REST de Supabase Management (necesita management token, no service_role)
+curl -X POST -H "x-admin-migrate-secret: ${MIGRATE_SECRET}" \
+  https://cerebro-ivory.vercel.app/api/admin/migrate
+# Lee supabase/migrations/*.sql, compara contra public._migrations (filas ya aplicadas),
+# aplica solo las pendientes y registra cada éxito en _migrations. Ok:true si no hay errores.
 ```
 
-> **Nota**: para migraciones SQL se necesita el DB password (diferente del service_role).
-> Pedírselo a Kike vía email si no está en credentials.env.
+Si una migración ya se aplicó manualmente fuera del runner, marcarla como aplicada para que el endpoint la salte:
+```bash
+source ~/.cerebro/credentials.env
+curl -X POST "${SUPABASE_URL}/rest/v1/_migrations" \
+  -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+  -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+  -H "Content-Type: application/json" \
+  -H "Prefer: resolution=merge-duplicates" \
+  -d '[{"filename":"20260419000003_fix_rls_recursion.sql"}]'
+```
+
+**Opción fallback — psql directo (requiere DB_PASSWORD, pedirlo a Kike vía email):**
+```bash
+psql "postgresql://postgres.begnklspqjxwkvwhuefr:[DB_PASSWORD]@aws-0-us-east-1.pooler.supabase.com:5432/postgres" \
+  -f supabase/migrations/<archivo>.sql
+```
 
 ### Agregar env var a Vercel
 ```bash
