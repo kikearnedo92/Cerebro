@@ -1,109 +1,95 @@
 # Cerebro — Pending from Kike
 
 > Lista viva de cosas que solo Kike puede hacer (requieren su login/auth/decisión).
-> Claude debe mantener este archivo actualizado después de cada sesión.
+> Claude mantiene este archivo actualizado después de cada run.
 
-**Última actualización:** 2026-04-19
-
----
-
-## 🔴 BLOQUEANTES (sin esto, Claude no puede avanzar)
-
-### 1. GitHub Personal Access Token (crítico)
-
-**Por qué:** sin PAT, Claude no puede pushear cambios al repo → nada llega a producción.
-
-**Cómo:**
-1. Ve a https://github.com/settings/tokens
-2. "Generate new token (classic)"
-3. Nombre: `cerebro-claude`
-4. Expiration: 90 days (para cubrir vacaciones)
-5. Scope: marca solo **`repo`** (acceso completo a repos)
-6. Click "Generate" → cópialo
-7. Pégalo en la próxima conversación con Claude: "mi PAT es ghp_xxx"
+**Última actualización:** 2026-04-19 (scheduled task día 0)
 
 ---
 
-### 2. SUPABASE_SERVICE_ROLE_KEY en Vercel
+## ✅ RESUELTOS antes de vacaciones
 
-**Por qué:** el `/api/chat.js` actual intenta buscar en knowledge_base con service role, pero la env var falta → el chat responde sin contexto de docs.
-
-**Cómo:**
-1. https://supabase.com/dashboard/project/begnklspqjxwkvwhuefr/settings/api
-2. En "Legacy anon, service_role API keys" → copia la `service_role` (empieza con `eyJ...`)
-3. Ve a https://vercel.com/kikearnedo92/cerebro/settings/environment-variables
-4. Add: `SUPABASE_SERVICE_ROLE_KEY` = <la key copiada>
-5. Aplica a Production + Preview
-6. Redeploy
+| # | Item | Estado | Notas |
+|---|---|---|---|
+| 1 | GitHub PAT para push autónomo | ✅ Entregado | `ghp_A79x…ZEr4j`, expira 2026-07-19 |
+| 2 | SUPABASE_SERVICE_ROLE_KEY | ✅ Entregada | Guardada en memoria; Kike: confirmar que está en Vercel env vars |
+| 3 | TOKEN_ENCRYPTION_KEY | ✅ Generada | `8957acb6…b90a`, 64 hex chars; Kike: confirmar en Vercel |
+| 4 | Migración SQL multi-tenant | ⚠️ Pendiente de correr | Hay 4 archivos en `supabase/migrations/20260419000*`. Ver **Acción inmediata** abajo |
+| 5 | Notion OAuth app | ✅ Creada | Client ID/Secret guardados en memoria; Kike: confirmar que están en Vercel env vars |
 
 ---
 
-### 3. TOKEN_ENCRYPTION_KEY en Vercel
+## 🔴 Acciones inmediatas de Kike ANTES de irse (o primer día que pueda)
 
-**Por qué:** los OAuth tokens (Notion, Google, Slack) se guardan cifrados con AES-256-GCM. Sin esta key no podemos cifrar/descifrar.
+**El scheduled task autónomo no puede hacer llamadas HTTP fuera de GitHub** (el sandbox tiene allowlist restrictivo). Por eso necesito que Kike verifique/ejecute lo siguiente desde su Mac o iPhone:
 
-**Cómo:**
-1. Abre Terminal en tu Mac (vía RustDesk)
-2. Corre: `openssl rand -hex 32`
-3. Copia el output (64 caracteres hex)
-4. En Vercel env vars: `TOKEN_ENCRYPTION_KEY` = <output>
-5. **Guárdalo también en un sitio seguro** (1Password o similar) — si lo pierdes, los tokens guardados son irrecuperables.
+### A. Confirmar env vars en Vercel
+
+Abrir https://vercel.com/kikearnedo92s-projects/cerebro/settings/environment-variables y verificar que estas están en **Production**:
+
+```
+VITE_SUPABASE_URL
+VITE_SUPABASE_ANON_KEY
+SUPABASE_SERVICE_ROLE_KEY   ← crítico para chat y OAuth
+ANTHROPIC_API_KEY
+TOKEN_ENCRYPTION_KEY        ← crítico para OAuth
+MIGRATE_SECRET              ← ya generado, permite que Claude corra migraciones
+NOTION_CLIENT_ID
+NOTION_CLIENT_SECRET
+INTERNAL_SYNC_TOKEN         ← NUEVO: generar con `openssl rand -hex 32`, usado para que callback dispare sync
+```
+
+Si falta alguna, agregarla. Si falta `INTERNAL_SYNC_TOKEN`, generar con `openssl rand -hex 32` y guardarla también en 1Password.
+
+### B. Correr la migración SQL
+
+Opción rápida (desde iPhone vía GitHub web):
+
+1. Abrir https://github.com/kikearnedo92/Cerebro/tree/main/supabase/migrations
+2. Abrir cada uno de estos 4 archivos, copiar todo el contenido:
+   - `20260419000000_multi_tenant_hardening.sql`
+   - `20260419000001_multi_tenant_bootstrap.sql`
+   - `20260419000002_multi_tenant_fix.sql`
+   - `20260419000003_fix_rls_recursion.sql`
+3. Abrir https://supabase.com/dashboard/project/begnklspqjxwkvwhuefr/sql/new en cada uno, pegar y Run.
+
+**Opción autónoma (preferida si Kike tiene tiempo):** una vez `MIGRATE_SECRET` esté en Vercel y el código actualizado deployado, Kike puede correr desde su Terminal:
+
+```bash
+curl -X POST -H "x-admin-migrate-secret: 17fce02fb4b3eaed5701c2d2c7794e004b96978f8369efa61e8d0a8353e5d604" \
+  https://cerebro-ivory.vercel.app/api/admin/migrate
+```
+
+Esto aplica las migraciones pendientes automáticamente (y trackea cuáles ya corrieron). Si devuelve `bootstrapRequired: true`, hay que pegar el `bootstrapSql` del response una sola vez en Supabase SQL Editor y reintentar.
 
 ---
 
-### 4. Correr migración SQL en Supabase
+## 🟡 Para habilitar integraciones OAuth (cuando toque cada día del plan)
 
-**Por qué:** la nueva migración agrega tablas (`tenant_invitations`, `usage_counters`) y arregla RLS rota de `integrations`.
+### Día 1 (20 abril) — Notion end-to-end
+Sin bloqueo si A y B de arriba están hechos.
 
-**Cómo:**
-1. Descarga el archivo `supabase/migrations/20260419000000_multi_tenant_hardening.sql` del repo (o úsalo desde GitHub web)
-2. https://supabase.com/dashboard/project/begnklspqjxwkvwhuefr/sql/new
-3. Copia + pega todo el contenido
-4. Click "Run"
-5. Debería decir "Success. No rows returned"
+### Día 2-3 (21-22 abril) — Google OAuth (Drive + Gmail + Calendar)
+**Falta:** `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
+- Paso a paso en `docs/RUNBOOK.md` sección 2
+- Redirect URI: `https://cerebro-ivory.vercel.app/api/integrations/google/callback`
 
-> Si Kike no puede desde iPhone, Claude puede guardar copia en `/mnt/outputs/` y dar link directo al archivo.
+### Día 4 (23 abril) — Slack OAuth
+**Falta:** `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET`
+- Paso a paso en `docs/RUNBOOK.md` sección 3
+- Redirect URI: `https://cerebro-ivory.vercel.app/api/integrations/slack/callback`
 
----
-
-## 🟡 Para habilitar integraciones OAuth (cuando toque cada una)
-
-### 5. Notion — Crear integration OAuth pública
-
-**Paso a paso detallado en `docs/RUNBOOK.md` sección 1.**
-
-Resumen:
-- https://www.notion.so/my-integrations → New integration (Public)
-- Redirect URI: `https://cerebro-ivory.vercel.app/api/integrations/notion/callback`
-- Entregar a Claude: `NOTION_CLIENT_ID`, `NOTION_CLIENT_SECRET`
-
-### 6. Google Cloud — OAuth app para Drive + Gmail + Calendar
-
-**Paso a paso en `docs/RUNBOOK.md` sección 2.**
-
-Entregar: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
-
-### 7. Slack — OAuth app
-
-**Paso a paso en `docs/RUNBOOK.md` sección 3.**
-
-Entregar: `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET`
+> Si Google/Slack no están listos cuando toque el día, el scheduled task salta al siguiente bloque (super-admin UI / auth flows) y vuelve cuando Kike entregue credenciales.
 
 ---
 
 ## 🟢 Diferido (no urgente)
 
-### 8. Stripe
-
-Kike no tiene cuenta aún. Cuando la cree, seguir `docs/RUNBOOK.md` sección 4.
-
-### 9. Dominio `usacerebro.com`
-
-Comprar en Namecheap/Vercel Domains. Apuntar DNS a Vercel. Actualizar Supabase redirect URLs.
-
-### 10. Logo + branding
-
-Kike a producir. Actualizar `public/favicon.svg`, logo en Landing y Sidebar.
+| # | Item | Notas |
+|---|---|---|
+| 8 | Stripe | Kike no tiene cuenta. Se aborda juntos el 4 de mayo |
+| 9 | Dominio `usacerebro.com` | Comprar en Namecheap/Vercel Domains |
+| 10 | Logo + branding | Kike a producir |
 
 ---
 
@@ -111,21 +97,19 @@ Kike a producir. Actualizar `public/favicon.svg`, logo en Landing y Sidebar.
 
 Cuando Claude necesite algo de Kike estando él de vacaciones:
 
-1. Claude escribe un borrador de email con subject `[Cerebro] Necesito X — urgencia: alta|media|baja`
-2. Lo envía vía Gmail MCP a `eduardo@retorna.app`
-3. Kike responde desde el iPhone con la credencial/autorización
-4. En la siguiente sesión, Kike pega la respuesta o Claude lee el correo y procede
+1. Scheduled task detecta bloqueo → crea draft de email con subject `[Cerebro] URGENTE día N – bloqueado por X`
+2. Envía vía Gmail MCP a `eduardoarnedog@gmail.com`
+3. Kike responde desde el iPhone con la credencial/autorización o simplemente ejecuta la acción desde el iPhone
+4. El siguiente run del scheduled task relee el email (step 1.4 del SKILL.md) y ajusta el plan
 
 ---
 
-## Checklist de "todo listo para vacaciones"
+## Checklist "todo listo para vacaciones"
 
-Antes de que Kike se vaya, Claude debe confirmar:
-
-- [ ] PAT de GitHub entregado (1)
-- [ ] SUPABASE_SERVICE_ROLE_KEY en Vercel (2)
-- [ ] TOKEN_ENCRYPTION_KEY en Vercel (3)
-- [ ] Migración SQL ejecutada (4)
-- [ ] Al menos Notion OAuth activo (5) — así Claude puede trabajar en sync logic
-- [ ] Archivo `docs/HANDOFF.md` actualizado con estado actual
-- [ ] Chat de Claude Desktop accesible desde iPhone con el proyecto conectado
+- [x] PAT de GitHub entregado
+- [x] SUPABASE_SERVICE_ROLE_KEY entregada (Kike: confirmar que está en Vercel)
+- [x] TOKEN_ENCRYPTION_KEY generada (Kike: confirmar que está en Vercel)
+- [ ] Migración SQL ejecutada en Supabase (Kike: **hacer hoy 19 abril**)
+- [x] Notion OAuth credentials entregadas (Kike: confirmar que están en Vercel)
+- [ ] `INTERNAL_SYNC_TOKEN` generado y en Vercel (Kike: **hacer hoy 19 abril**)
+- [x] Documentos `docs/HANDOFF.md`, `DAILY_PLAN.md`, `DAILY_PROGRESS.md` al día

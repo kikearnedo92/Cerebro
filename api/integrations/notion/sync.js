@@ -1,6 +1,7 @@
 // POST /api/integrations/notion/sync
-// Pulls pages from the user's Notion, extracts text, generates embeddings,
-// and upserts into knowledge_base with source_type='notion'.
+// Pulls pages from the user's Notion, extracts plain text, and upserts into
+// knowledge_base with source='notion:<page_id>'. Chat retrieval today uses
+// text-based search_knowledge_semantic; vector embeddings are Day-1 follow-up.
 // Can be called:
 //  - By the callback (fire-and-forget after successful OAuth)
 //  - Manually by the user clicking "Re-sync"
