@@ -3,7 +3,7 @@
 > Lista viva de cosas que solo Kike puede hacer (requieren su login/auth/decisión).
 > Claude mantiene este archivo actualizado después de cada run.
 
-**Última actualización:** 2026-04-19 (scheduled task día 0)
+**Última actualización:** 2026-04-19 (sesión nocturna — desbloqueo pre-vacaciones ejecutado)
 
 ---
 
@@ -16,6 +16,30 @@
 | 3 | TOKEN_ENCRYPTION_KEY | ✅ Generada | `8957acb6…b90a`, 64 hex chars; Kike: confirmar en Vercel |
 | 4 | Migración SQL multi-tenant | ⚠️ Pendiente de correr | Hay 4 archivos en `supabase/migrations/20260419000*`. Ver **Acción inmediata** abajo |
 | 5 | Notion OAuth app | ✅ Creada | Client ID/Secret guardados en memoria; Kike: confirmar que están en Vercel env vars |
+
+---
+
+## 🔴 BLOQUEANTE CRÍTICO descubierto 2026-04-19 noche
+
+**Anthropic API credit balance = 0.** Smoke test de `/api/chat` en prod devuelve 400 de Anthropic: `"Your credit balance is too low"`. Hasta que se cargue crédito, **el chat está caído en prod** y los tests E2E del Día 1 (Notion RAG citando fuentes) no pueden correr.
+
+- **Acción:** ir a https://console.anthropic.com/settings/billing y cargar al menos USD 20 (alcanza sobrado para todo el periodo de vacaciones).
+- **Urgencia:** hacer antes del lunes 20 abril, idealmente desde el iPhone esta noche.
+- **Validación:** cuando esté cargado, `curl -X POST -H "Content-Type: application/json" -d '{"message":"hola","useKnowledgeBase":false}' https://cerebro-ivory.vercel.app/api/chat` debería devolver un JSON con `response` no vacío. La scheduled task del Día 1 lo va a reintentar automáticamente.
+
+---
+
+## ✅ Ejecutado 2026-04-19 noche (desde este Mac)
+
+| Item | Estado |
+|---|---|
+| `~/.cerebro/credentials.env` creado (chmod 600) | ✅ |
+| `INTERNAL_SYNC_TOKEN` generado | ✅ `916ace40…5080` |
+| `INTERNAL_SYNC_TOKEN` agregado a Vercel (production+preview, encrypted) | ✅ |
+| Auditoría env vars Vercel completa | ✅ 7/7 presentes + SUPABASE_URL/ANON_KEY |
+| Migración SQL corrida vía `/api/admin/migrate` | ✅ `ok:true`, 38 skipped, 0 applied (ya estaban aplicadas manualmente) |
+| `_migrations` table poblada con todas las migraciones históricas | ✅ futuro `migrate` solo aplica migraciones nuevas |
+| Smoke test `/api/chat` | ⚠️ 500 por Anthropic credit balance — ver bloqueante arriba |
 
 ---
 
