@@ -2,5 +2,19 @@
   "rewrites": [
     { "source": "/api/:path*", "destination": "/api/:path*" },
     { "source": "/(.*)", "destination": "/index.html" }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/apply-migrations",
+      "schedule": "0 */6 * * *"
+    },
+    {
+      "path": "/api/cron/sync-integrations",
+      "schedule": "0 */4 * * *"
+    },
+    {
+      "path": "/api/cron/healthcheck",
+      "schedule": "*/15 * * * *"
+    }
   ]
 }
