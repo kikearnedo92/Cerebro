@@ -135,7 +135,7 @@ INSTRUCCIONES:
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: process.env.CLAUDE_MODEL || 'claude-sonnet-4-6',
         max_tokens: 3000,
         system: systemPrompt,
         messages: [{ role: 'user', content: userContent }]
@@ -145,7 +145,7 @@ INSTRUCCIONES:
     if (!claudeResponse.ok) {
       const errorData = await claudeResponse.json().catch(() => null)
       console.error('Claude API error:', claudeResponse.status, errorData)
-      throw new Error(`Claude API error: ${claudeResponse.statusText}`)
+      throw new Error(`Claude API error ${claudeResponse.status}: ${JSON.stringify(errorData) || claudeResponse.statusText}`)
     }
 
     const data = await claudeResponse.json()
