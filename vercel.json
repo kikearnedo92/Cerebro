@@ -5,16 +5,8 @@
   ],
   "crons": [
     {
-      "path": "/api/cron/apply-migrations",
+      "path": "/api/cron/daily",
       "schedule": "0 12 * * *"
-    },
-    {
-      "path": "/api/cron/sync-integrations",
-      "schedule": "0 13 * * *"
-    },
-    {
-      "path": "/api/cron/healthcheck",
-      "schedule": "0 14 * * *"
     }
   ]
 }
