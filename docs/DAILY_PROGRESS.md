@@ -120,3 +120,51 @@ curl -H "x-internal-sync-token: $INTERNAL_SYNC_TOKEN" -d '{"integrationId":"0000
 - `856cf43` fix(vercel): collapse 3 crons into single daily dispatcher
 
 ---
+
+## Día 2 — Lunes 20 abril 2026
+
+**Plan original (DAILY_PLAN):** Google OAuth (Drive + Gmail + Calendar).
+**Plan ejecutado:** Gate activado — Google creds todavía no existen en Vercel. Se ejecuta el fallback del plan (super-admin UI, originalmente Día 6-7). También cierro bloqueantes heredados del 19 abr y valido Día 1 end-to-end.
+
+### ✅ Completado
+
+**Cierre de bloqueantes heredados:**
+- ✅ **Anthropic credits cargados.** `/api/chat` responde 200 con respuesta real. 🔴 cerrado en PENDING.
+- ✅ **Día 1 validado end-to-end.** Kike conectó su workspace de Notion ayer tarde (integration `704f187a-41c5-4f55-810c-d51c0194457c`, tenant "Cerebro", creada 2026-04-19 18:48 UTC). Primer sync manual falló con 23 errores "no unique or exclusion constraint matching the ON CONFLICT specification" — bug real en el índice del Día 1.
+- ✅ **Fix de bug de índice parcial.** Migración `20260420000001_fix_kb_unique_full.sql`: drop del partial index con `WHERE source IS NOT NULL` y recreación como índice no-parcial. PostgREST/supabase-js rechazan índices parciales como target de ON CONFLICT. Aplicada vía `/api/admin/migrate` (`ok:true, applied: 20260420000001`).
+- ✅ **Re-sync post-fix:** `{ok:true, items_synced:16, breakdown:{pages:2, databases:2, database_rows:12}, tombstoned:0, error_count:0}`. Knowledge_base ahora tiene 16 filas con `project='Notion'` y file_types correctos (`notion_page`, `notion_database`, `notion_database_row`).
+- ✅ **Smoke test RAG real:** `POST /api/chat {message:"¿Qué bases de datos tengo sincronizadas en Notion?", useKnowledgeBase:true}` → `documentsFound:4, sources: ["Nueva especificación técnica","Nueva especificación de producto (PRD)","Ejemplo de especificaciones de producto","Ejemplo de especificaciones técnicas"]`. **El chat cita fuentes reales de Notion del workspace de Kike.** 🎯
+- ✅ **Limpieza de integration legacy.** Row `48a08cf5-…` (creada 16:59 UTC, sin token, tenant_uuid=NULL) estaba como `connected` — marcada `disconnected` con `last_error` descriptivo. Evita ruido en el cron dispatcher.
+
+**Fallback Día 2 — super-admin:**
+- ✅ Endpoint `/api/admin/tenants.js` (single-handler GET/PATCH/POST para respetar cap de 12 funciones Hobby). Requiere Bearer token de super-admin. Operaciones:
+  - `GET /api/admin/tenants` → lista con `users_count`, `integrations_count`, `docs_count` por tenant + summary global.
+  - `GET /api/admin/tenants?id=<uuid>` → detalle con integrations breakdown.
+  - `PATCH /api/admin/tenants?id=<uuid>` → edit con whitelist de campos (`name, plan, subscription_status, subscription_active, is_internal, max_users, max_storage_gb, max_monthly_queries, admin_email, domain`).
+  - `POST /api/admin/tenants` → creación manual con defaults razonables.
+- ✅ **UI `/admin` cableada.** `src/pages/admin/AdminDashboard.tsx` ya no muestra `--`: carga datos reales, muestra tabla de tenants con plan/estado/users/docs/integraciones, acción pausar/reactivar funcional, summary de tenants/users/MRR/docs. Refresh manual + spinner de loading + manejo de error.
+- ✅ **Smoke tests:**
+  - `GET /api/admin/tenants` sin auth → `401 Not authenticated` ✅
+  - `GET /api/admin/tenants` con Bearer inválido → `401 Not authenticated` ✅
+  - Path super-admin sólo validable con sesión real de Kike — gate confirmado vía `getAuthContext` + `isSuperAdmin`.
+
+### 📊 Métricas
+
+- Funciones serverless: **12** (cap Hobby). Sin margen — próximo endpoint requiere consolidar o upgrade a Pro.
+- Deploys: 4 READY hoy (`4f9c619`, `cdc55ef` y 2 de docs). 0 deploys en ERROR tras fixes de ayer.
+- Base de conocimiento: **16 filas Notion** en tenant "Cerebro" (tenant `eb1c2415-…`).
+- Tenants en DB: 2 (`eduardo-org`, `Cerebro`), ambos en trial.
+
+### 🔴 / 🟡 Pendiente
+
+- 🟡 **Google OAuth credentials** siguen faltando — cuando Kike los entregue, dispara Día 2 pipeline real (solo son 2 env vars + redeploy).
+- 🟡 **Slack OAuth credentials** misma situación.
+- 🟡 **Embeddings provider** (OpenAI vs Voyage) pendiente — la búsqueda funciona hoy con text-RAG y documentos cortos, pero el próximo escalón semántico necesita decisión.
+- 🟡 **Pro plan Vercel** recomendable. Estamos en 12/12 funciones; con Google + Slack endpoints llegaríamos a 14-16.
+
+### 📊 Commits del día
+
+- `4f9c619` fix(day-2): drop partial WHERE from knowledge_base unique index
+- `cdc55ef` feat(day-2): super-admin tenants API + live /admin dashboard
+
+---

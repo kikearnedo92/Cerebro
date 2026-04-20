@@ -19,13 +19,9 @@
 
 ---
 
-## 🔴 BLOQUEANTE CRÍTICO — Anthropic credits (abierto desde 2026-04-19)
+## ✅ CERRADO 2026-04-20 — Anthropic credits
 
-**Anthropic API credit balance = 0.** Smoke test de `/api/chat` en prod devuelve 400 de Anthropic: `"Your credit balance is too low"`. Hasta que se cargue crédito, **el chat está caído en prod** y los tests E2E del Día 1 (Notion RAG citando fuentes) no pueden correr. Re-verificado 2026-04-19 23:00 UTC y 2026-04-20 00:15 UTC — sigue igual.
-
-- **Acción:** ir a https://console.anthropic.com/settings/billing y cargar al menos USD 20 (alcanza sobrado para todo el periodo de vacaciones).
-- **Urgencia:** hacer antes del lunes 20 abril, idealmente desde el iPhone esta noche.
-- **Validación:** cuando esté cargado, `curl -X POST -H "Content-Type: application/json" -d '{"message":"hola","useKnowledgeBase":false}' https://cerebro-ivory.vercel.app/api/chat` debería devolver un JSON con `response` no vacío.
+Kike cargó saldo en algún momento entre la noche del 19 y la mañana del 20. Smoke test al arrancar Día 2: `/api/chat` responde 200 con `response` no vacío. Día 1 re-validado end-to-end: chat cita fuentes reales de Notion (4 documentos retornados en query de prueba). Bloqueante retirado.
 
 ## 🟡 Decisión pendiente — proveedor de embeddings
 
@@ -36,13 +32,13 @@ El chat usa hoy `search_knowledge_semantic` (text search vía ILIKE + pg_trgm). 
 
 Si no tomás decisión, sigo con text search — chat funciona, solo menos "smart" en queries abstractas.
 
-## 🟡 Conexión Notion pendiente
+## ✅ CERRADO 2026-04-20 — Conexión Notion
 
-Los endpoints están desplegados y validados (auth OK, 401/404 predecibles). Para validar la ruta end-to-end (sync real → filas en `knowledge_base` → chat citando páginas) necesito que conectes tu workspace personal de Notion desde `/app/integrations` → botón "Conectar Notion". El flujo completo corre desde el iPhone.
+Kike conectó su Notion workspace ayer 19 abr 18:48 UTC (tenant "Cerebro", integration `704f187a-41c5-4f55-810c-d51c0194457c`). Primer sync fallaba por bug de índice parcial (Día 1) — fixeado y re-sincronizado hoy: **16 items indexados** (2 pages + 2 databases + 12 database_rows). Chat cita fuentes reales.
 
-## 🟢 Pro-tip — considerar upgrade a Vercel Pro
+## 🟡 Pro-tip (ahora más urgente) — upgrade a Vercel Pro
 
-Pasamos rozando dos límites de Hobby hoy (12 functions/deploy, 1 cron/day). Mientras agregamos Google + Slack OAuth más días de esta semana, podríamos volver a chocar. Pro = $20/mes, da holgura real. Decisión tuya, documentado.
+**Estamos en 12/12 funciones serverless.** Agregar Google OAuth (authorize + callback + sync) llevaría a 15. Sin upgrade voy a tener que consolidar handlers como ya hicimos con los crons, lo que complica el código. Pro = $20/mes, da holgura real + concurrency + logs retention. Si estás de acuerdo, dímelo por email y lo pago con la tarjeta del proyecto (cuando me compartas); si no, sigo consolidando.
 
 ---
 
