@@ -34,16 +34,22 @@ Empresas tech-forward de **50–200 empleados** en LATAM y Europa hispana.
 
 Pricing en revisión: Starter $49 / Growth $99 / Enterprise custom (puede subir a $99 / $299 / $999 si discovery confirma wedge B con agentes IA).
 
-## Las dos hipótesis de comprador
+## Posicionamiento — wedge dual (NO elegir A vs B)
 
-| | Comprador A — humano | Comprador B — agentes IA |
+**El diferencial de Cerebro vs YC RFS S26 es servir simultáneamente a humanos Y agentes IA.** YC propone "company brain for AI agents". Cerebro propone "company brain for humans AND AI agents — el mismo sistema". Razón estratégica:
+
+- Ninguna empresa 50-200 va de 0% IA a 100% IA en 6 meses. Pasan por una transición de 18-36 meses donde humanos y agentes coexisten. Cerebro sirve los 3 escenarios; los YC startups solo el último.
+- Adoption-led growth: humanos adoptan primero (ROI medible: tiempo de onboarding, decisiones reabridas, knowledge retention). Cuando los agentes llegan, la infraestructura de contexto ya está viva.
+- Un solo producto, dos audiencias del mismo dolor: refunds, pricing exceptions, incident response — el humano consulta el living map, el agente consume el executable skills file.
+
+| | Audiencia humana | Audiencia agentes IA |
 |---|---|---|
 | ICP | Head of Ops, CS, Chief of Staff, COO | Head of AI, CTO, VP Eng, líder de automatización |
-| Dolor | Onboarding lento, conocimiento que se va, decisiones que se reabren | Agentes que alucinan, cada agente reconstruye contexto, no hay capa común |
-| Disposición a pagar | Media (dolor crónico) | Alta (dolor agudo y reciente) |
+| Surface | Chat UI + invitaciones de equipo | API/MCP server + SDK |
+| Dolor explícito | Onboarding lento, conocimiento que se va, decisiones que se reabren | Agentes que alucinan, cada agente reconstruye contexto, no hay capa común |
 | Pricing | $99–299/mes | $499–1,999/mes + uso por API call |
 
-**Decisión del wedge: abierta. Validar con 8 entrevistas de discovery.** No comprometerse antes. Ver `docs/DISCOVERY.md` para tabla de decisión post-entrevistas.
+**El producto es uno solo. Lo que cambia en discovery es el ÁNGULO DE PITCH** según el lead que tengas enfrente. Ver `docs/DISCOVERY.md` (sección "Calibrar pitch según lead, no elegir wedge").
 
 ---
 

@@ -1,6 +1,16 @@
 # Use Cases — Los 14 casos de uso mapeados
 
-> Mapa completo del territorio. Cada caso tiene comprador, dolor, pricing implícito. Ayuda a decidir qué validar primero en discovery y, post-wedge, qué construir.
+> **Cada caso sirve a humanos Y a agentes IA** del mismo dolor — NO se elige uno solo. El humano consulta el living map (chat UI), el agente IA consume el executable skills file (API/MCP). El producto es uno; cambian las superficies y los pitches.
+>
+> Lo que decide discovery: qué ÁNGULO usar para presentarle Cerebro al lead que tienes enfrente, no si construir A o B.
+
+## Ejemplos del video YC (canónicos del wedge)
+
+Los 3 ejemplos que el RFS S26 menciona textualmente — úsalos en discovery como prompts y en pitch como casos:
+
+1. **Cómo se manejan los refunds** — humano: pregunta "¿cómo procesamos un refund de cliente enterprise vs SMB?" / agente: ejecuta el flujo correcto sin escalación a humano
+2. **Cómo se deciden pricing exceptions** — humano: revisa criterios pasados antes de aprobar / agente: aplica la política sin necesidad de re-entrenamiento
+3. **Cómo responden engineers a incidentes técnicos** — humano: el on-call nuevo encuentra el runbook / agente: trae el contexto del incident similar pasado al SRE
 
 ---
 

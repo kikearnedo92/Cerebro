@@ -4,6 +4,30 @@
 
 ---
 
+## 2026-04-30 · Clarificación tesis dual — diferencial vs YC RFS S26
+
+### Contexto
+
+Tras analizar la transcripción exacta del video YC RFS S26 ("We need something like Gary's G-Brain, but for every business in the world… executable skills file for AI agents"), se evidencia que YC posiciona el "company brain" **solo para agentes IA**. Cerebro estaba escribiendo en docs como si tuviera que elegir wedge A (humano) o B (agente IA) post-discovery.
+
+### Decisión
+
+**Wedge dual desde día 1.** Cerebro sirve humanos Y agentes IA simultáneamente con un solo producto. Discovery NO decide A vs B — decide el ÁNGULO de pitch según el lead.
+
+### Trade-offs aceptados
+
+- Mensaje un poco más complejo de explicar en 30 segundos. Mitigación: pitch adaptado al ICP del lead.
+- Mayor superficie técnica (chat UI + API/MCP). Aceptable: el chat ya existe, MCP server no es trabajo masivo.
+- Menos foco aparente. Mitigación: discovery valida si las empresas QUIEREN un solo sistema dual o prefieren dos separados.
+
+### Cambios concretos
+
+- `CLAUDE.md` — sección "wedge dual" reemplaza "decidir A vs B"
+- `docs/USE_CASES.md` — cada caso sirve a humanos Y agentes; agregados los 3 ejemplos canónicos del video YC (refunds, pricing exceptions, incident response)
+- Próximo: `docs/DISCOVERY.md` — script ajustado para detectar ángulo, no clasificar comprador
+
+---
+
 ## 2026-04-29 · Reset estratégico tras YC RFS Summer 2026
 
 ### Contexto
