@@ -1,0 +1,90 @@
+name: Strategist Briefing
+
+# Corre todos los lunes a las 9:00 hora Chile.
+#
+# Chile usa CLT (UTC-4) en horario de invierno y CLST (UTC-3) en horario de
+# verano. Para mantener un solo schedule (GitHub Actions no soporta tz por cron):
+#   - cron 13:00 UTC = 09:00 invierno chileno (abr-sep) ✅ correcto
+#   - cron 13:00 UTC = 10:00 verano chileno  (oct-mar) — corre 1h más tarde
+# La diferencia de 1h es aceptable; el job tolera correr en cualquier hora del
+# lunes. Si en el futuro Kike quiere ajuste fino, agregar un segundo schedule
+# en 12:00 UTC y filtrar por mes con un `if:` en el job.
+#
+# Trigger manual también disponible via workflow_dispatch para iterar.
+on:
+  schedule:
+    - cron: '0 13 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: strategist-briefing
+  cancel-in-progress: false
+
+jobs:
+  briefing:
+    name: Generate weekly briefing
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Run Strategist Agent · briefing
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: node scripts/strategist.mjs briefing --save
+
+      - name: Detect new briefing file
+        id: detect
+        run: |
+          # Detecta archivos nuevos o modificados dentro de docs/briefings/.
+          # Si no hay nada que commitear, marca skip=true para los pasos siguientes.
+          if [ -z "$(git status --porcelain docs/briefings/)" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "No hay nuevo briefing para commitear."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            git status --porcelain docs/briefings/
+          fi
+
+      - name: Commit briefing on main
+        if: steps.detect.outputs.skip != 'true' && github.ref == 'refs/heads/main'
+        run: |
+          set -euo pipefail
+          DATE=$(date -u +%Y-%m-%d)
+          git config user.name  "Cerebro Strategist Agent"
+          git config user.email "strategist-bot@cerebro.local"
+          git add docs/briefings/
+          git commit -m "chore(strategist): briefing semanal ${DATE}"
+          git push origin HEAD:main
+
+      - name: Open PR with briefing (non-main runs)
+        if: steps.detect.outputs.skip != 'true' && github.ref != 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          DATE=$(date -u +%Y-%m-%d)
+          BRANCH="strategist/briefing-${DATE}"
+          git config user.name  "Cerebro Strategist Agent"
+          git config user.email "strategist-bot@cerebro.local"
+          git checkout -b "$BRANCH"
+          git add docs/briefings/
+          git commit -m "chore(strategist): briefing semanal ${DATE}"
+          git push origin "$BRANCH"
+          gh pr create \
+            --base main \
+            --head "$BRANCH" \
+            --title "chore(strategist): briefing semanal ${DATE}" \
+            --body "Briefing semanal generado automáticamente por el Strategist Agent. Ver \`docs/briefings/${DATE}.md\`."
