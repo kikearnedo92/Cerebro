@@ -7,33 +7,13 @@
 
 ## 1. Code Reviewer Agent
 
-**Estado:** código listo, pendiente activación manual de Kike (ver 1.0).
-**Disparador previsto:** GitHub Action `.github/workflows/code-review.yml` en cada `pull_request` (open, reopen, synchronize, ready_for_review) hacia `main`.
+**Estado:** activo desde 2026-05-01.
+**Disparador:** GitHub Action `.github/workflows/code-review.yml` en cada `pull_request` (open, reopen, synchronize, ready_for_review) hacia `main`.
 **Implementación:** `scripts/code-review.mjs` — Node 22+, sin deps externas, llama Anthropic API directo con `fetch`.
 **Modelo:** `claude-sonnet-4-6`, `max_tokens: 4000`.
-**Output esperado:** comment del bot `github-actions[bot]` en el PR. Si el veredicto es **BLOQUEANTE 🔴** el job falla (status check rojo).
+**Output:** comment del bot `github-actions[bot]` en el PR. Si el veredicto es **BLOQUEANTE 🔴** el job falla (status check rojo).
 
-### 1.0 ⚠️ Bloqueante de activación — el workflow .yml NO está en `.github/workflows/`
-
-El `GITHUB_PAT` actual (que vive en `~/.cerebro/credentials.env`) tiene scope `repo` pero **no** `workflow`. GitHub rechaza cualquier push que cree o modifique archivos bajo `.github/workflows/` sin ese scope.
-
-Mientras Kike no resuelva el bloqueante, el archivo del workflow vive en `scripts/code-review-workflow.yml.example` como template. El script `scripts/code-review.mjs` y el resto de la infra ya están en `feat/code-reviewer-agent`, y ya fueron testeados localmente con éxito.
-
-**Para activar — Kike elige una de estas opciones:**
-
-**Opción A (recomendada) — Regenerar PAT con scope `workflow`:**
-1. https://github.com/settings/tokens → Fine-grained token de `kikearnedo92/Cerebro` → Edit → Repository permissions → Workflows: `Read and write`. O regenerar el PAT classic agregando el scope `workflow`.
-2. Actualizar `GITHUB_PAT` en `~/.cerebro/credentials.env`.
-3. Re-correr `git remote set-url origin "https://x-access-token:${GITHUB_PAT}@github.com/kikearnedo92/Cerebro.git"`.
-4. Pedirle a Claude Code: "mover `scripts/code-review-workflow.yml.example` a `.github/workflows/code-review.yml` en la branch `feat/code-reviewer-agent` y commitear".
-
-**Opción B — Crear el workflow desde la UI de GitHub directamente:**
-1. https://github.com/kikearnedo92/Cerebro/new/feat/code-reviewer-agent/.github/workflows
-2. Nombrar `code-review.yml`.
-3. Pegar el contenido de `scripts/code-review-workflow.yml.example` literal.
-4. `Commit changes` directo a `feat/code-reviewer-agent`.
-
-Cualquiera de las dos deja el workflow listo en la branch del PR draft.
+> Nota: el archivo del workflow requiere que el `GITHUB_PAT` con que Claude Code pushee tenga el scope `workflow` (no solo `repo`). Si en el futuro hay que regenerar el PAT, asegurar ambos scopes.
 
 ### 1.1 Setup del secret `ANTHROPIC_API_KEY`
 
