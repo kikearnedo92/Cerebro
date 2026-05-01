@@ -234,3 +234,7 @@ Todos los agentes usan **`claude-sonnet-4-6`** por default. Razones:
 Subir a `claude-opus-4-7` solo si el Code Reviewer empieza a aprobar PRs con problemas críticos detectables, o si el Strategist empieza a generar briefings/decisiones de baja calidad. Documentar el cambio en `CHANGELOG.md`.
 
 > ⚠️ El nombre del modelo está duplicado en `scripts/code-review.mjs`, `scripts/strategist.mjs` y este runbook. Si lo cambias, actualizar los tres.
+
+---
+
+_Validación inicial end-to-end (2026-05-01): PR #1 / run 25229382835 / job 37s / comment posteado con formato correcto + marker HTML hidden. Este push trivial es para validar que el bot **edita** el comment existente en vez de crear uno nuevo._
