@@ -2,6 +2,8 @@
 
 > **Leer primero al abrir cualquier sesión nueva de Claude/Cowork sobre Cerebro.**
 > Este doc es la fuente de verdad del estado del proyecto y qué sigue.
+>
+> **Pivote estratégico 2026-04-29:** Tesis nueva = "capa de contexto operacional para humanos Y agentes IA" (validada por YC RFS Summer 2026). Discovery-first. **No construir features nuevos hasta validar wedge con 8 entrevistas (~22 jun 2026).** Detalle completo en `CLAUDE.md` y `CHANGELOG.md`.
 
 ---
 

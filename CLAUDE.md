@@ -1,196 +1,188 @@
 # CLAUDE.md — Contexto para Claude Code trabajando en Cerebro
 
-> Este archivo lo lee Claude Code automáticamente al abrir el proyecto. Contiene toda la información necesaria para retomar el trabajo sin fricciones.
+> Este archivo lo lee Claude Code automáticamente al abrir el proyecto. Es la **fuente de verdad operativa**: tesis, reglas, prioridades, lo que sí y lo que no se hace hoy.
+>
+> Última revisión mayor: **2026-04-29 — Reset estratégico tras YC RFS Summer 2026**.
 
 ---
 
 ## Quién es el founder
 
-**Kike** (Eduardo Arnedo) — eduardoarnedog@gmail.com (personal), WhatsApp +56 9 9307 9285.
+**Kike** (Eduardo Arnedo) — `eduardoarnedog@gmail.com` (personal), WhatsApp +56 9 9307 9285.
 
-- **No es desarrollador.** Tú manejas todo lo técnico.
-- Head de Customer Success en Retorna (fintech), pero **Cerebro es su startup personal, 100% separado de Retorna**.
-- Le gusta: respuestas breves, claras, directas. NO leer párrafos largos. Preguntar antes de armar planes extensos.
-- Canal de comunicación durante vacaciones: email a eduardoarnedog@gmail.com (Gmail MCP). Subject format: `[Cerebro] {urgencia} - {resumen}`.
+- No es desarrollador. Tú manejas todo lo técnico.
+- Head de Customer Success en Retorna (fintech). **Cerebro es su startup personal, 100% separado de Retorna.**
+- Comunicación: respuestas breves, claras, directas. NO párrafos largos. Pregunta antes de armar planes extensos.
+- Canal async: email a `eduardoarnedog@gmail.com`. Subject: `[Cerebro] {urgencia} – {resumen}`.
 
-## Qué es Cerebro
+## Tesis del producto (revisada 2026-04-29)
 
-SaaS B2B: **"el segundo cerebro de una empresa"**. Chat con IA conectado a Notion, Slack, Google Drive, Gmail y Calendar. Responde con la información real de la organización.
+**Cerebro es la capa de contexto operacional de la empresa, para humanos Y agentes IA.**
 
-- **Target:** PYMEs 10-50 empleados
-- **Precios:** Starter $49/mo, Growth $99/mo, Enterprise custom
-- **Diferenciador vs. Glean:** 10x más barato, self-serve, nicho PYME
-- **Meta comercial:** 10 clientes pagando en los primeros 3 meses post-launch
+Un solo producto, dos narrativas según madurez del cliente:
 
-## Stack
+- **Empresa SIN IA implementada:** "Cerebro mantiene viva la memoria operativa de tu empresa. Tu equipo deja de empezar desde cero cada vez que entra alguien nuevo o cuando alguien se va."
+- **Empresa CON IA implementada:** "Cerebro es la capa de contexto que tus agentes consultan antes de responder. Reduce alucinaciones, mejora grounding."
+
+**Validación externa:** Y Combinator Request for Startups Summer 2026 (publicado 28 abr 2026) describe textualmente esta categoría: *"Every company has critical know-how scattered across people's heads, old Slack threads, support tickets, and databases, and AI agents can't operate like that. We think every company in the world is going to need a new primitive: a living map of how the company works that turns its own artifacts into an executable skills file for AI."*
+
+Implicación: en jul–sep 2026 esperamos 15–30 startups YC con $500K cada una en esta categoría. **Velocidad importa. Diferenciación importa más.**
+
+## Target
+
+Empresas tech-forward de **50–200 empleados** en LATAM y Europa hispana.
+
+Pricing en revisión: Starter $49 / Growth $99 / Enterprise custom (puede subir a $99 / $299 / $999 si discovery confirma wedge B con agentes IA).
+
+## Las dos hipótesis de comprador
+
+| | Comprador A — humano | Comprador B — agentes IA |
+|---|---|---|
+| ICP | Head of Ops, CS, Chief of Staff, COO | Head of AI, CTO, VP Eng, líder de automatización |
+| Dolor | Onboarding lento, conocimiento que se va, decisiones que se reabren | Agentes que alucinan, cada agente reconstruye contexto, no hay capa común |
+| Disposición a pagar | Media (dolor crónico) | Alta (dolor agudo y reciente) |
+| Pricing | $99–299/mes | $499–1,999/mes + uso por API call |
+
+**Decisión del wedge: abierta. Validar con 8 entrevistas de discovery.** No comprometerse antes. Ver `docs/DISCOVERY.md` para tabla de decisión post-entrevistas.
+
+---
+
+## 🛑 Reglas no-negociables para Claude Code
+
+### 1. NO construir features nuevos hasta que Kike confirme wedge
+
+Hasta que haya 8 entrevistas y un wedge decidido (~22 jun 2026), **no se construye más producto nuevo**. El MVP actual queda en producción funcional como está.
+
+**Lo que SÍ está permitido durante este período:**
+- Bug fixes en lo ya construido (chat, super-admin, Notion sync)
+- Mejoras de estabilidad y performance
+- Documentación
+- Construcción de los **3 agentes IA del equipo** (Code Reviewer, UX/UI Reviewer, Product Strategist) — ver `docs/SYSTEM_PROMPTS.md`
+- Restauración tras incidentes (repo, credenciales, deploys)
+- Smoke tests y health checks
+
+**Lo que NO está permitido (escalar a Kike por email primero):**
+- Nuevos endpoints/features
+- Migraciones de schema que cambien semántica
+- Integraciones nuevas (Google, Slack, Stripe…)
+- Cambios de pricing en código
+- Refactors grandes "porque sí"
+
+### 2. NO mezclar Cerebro con Retorna
+
+Cerebro es la startup personal de Kike. Retorna es su trabajo. Nunca:
+- Buscar info de Cerebro en el Notion de Retorna
+- Marcar `eduardo@retorna.app` o `earnedo@retorna.app` como super_admin
+- Mencionar Retorna en código, copy, branding o docs públicos
+
+Solo `eduardoarnedog@gmail.com` es super_admin.
+
+### 3. Seguridad
+
+- Tokens OAuth siempre cifrados con AES-256-GCM antes de guardarse en DB
+- Service role key NUNCA al frontend — solo en `/api/*`
+- RLS estricta en todas las tablas con `tenant_uuid`
+- Cualquier query que toque cross-tenant → super_admin gate explícito vía `is_super_admin()` helper
+
+### 4. Comunicación honesta con Kike
+
+- Si algo falla, decirlo. No inventar.
+- Si una propuesta tiene riesgo, listarlo.
+- Si una credencial falta, pedírsela. Nunca inventar valores.
+- Si una decisión necesita su input → email + parar, no improvisar.
+
+---
+
+## Stack y arquitectura
 
 - Frontend: React 18 + TypeScript + Vite + Tailwind + shadcn/ui
 - Auth/DB: Supabase (auth + Postgres con pgvector + RLS estricta)
 - Backend: Vercel Serverless Functions en `/api/*`
-- LLM: Claude (Anthropic) vía `/api/chat.js`
-- Pagos: Stripe (diferido, Kike aún no tiene cuenta)
-- Hosting: Vercel, auto-deploy desde `main`
+- LLM: Claude (Anthropic) vía `/api/chat.js` — modelo actual `claude-sonnet-4-6`
+- Hosting: Vercel auto-deploy desde `main`
+- **Cap actual: 12 funciones serverless (Hobby plan).** Cualquier endpoint nuevo requiere consolidar handlers o upgrade a Pro.
 
-## URLs críticas
+Ver `docs/ARCHITECTURE.md` para schema DB completo, flujos OAuth y modelo multi-tenant.
 
-- **Deploy:** https://cerebro-ivory.vercel.app
-- **Repo:** https://github.com/kikearnedo92/Cerebro
-- **Vercel:** https://vercel.com/kikearnedo92s-projects/cerebro
-- **Supabase:** https://supabase.com/dashboard/project/begnklspqjxwkvwhuefr
-- **Dominio objetivo:** usacerebro.com (no comprado aún)
+## URLs y proyectos
 
-## Credenciales
+- Repo: `github.com/kikearnedo92/Cerebro`
+- Producción: `https://cerebro-ivory.vercel.app`
+- Dashboard Vercel: `vercel.com/kikearnedo92s-projects/cerebro`
+- Dashboard Supabase: `supabase.com/dashboard/project/begnklspqjxwkvwhuefr`
+- Dominio futuro: `usacerebro.com` (no comprado)
 
-**Todas viven en `~/.cerebro/credentials.env`** (NO en el repo, NO en memoria de chat).
-Cuando necesites una credencial: `source ~/.cerebro/credentials.env` y usa la variable.
+## Credenciales locales
 
-Variables disponibles:
-- `GITHUB_PAT` — para `git push` (scope `repo`, expira 2026-07-19)
-- `VERCEL_TOKEN` — para `vercel` CLI y API (sin expiración)
-- `SUPABASE_SERVICE_ROLE_KEY` — para SQL admin y Supabase JS server-side
-- `SUPABASE_ANON_KEY` — frontend
-- `ANTHROPIC_API_KEY` — para `/api/chat.js`
-- `TOKEN_ENCRYPTION_KEY` — 32-byte hex para cifrar OAuth tokens
-- `NOTION_CLIENT_ID`, `NOTION_CLIENT_SECRET` — OAuth de Notion (ya creada en notion.so/my-integrations)
-- `MIGRATE_SECRET` — header `x-admin-migrate-secret` para `POST /api/admin/migrate`
-- `INTERNAL_SYNC_TOKEN` — auth entre endpoints internos (callback OAuth → sync worker)
+`~/.cerebro/credentials.env` (chmod 600). Si está perdido, el founder regenera con valores de su 1Password o pidiendo a Claude (Cowork) que las dicte desde memoria persistente. Variables actuales:
 
-**Credenciales aún no obtenidas (Kike las genera cuando toque):**
-- Google OAuth (Drive+Gmail+Calendar)
+```
+GITHUB_PAT, VERCEL_TOKEN, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
+ANTHROPIC_API_KEY, TOKEN_ENCRYPTION_KEY, MIGRATE_SECRET,
+NOTION_CLIENT_ID, NOTION_CLIENT_SECRET, INTERNAL_SYNC_TOKEN
+```
+
+## Estado del MVP (2026-04-30)
+
+**Funciona en producción:**
+- Landing + auth (signup/login/email confirm)
+- Multi-tenant schema con RLS, helpers `is_super_admin/get_user_tenant/is_tenant_admin`
+- Chat con Claude + RAG sobre Notion (16 items reales del workspace de Kike, citas funcionan)
+- Notion OAuth + sync (pages + databases + database_rows + properties + tombstoning)
+- Super-admin UI `/admin` con CRUD de tenants, pause/reactivar, summary de MRR/users/docs
+- `/api/admin/migrate` para migraciones autónomas
+- `/api/cron/daily` para sync, healthcheck, migraciones cada 24h
+
+**Pausado hasta wedge confirmado:**
+- Google OAuth (Drive + Gmail + Calendar)
 - Slack OAuth
-- Stripe
+- Embeddings vectoriales (text-search funciona suficiente para MVP)
+- Stripe Checkout + webhook
+- Onboarding guiado post-signup
+- Forgot password / reset / verify pages dedicadas
+- Limit enforcement por plan
+- API pública para agentes IA + MCP server (solo si wedge B se confirma)
 
-**Lista completa en Vercel env vars:**
-`vercel env ls` (con VERCEL_TOKEN configurado)
+## Las 4 etapas del proyecto
 
-## Estructura del proyecto
+| Etapa | Cuándo | Objetivo |
+|---|---|---|
+| 0 — Pre-MVP funcional | hoy → 1 jun | Producto en prod + 4 entrevistas iniciadas + bloqueantes resueltos |
+| 1 — MVP + Discovery activo | 1 jun → 15 jul | 8+ entrevistas, wedge decidido, 2-3 design partners pagando |
+| 2 — Pre-launch | 15 jul → 1 sep | Producto pulido, estrategia de launch, lista 100+ leads |
+| 3 — Post-launch | 1 sep → | 10+ clientes, $3K+ MRR, decisión bootstrap vs YC W2027 |
 
-```
-Cerebro/
-├── CLAUDE.md              # Este archivo
-├── docs/                  # Source of truth del proyecto — leer siempre al retomar
-│   ├── HANDOFF.md         # Estado actual + cómo retomar
-│   ├── ROADMAP.md         # Plan 12 semanas
-│   ├── DAILY_PLAN.md      # Plan día-por-día vacaciones 20 abr - 4 may
-│   ├── QA_CHECKLIST.md    # Checklist manual end-to-end
-│   ├── ARCHITECTURE.md    # Schema DB, flujos, seguridad
-│   ├── AUTH_FLOWS.md      # Signup/login/forgot/invite specs
-│   ├── SUPER_ADMIN_SPEC.md # Qué hace la página /admin
-│   ├── SALES_STRATEGY.md  # Plan para conseguir 10 clientes
-│   ├── CONTINUITY.md      # Cómo trabajar desde iPhone/Mac/Cowork
-│   ├── RUNBOOK.md         # Pasos para crear OAuth apps en providers
-│   └── PENDING_FROM_KIKE.md # Lista viva de bloqueos
-├── src/
-│   ├── pages/             # Routes de la app
-│   ├── components/
-│   └── hooks/
-├── api/                   # Vercel serverless functions
-│   ├── chat.js            # Chat principal con Claude
-│   └── integrations/
-│       ├── _lib/          # crypto.js (AES-256-GCM) + supabase.js (auth)
-│       ├── notion/        # OAuth: authorize, callback, sync, disconnect
-│       ├── google/        # OAuth para Drive + Gmail + Calendar
-│       └── slack/         # OAuth para Slack
-└── supabase/migrations/   # Schema DB, fuente de verdad
-```
+---
 
-## Estado al 2026-04-19 (noche — pre-vacaciones, commit `7f83d8f`)
+## Equipo de agentes IA
 
-### ✅ Funcionando en producción
-- Landing, pricing, auth básica (signup/login/email confirm)
-- Chat con Claude + contexto de knowledge base (RLS corregida 2026-04-19) — **ver bloqueante Anthropic credits abajo**
-- Knowledge Base (upload + búsqueda semántica)
-- Multi-tenant schema completo (tenants, tenant_invitations, usage_counters, RLS con SECURITY DEFINER helpers)
-- Endpoints OAuth reales para Notion, Google, Slack (código desplegado)
-- Cerebro es Public integration en Notion OAuth
-- Kike es super_admin en la DB
-- **Runner de migraciones operativo:** `/api/admin/migrate` + tabla `public._migrations` con 38 filas históricas. Próximas migraciones solo requieren subir el `.sql` al repo y disparar el endpoint.
-- **Vercel env vars auditadas 7/7:** SUPABASE_SERVICE_ROLE_KEY, TOKEN_ENCRYPTION_KEY, NOTION_CLIENT_ID, NOTION_CLIENT_SECRET, MIGRATE_SECRET, INTERNAL_SYNC_TOKEN, ANTHROPIC_API_KEY.
+Construir los 3 agentes de Etapa 0 según `docs/SYSTEM_PROMPTS.md`:
 
-### 🔴 Bloqueante activo — Anthropic credits
-`/api/chat` devuelve 400 `"Your credit balance is too low"`. Código OK, falta cargar saldo en https://console.anthropic.com/settings/billing. Validación: curl a `/api/chat` con `{"message":"hola","useKnowledgeBase":false}` debe devolver `response` no vacío.
+1. **Code Reviewer Agent** — revisa cada PR antes de merge (GitHub Action)
+2. **UX/UI Reviewer Agent (Nivel 1)** — revisa interfaz tras cada deploy
+3. **Product Strategist Agent** — mantiene docs estratégicos vivos, briefings semanales
 
-### ⏳ Por implementar durante vacaciones de Kike (20 abr - 4 may)
-Ver `docs/DAILY_PLAN.md` para el detalle día-por-día. Prioridad:
-1. Notion sync con embeddings (día 1-2)
-2. Google OAuth app + sync (días 3-4) — requiere Kike cree OAuth en console.cloud.google.com
-3. Slack OAuth + sync (día 5) — requiere Kike cree OAuth en api.slack.com
-4. Super-admin UI completa (días 6-7)
-5. Tenant admin UI + invitaciones (día 8)
-6. Forgot/reset password + verify email pages (días 9-10)
-7. Onboarding guiado post-signup (día 11)
-8. Limit enforcement en /api/chat (día 12)
-9. Polish + QA mobile (días 13-14)
-10. Stripe — diferido, se hace con Kike al regreso (4 may)
+Cuando se completen las 8 entrevistas, agregar:
 
-## Flujos de trabajo comunes
+4. **Discovery Analyst Agent** — analiza el sheet `cerebro-discovery-tracker.xlsx`
 
-### Correr migración SQL
+## Workflow estándar de feature/fix
 
-**Opción preferida — endpoint `/api/admin/migrate`** (disponible desde 2026-04-19):
-```bash
-source ~/.cerebro/credentials.env
-curl -X POST -H "x-admin-migrate-secret: ${MIGRATE_SECRET}" \
-  https://cerebro-ivory.vercel.app/api/admin/migrate
-# Lee supabase/migrations/*.sql, compara contra public._migrations (filas ya aplicadas),
-# aplica solo las pendientes y registra cada éxito en _migrations. Ok:true si no hay errores.
-```
+1. Kike define la necesidad (en checkpoint quincenal con Claude Cowork o Strategist Agent)
+2. Tú (Claude Code) creas branch
+3. Implementas + commits incrementales
+4. Abres PR a `main`
+5. Code Reviewer Agent comenta automáticamente
+6. Tú ajustas según review
+7. Kike aprueba el merge (o tú haces auto-merge si Code Reviewer aprueba sin findings críticos)
+8. Vercel auto-deploya
+9. UX/UI Reviewer evalúa la nueva UI tras deploy
+10. Strategist Agent registra el cambio en `CHANGELOG.md`
 
-Si una migración ya se aplicó manualmente fuera del runner, marcarla como aplicada para que el endpoint la salte:
-```bash
-source ~/.cerebro/credentials.env
-curl -X POST "${SUPABASE_URL}/rest/v1/_migrations" \
-  -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
-  -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
-  -H "Content-Type: application/json" \
-  -H "Prefer: resolution=merge-duplicates" \
-  -d '[{"filename":"20260419000003_fix_rls_recursion.sql"}]'
-```
+---
 
-**Opción fallback — psql directo (requiere DB_PASSWORD, pedirlo a Kike vía email):**
-```bash
-psql "postgresql://postgres.begnklspqjxwkvwhuefr:[DB_PASSWORD]@aws-0-us-east-1.pooler.supabase.com:5432/postgres" \
-  -f supabase/migrations/<archivo>.sql
-```
+## Si te pierdes
 
-### Agregar env var a Vercel
-```bash
-source ~/.cerebro/credentials.env
-vercel env add NOMBRE production --token "$VERCEL_TOKEN"
-# Luego redeploy
-vercel deploy --prod --token "$VERCEL_TOKEN"
-```
+Lee en orden: `docs/HANDOFF.md` → este archivo (`CLAUDE.md`) → `docs/DISCOVERY.md` → `docs/USE_CASES.md` → `CHANGELOG.md`. Después decide.
 
-### Commit + push
-```bash
-cd /path/to/Cerebro
-git add -A
-git commit -m "feat: <resumen>"
-git push  # PAT ya configurado en git remote
-```
-
-### Email diario a Kike (vía Gmail MCP)
-Subject: `[Cerebro] Progreso día N - {resumen}`
-
-## Principios de trabajo
-
-- **Seguridad primero:** tokens OAuth cifrados AES-256-GCM, nunca en logs, nunca en el repo.
-- **RLS estricta:** cada tabla tenant-scoped filtra por tenant. Super-admin bypass explícito con helpers `is_super_admin()`, `get_user_tenant()`, `is_tenant_admin()`.
-- **No romper producción:** cambios grandes atrás de feature flags. Cada commit debe dejar el sistema funcional.
-- **Actualizar docs:** después de cada cambio significativo, actualiza `docs/HANDOFF.md` y `docs/PENDING_FROM_KIKE.md`.
-- **Email diario a Kike:** al final del trabajo del día, email con progreso + pendientes.
-
-## Cuando Kike está de vacaciones
-
-- Trabaja autónomo leyendo `docs/DAILY_PLAN.md`
-- Si hay un bloqueo que solo Kike puede resolver: email `[Cerebro] URGENTE - Necesito X`
-- Si un feature toma más del estimado: dividir en 2 días, no comprometer calidad
-- Commits atómicos con mensajes descriptivos
-
-## Qué NO hacer
-
-- NO mezclar Cerebro con Retorna (son silos separados, nunca buscar info de Cerebro en Notion de Retorna)
-- NO hardcodear credenciales en código
-- NO desplegar sin primero probar build local (`npm run build`)
-- NO tocar `public.integrations.tenant_id` (TEXT legacy) — usar solo `tenant_uuid` (UUID nuevo)
-- NO eliminar `~/.cerebro/credentials.env` ni reemplazarlo sin backup
+Si después de leer eso seguís sin entender qué hacer: para y mandá email a Kike.

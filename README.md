@@ -1,73 +1,46 @@
-# Welcome to your Lovable project
+# Cerebro
 
-## Project info
+> **La capa de contexto operacional de la empresa, para humanos y agentes IA.**
 
-**URL**: https://lovable.dev/projects/852f9b61-39f5-43b9-a0cb-014fad3f90ca
+Cerebro mantiene viva la memoria operativa de tu organización. Conecta Notion, Slack, Drive, Gmail y Calendar y entrega ese conocimiento — vía chat o vía API — tanto a las personas que necesitan recordar cómo se hacen las cosas como a los agentes de IA que necesitan contexto fresco para no alucinar.
 
-## How can I edit this code?
+## Para quién
 
-There are several ways of editing your application.
+Empresas tech-forward de **50–200 empleados** en LATAM y Europa hispana, con dolor en alguna de estas dos formas:
 
-**Use Lovable**
+- **Comprador A — humano:** Heads of Operations, CS, Chief of Staff, COO. Onboarding lento, conocimiento que se va con cada renuncia, decisiones que se reabren sin criterio histórico.
+- **Comprador B — agentes IA:** Heads of AI, CTO, VP Engineering. Sus agentes alucinan por falta de contexto empresarial; cada agente nuevo reconstruye conocimiento desde cero.
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/852f9b61-39f5-43b9-a0cb-014fad3f90ca) and start prompting.
+> El wedge inicial (A vs B) se decide tras 8 entrevistas de discovery — no antes. Ver [`docs/DISCOVERY.md`](./docs/DISCOVERY.md).
 
-Changes made via Lovable will be committed automatically to this repo.
+## Estado (2026-04-30)
 
-**Use your preferred IDE**
+- **Producción:** [cerebro-ivory.vercel.app](https://cerebro-ivory.vercel.app)
+- **Etapa:** 0 (Pre-MVP funcional → 1 jun 2026)
+- **MVP funcional:** auth multi-tenant, chat con Claude + RAG sobre Notion (16 items indexados, citas reales), super-admin UI con CRUD de tenants, runner de migraciones autónomo, Vercel Cron diario.
+- **Pausado hasta validar wedge:** Google OAuth, Slack OAuth, embeddings vectoriales, Stripe, onboarding guiado.
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+## Stack
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+React 18 + TypeScript + Vite + Tailwind + shadcn/ui · Vercel Serverless Functions · Supabase (Postgres + pgvector + RLS estricta) · Claude API (Anthropic) · Vercel hosting auto-deploy desde `main`.
 
-Follow these steps:
+## Documentación viva
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+Punto de entrada para cualquier Claude que retome el proyecto: [`docs/HANDOFF.md`](./docs/HANDOFF.md). Después en orden:
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+- [`CLAUDE.md`](./CLAUDE.md) — instrucciones para todo Claude/agente que toque este repo
+- [`docs/DISCOVERY.md`](./docs/DISCOVERY.md) — script de entrevistas + reglas + scoring
+- [`docs/USE_CASES.md`](./docs/USE_CASES.md) — los 14 casos de uso mapeados
+- [`docs/SYSTEM_PROMPTS.md`](./docs/SYSTEM_PROMPTS.md) — system prompts del equipo de agentes IA
+- [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md), [`docs/AUTH_FLOWS.md`](./docs/AUTH_FLOWS.md), [`docs/SUPER_ADMIN_SPEC.md`](./docs/SUPER_ADMIN_SPEC.md), [`docs/RUNBOOK.md`](./docs/RUNBOOK.md), [`docs/SALES_STRATEGY.md`](./docs/SALES_STRATEGY.md)
+- [`CHANGELOG.md`](./CHANGELOG.md) — decisiones grandes con fecha y razón
 
-# Step 3: Install the necessary dependencies.
-npm i
+## Equipo
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
+- **Founder:** Eduardo "Kike" Arnedo · [eduardoarnedog@gmail.com](mailto:eduardoarnedog@gmail.com) · Chile
+- **CTO Agent:** Claude Code (Mac local del founder)
+- **Code Reviewer Agent + UX/UI Reviewer Agent + Product Strategist Agent:** ver `docs/SYSTEM_PROMPTS.md`
 
-**Edit a file directly in GitHub**
+## Licencia
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
-
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/852f9b61-39f5-43b9-a0cb-014fad3f90ca) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+Propietario. © 2026 Eduardo Arnedo.
