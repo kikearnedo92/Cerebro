@@ -31,6 +31,12 @@ function disconnectPathFor(id: IntegrationId): string {
   switch (id) {
     case 'notion':
       return '/api/integrations/notion/disconnect'
+    case 'google_drive':
+      return '/api/integrations/google/disconnect'
+    case 'gmail':
+      return '/api/integrations/google/disconnect'
+    case 'google_calendar':
+      return '/api/integrations/google/disconnect'
     default:
       return ''
   }
