@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client'
 import { Profile } from '@/types/database'
 
 // Super admin emails for Cerebro platform
-const SUPER_ADMIN_EMAILS = ['eduardo@retorna.app', 'kike@usacerebro.com']
+const SUPER_ADMIN_EMAILS = ['eduardoarnedog@gmail.com', 'kike@usacerebro.com']
 
 export const fetchProfile = async (userId: string): Promise<Profile | null> => {
   try {
