@@ -238,7 +238,59 @@ const LandingPage = () => {
         </div>
       </section>
 
-      {/* Features — asymmetric grid */}
+      {/* Comparativa de competidores */}
+      <section className="py-20 px-6">
+        <div className="max-w-5xl mx-auto">
+          <p className="text-[13px] font-medium text-indigo-600 mb-3 tracking-wide uppercase">Cómo nos comparamos</p>
+          <h2 className="text-3xl font-semibold text-slate-900 mb-4 tracking-tight">
+            Cerebro vs. los gigantes
+          </h2>
+          <p className="text-slate-500 mb-10 max-w-2xl">
+            Glean cobra USD 50/usuario/mes con piso de 100 seats. Notion AI solo funciona si vives en Notion. Microsoft Copilot solo si eres all-in Microsoft. Cerebro es agnóstico, dual (humanos + agentes), pricing por workspace, LATAM-first.
+          </p>
+
+          <div className="overflow-x-auto -mx-6 px-6">
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="border-b border-slate-200">
+                  <th className="text-left py-4 pr-4 font-medium text-slate-500"></th>
+                  <th className="text-center py-4 px-3 font-semibold text-slate-900 bg-slate-900 text-white rounded-t-lg">
+                    Cerebro
+                  </th>
+                  <th className="text-center py-4 px-3 font-medium text-slate-600">Glean</th>
+                  <th className="text-center py-4 px-3 font-medium text-slate-600">Notion AI</th>
+                  <th className="text-center py-4 px-3 font-medium text-slate-600">Coworker</th>
+                  <th className="text-center py-4 px-3 font-medium text-slate-600">MS Copilot</th>
+                </tr>
+              </thead>
+              <tbody className="text-slate-600">
+                {[
+                  { feat: 'Tesis dual (humano + agente IA)', cerebro: '✓', glean: 'parcial', notion: '✗', coworker: 'solo agentes', copilot: 'parcial' },
+                  { feat: 'Mid-market 50–200 personas', cerebro: '✓', glean: '✗ (enterprise)', notion: 'parcial', coworker: '✗', copilot: 'parcial' },
+                  { feat: 'Pricing por workspace', cerebro: '✓ desde $99/mes', glean: '$50/seat·100min', notion: '$20/seat', coworker: 'no público', copilot: '$30/seat' },
+                  { feat: 'LATAM / español first', cerebro: '✓', glean: '✗', notion: '✗', coworker: '✗', copilot: '✗' },
+                  { feat: 'Agnóstico (sin lock-in)', cerebro: '✓', glean: '✓', notion: '✗', coworker: '✓', copilot: '✗' },
+                  { feat: 'Time to value', cerebro: '<1 día', glean: 'meses', notion: 'horas', coworker: 'semanas', copilot: 'meses' },
+                ].map((row, i) => (
+                  <tr key={i} className="border-b border-slate-100">
+                    <td className="py-3 pr-4 text-slate-700 font-medium">{row.feat}</td>
+                    <td className="py-3 px-3 text-center bg-slate-900/5 font-medium text-slate-900">{row.cerebro}</td>
+                    <td className="py-3 px-3 text-center">{row.glean}</td>
+                    <td className="py-3 px-3 text-center">{row.notion}</td>
+                    <td className="py-3 px-3 text-center">{row.coworker}</td>
+                    <td className="py-3 px-3 text-center">{row.copilot}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-[12px] text-slate-400 mt-6 max-w-2xl">
+            Datos públicos de pricing y features (mayo 2026). Glean: vendr.com/marketplace/glean. Notion AI: notion.so/pricing. Microsoft 365 Copilot: $30/usuario/mes. Cerebro pricing es preliminar y puede cambiar.
+          </p>
+        </div>
+      </section>
+
+            {/* Features — asymmetric grid */}
       <section id="features" className="py-20 px-6">
         <div className="max-w-5xl mx-auto">
           <p className="text-[13px] font-medium text-indigo-600 mb-3 tracking-wide uppercase">Funcionalidades</p>
