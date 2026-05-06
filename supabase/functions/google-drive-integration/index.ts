@@ -92,7 +92,7 @@ serve(async (req) => {
 
     switch (action) {
       case 'sync':
-        return await handleSync(adminClient, tenantId, integrationId, folder_id)
+        return await handleSync(adminClient, tenantId, integrationId, folder_id, user.id)
       case 'list_folders':
         return await handleListFolders(adminClient, tenantId, integrationId)
       case 'disconnect':
@@ -134,7 +134,7 @@ async function getConnectedAccessToken(admin: any, tenantId: string, integration
 // =====================================================================
 // SYNC
 // =====================================================================
-async function handleSync(admin: any, tenantId: string, integrationId: string, folderId?: string) {
+async function handleSync(admin: any, tenantId: string, integrationId: string, folderId?: string, userId?: string) {
   const { accessToken, rowId } = await getConnectedAccessToken(admin, tenantId, integrationId)
 
   // Build query
@@ -183,31 +183,37 @@ async function handleSync(admin: any, tenantId: string, integrationId: string, f
 
       if (content.length > 50000) content = content.substring(0, 50000) + '... [truncado]'
 
-      // Upsert en knowledge_base (filtrar por tenant si existe esa columna)
+      // Upsert en knowledge_base — usando columnas REALES del schema:
+      // title, content, source, external_id, file_url, file_type, active, user_id, created_by, project, tags
       const { data: existing } = await admin
         .from('knowledge_base')
         .select('id')
         .eq('source', 'google_drive')
-        .eq('source_id', file.id)
+        .eq('external_id', file.id)
         .maybeSingle()
 
       const payload: any = {
         title: file.name,
         content: content || '(archivo vacío)',
         source: 'google_drive',
-        source_id: file.id,
-        source_url: file.webViewLink,
+        external_id: file.id,
+        file_url: file.webViewLink,
+        file_type: file.mimeType,
         active: true,
-        updated_at: new Date().toISOString(),
+        project: 'Google Drive',
       }
-      // Tenant scope si la tabla lo soporta (best effort)
-      payload.tenant_uuid = tenantId
-      payload.tenant_id = tenantId
 
       if (existing) {
-        await admin.from('knowledge_base').update(payload).eq('id', existing.id)
+        const { error } = await admin.from('knowledge_base').update(payload).eq('id', existing.id)
+        if (error) console.error(`Update failed for ${file.id}: ${error.message}`)
       } else {
-        const { error } = await admin.from('knowledge_base').insert({ ...payload, created_at: new Date().toISOString() })
+        // Insert requires created_by (NOT NULL en el schema). Usar tenant admin como creador.
+        const insertPayload = {
+          ...payload,
+          created_by: userId,
+          user_id: userId,
+        }
+        const { error } = await admin.from('knowledge_base').insert(insertPayload)
         if (!error) newDocuments++
         else console.error(`Insert failed for ${file.id}: ${error.message}`)
       }
