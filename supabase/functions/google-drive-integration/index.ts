@@ -183,39 +183,44 @@ async function handleSync(admin: any, tenantId: string, integrationId: string, f
 
       if (content.length > 50000) content = content.substring(0, 50000) + '... [truncado]'
 
-      // Upsert en knowledge_base — usando columnas REALES del schema:
-      // title, content, source, external_id, file_url, file_type, active, user_id, created_by, project, tags
+      // Upsert en knowledge_base con MÍNIMO de columnas para evitar schema mismatches.
+      // Detección de duplicados por title + source (no ideal pero funciona sin external_id).
+      const titleWithMarker = `${file.name} [drive:${file.id}]`
+
       const { data: existing } = await admin
         .from('knowledge_base')
         .select('id')
         .eq('source', 'google_drive')
-        .eq('external_id', file.id)
+        .eq('title', titleWithMarker)
         .maybeSingle()
 
-      const payload: any = {
-        title: file.name,
+      // Solo columnas que casi seguro existen en cualquier versión del schema
+      const minimalPayload: any = {
+        title: titleWithMarker,
         content: content || '(archivo vacío)',
         source: 'google_drive',
-        external_id: file.id,
-        file_url: file.webViewLink,
-        file_type: file.mimeType,
         active: true,
-        project: 'Google Drive',
       }
 
       if (existing) {
-        const { error } = await admin.from('knowledge_base').update(payload).eq('id', existing.id)
+        const { error } = await admin.from('knowledge_base').update(minimalPayload).eq('id', existing.id)
         if (error) console.error(`Update failed for ${file.id}: ${error.message}`)
       } else {
-        // Insert requires created_by (NOT NULL en el schema). Usar tenant admin como creador.
-        const insertPayload = {
-          ...payload,
-          created_by: userId,
-          user_id: userId,
-        }
+        const insertPayload: any = { ...minimalPayload, created_by: userId }
         const { error } = await admin.from('knowledge_base').insert(insertPayload)
-        if (!error) newDocuments++
-        else console.error(`Insert failed for ${file.id}: ${error.message}`)
+        if (!error) {
+          newDocuments++
+        } else {
+          // Si falla por created_by, retry sin esa columna
+          if (error.message?.includes('created_by')) {
+            delete insertPayload.created_by
+            const { error: e2 } = await admin.from('knowledge_base').insert(insertPayload)
+            if (!e2) newDocuments++
+            else console.error(`Insert retry failed for ${file.id}: ${e2.message}`)
+          } else {
+            console.error(`Insert failed for ${file.id}: ${error.message}`)
+          }
+        }
       }
       totalDocuments++
     } catch (err) {
