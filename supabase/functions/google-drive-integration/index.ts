@@ -183,43 +183,51 @@ async function handleSync(admin: any, tenantId: string, integrationId: string, f
 
       if (content.length > 50000) content = content.substring(0, 50000) + '... [truncado]'
 
-      // Upsert en knowledge_base con MÍNIMO de columnas para evitar schema mismatches.
-      // Detección de duplicados por title + source (no ideal pero funciona sin external_id).
-      const titleWithMarker = `${file.name} [drive:${file.id}]`
+      // Upsert en knowledge_base usando schema REAL (validado 2026-05-06):
+      // id, title, content, project, file_type, source, active, tenant_id,
+      // created_by, created_at, updated_at, metadata (jsonb)
+      //
+      // No hay external_id ni file_url como columnas → guardamos en metadata jsonb.
+      // Detección de duplicados via metadata->>'external_id'.
 
       const { data: existing } = await admin
         .from('knowledge_base')
         .select('id')
         .eq('source', 'google_drive')
-        .eq('title', titleWithMarker)
+        .eq('tenant_id', tenantId)
+        .filter('metadata->>external_id', 'eq', file.id)
         .maybeSingle()
 
-      // Solo columnas que casi seguro existen en cualquier versión del schema
-      const minimalPayload: any = {
-        title: titleWithMarker,
+      const payload: any = {
+        title: file.name,
         content: content || '(archivo vacío)',
+        project: 'Google Drive',
+        file_type: file.mimeType,
         source: 'google_drive',
         active: true,
+        tenant_id: tenantId,
+        created_by: userId,
+        updated_at: new Date().toISOString(),
+        metadata: {
+          external_id: file.id,
+          file_url: file.webViewLink,
+          modified_time: file.modifiedTime,
+          synced_at: new Date().toISOString(),
+        },
       }
 
       if (existing) {
-        const { error } = await admin.from('knowledge_base').update(minimalPayload).eq('id', existing.id)
+        const { error } = await admin
+          .from('knowledge_base')
+          .update(payload)
+          .eq('id', existing.id)
         if (error) console.error(`Update failed for ${file.id}: ${error.message}`)
       } else {
-        const insertPayload: any = { ...minimalPayload, created_by: userId }
-        const { error } = await admin.from('knowledge_base').insert(insertPayload)
+        const { error } = await admin.from('knowledge_base').insert(payload)
         if (!error) {
           newDocuments++
         } else {
-          // Si falla por created_by, retry sin esa columna
-          if (error.message?.includes('created_by')) {
-            delete insertPayload.created_by
-            const { error: e2 } = await admin.from('knowledge_base').insert(insertPayload)
-            if (!e2) newDocuments++
-            else console.error(`Insert retry failed for ${file.id}: ${e2.message}`)
-          } else {
-            console.error(`Insert failed for ${file.id}: ${error.message}`)
-          }
+          console.error(`Insert failed for ${file.id}: ${error.message}`)
         }
       }
       totalDocuments++
