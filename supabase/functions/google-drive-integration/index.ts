@@ -92,7 +92,7 @@ serve(async (req) => {
 
     switch (action) {
       case 'sync':
-        return await handleSync(adminClient, tenantId, integrationId, folder_id)
+        return await handleSync(adminClient, tenantId, integrationId, folder_id, user.id)
       case 'list_folders':
         return await handleListFolders(adminClient, tenantId, integrationId)
       case 'disconnect':
@@ -134,7 +134,7 @@ async function getConnectedAccessToken(admin: any, tenantId: string, integration
 // =====================================================================
 // SYNC
 // =====================================================================
-async function handleSync(admin: any, tenantId: string, integrationId: string, folderId?: string) {
+async function handleSync(admin: any, tenantId: string, integrationId: string, folderId?: string, userId?: string) {
   const { accessToken, rowId } = await getConnectedAccessToken(admin, tenantId, integrationId)
 
   // Build query
@@ -183,33 +183,52 @@ async function handleSync(admin: any, tenantId: string, integrationId: string, f
 
       if (content.length > 50000) content = content.substring(0, 50000) + '... [truncado]'
 
-      // Upsert en knowledge_base (filtrar por tenant si existe esa columna)
+      // Upsert en knowledge_base usando schema REAL (validado 2026-05-06):
+      // id, title, content, project, file_type, source, active, tenant_id,
+      // created_by, created_at, updated_at, metadata (jsonb)
+      //
+      // No hay external_id ni file_url como columnas → guardamos en metadata jsonb.
+      // Detección de duplicados via metadata->>'external_id'.
+
       const { data: existing } = await admin
         .from('knowledge_base')
         .select('id')
         .eq('source', 'google_drive')
-        .eq('source_id', file.id)
+        .eq('tenant_id', tenantId)
+        .filter('metadata->>external_id', 'eq', file.id)
         .maybeSingle()
 
       const payload: any = {
         title: file.name,
         content: content || '(archivo vacío)',
+        project: 'Google Drive',
+        file_type: file.mimeType,
         source: 'google_drive',
-        source_id: file.id,
-        source_url: file.webViewLink,
         active: true,
+        tenant_id: tenantId,
+        created_by: userId,
         updated_at: new Date().toISOString(),
+        metadata: {
+          external_id: file.id,
+          file_url: file.webViewLink,
+          modified_time: file.modifiedTime,
+          synced_at: new Date().toISOString(),
+        },
       }
-      // Tenant scope si la tabla lo soporta (best effort)
-      payload.tenant_uuid = tenantId
-      payload.tenant_id = tenantId
 
       if (existing) {
-        await admin.from('knowledge_base').update(payload).eq('id', existing.id)
+        const { error } = await admin
+          .from('knowledge_base')
+          .update(payload)
+          .eq('id', existing.id)
+        if (error) console.error(`Update failed for ${file.id}: ${error.message}`)
       } else {
-        const { error } = await admin.from('knowledge_base').insert({ ...payload, created_at: new Date().toISOString() })
-        if (!error) newDocuments++
-        else console.error(`Insert failed for ${file.id}: ${error.message}`)
+        const { error } = await admin.from('knowledge_base').insert(payload)
+        if (!error) {
+          newDocuments++
+        } else {
+          console.error(`Insert failed for ${file.id}: ${error.message}`)
+        }
       }
       totalDocuments++
     } catch (err) {
