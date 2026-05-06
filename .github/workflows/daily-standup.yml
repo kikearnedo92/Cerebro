@@ -1,0 +1,37 @@
+name: Daily Standup Briefing
+
+on:
+  schedule:
+    # 8:00 AM Chile (UTC-3) = 11:00 UTC
+    - cron: '0 11 * * *'
+  workflow_dispatch: {} # manual trigger
+
+permissions:
+  contents: write
+
+jobs:
+  standup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 50
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run Daily Standup Agent
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/daily-standup.mjs
+      - name: Commit briefing if changed
+        run: |
+          git config user.name "Daily Standup Agent"
+          git config user.email "agent@usacerebro.com"
+          git add docs/standup/
+          if git diff --cached --quiet; then
+            echo "No standup file to commit"
+            exit 0
+          fi
+          git commit -m "chore(standup): briefing diario $(date +%Y-%m-%d)"
+          git push
