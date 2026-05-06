@@ -64,7 +64,7 @@ const AppSidebar = () => {
 
   return (
     <Sidebar variant="inset" className="border-r-slate-200">
-      <SidebarHeader className="bg-gradient-to-r from-indigo-600 to-indigo-700">
+      <SidebarHeader className="bg-slate-900">
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
@@ -94,7 +94,7 @@ const AppSidebar = () => {
                   <SidebarMenuButton
                     onClick={() => nav(item.url)}
                     isActive={location.pathname === `/app${item.url}` || (item.url === '/chat' && location.pathname === '/app')}
-                    className="data-[active=true]:bg-indigo-50 data-[active=true]:text-indigo-900 hover:bg-indigo-50 cursor-pointer"
+                    className="data-[active=true]:bg-slate-50 data-[active=true]:text-indigo-900 hover:bg-slate-50 cursor-pointer"
                   >
                     <item.icon />
                     <span>{item.title}</span>
@@ -115,7 +115,7 @@ const AppSidebar = () => {
                     <SidebarMenuButton
                       onClick={() => nav(item.url)}
                       isActive={location.pathname === `/app${item.url}`}
-                      className="data-[active=true]:bg-indigo-50 data-[active=true]:text-indigo-900 hover:bg-indigo-50 cursor-pointer"
+                      className="data-[active=true]:bg-slate-50 data-[active=true]:text-indigo-900 hover:bg-slate-50 cursor-pointer"
                     >
                       <item.icon />
                       <span>{item.title}</span>
@@ -152,9 +152,9 @@ const AppSidebar = () => {
           <SidebarMenuItem>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <SidebarMenuButton size="lg" className="data-[state=open]:bg-indigo-50">
+                <SidebarMenuButton size="lg" className="data-[state=open]:bg-slate-50">
                   <Avatar className="h-8 w-8 rounded-lg">
-                    <AvatarFallback className="rounded-lg bg-indigo-100 text-indigo-600">
+                    <AvatarFallback className="rounded-lg bg-slate-900 text-white">
                       {profile?.full_name?.charAt(0) || user?.email?.charAt(0) || 'U'}
                     </AvatarFallback>
                   </Avatar>

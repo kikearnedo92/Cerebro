@@ -64,7 +64,7 @@ export default function UsersPage() {
                 onKeyDown={(e) => e.key === 'Enter' && handleInvite()}
               />
             </div>
-            <Button onClick={handleInvite} className="bg-indigo-600 hover:bg-indigo-700">
+            <Button onClick={handleInvite} className="bg-slate-900 hover:bg-slate-800">
               Invitar
             </Button>
           </div>
@@ -87,7 +87,7 @@ export default function UsersPage() {
             {/* Current user (always shown) */}
             <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-semibold text-sm">
+                <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-indigo-600 font-semibold text-sm">
                   {profile?.full_name?.charAt(0) || user?.email?.charAt(0) || 'U'}
                 </div>
                 <div>
@@ -97,7 +97,7 @@ export default function UsersPage() {
                   <p className="text-xs text-slate-500">{user?.email}</p>
                 </div>
               </div>
-              <Badge className="bg-indigo-100 text-indigo-800 border-indigo-200">
+              <Badge className="bg-slate-100 text-slate-800 border-slate-200">
                 Admin
               </Badge>
             </div>

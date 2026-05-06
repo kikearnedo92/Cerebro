@@ -29,7 +29,7 @@ const AuthPage = () => {
   if (authLoading) {
     return (
       <div className="h-screen flex items-center justify-center bg-slate-50">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-slate-900 mx-auto"></div>
       </div>
     )
   }

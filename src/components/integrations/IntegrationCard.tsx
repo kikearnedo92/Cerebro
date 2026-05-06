@@ -69,7 +69,7 @@ export default function IntegrationCard({
   }
 
   return (
-    <Card className={`transition-all duration-200 ${isConnected ? 'ring-2 ring-indigo-200 bg-indigo-50/30' : 'hover:shadow-md'}`}>
+    <Card className={`transition-all duration-200 ${isConnected ? 'ring-2 ring-indigo-200 bg-slate-50/30' : 'hover:shadow-md'}`}>
       <CardContent className="p-6">
         {/* Header */}
         <div className="flex items-start justify-between mb-4">
@@ -128,7 +128,7 @@ export default function IntegrationCard({
               <Button
                 onClick={onSync}
                 disabled={isSyncing}
-                className="flex-1 bg-indigo-600 hover:bg-indigo-700"
+                className="flex-1 bg-slate-900 hover:bg-slate-800"
                 size="sm"
               >
                 {isSyncing ? (

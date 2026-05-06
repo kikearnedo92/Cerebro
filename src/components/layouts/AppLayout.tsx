@@ -44,7 +44,7 @@ const AppLayout = () => {
             <SidebarTrigger className="-ml-1" />
             <div className="flex flex-1 items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-7 h-7 bg-gradient-to-br from-indigo-500 to-indigo-700 rounded-lg flex items-center justify-center">
+                <div className="w-7 h-7 bg-slate-900 rounded-lg flex items-center justify-center">
                   <Brain className="w-4 h-4 text-white" />
                 </div>
                 <h1 className="text-base font-semibold text-slate-900">

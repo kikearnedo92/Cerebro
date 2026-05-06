@@ -77,7 +77,7 @@ const ProfilePage = () => {
       return <Badge className="bg-red-600">Super Admin</Badge>
     }
     if (isAdmin) {
-      return <Badge className="bg-indigo-600">Admin</Badge>
+      return <Badge className="bg-slate-900">Admin</Badge>
     }
     return <Badge variant="secondary">Usuario</Badge>
   }
@@ -103,7 +103,7 @@ const ProfilePage = () => {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center gap-4">
-              <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center">
+              <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center">
                 <span className="text-2xl font-medium text-indigo-600">
                   {profile?.full_name?.charAt(0).toUpperCase()}
                 </span>

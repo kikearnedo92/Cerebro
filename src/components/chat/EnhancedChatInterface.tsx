@@ -163,7 +163,7 @@ const EnhancedChatInterface = () => {
                 key={conv.id}
                 className={`p-2.5 rounded-lg cursor-pointer mb-1 transition-colors group ${
                   currentConversation?.id === conv.id
-                    ? 'bg-indigo-50 border border-indigo-200'
+                    ? 'bg-slate-50 border border-slate-200'
                     : 'hover:bg-slate-100'
                 }`}
                 onClick={() => {
@@ -235,7 +235,7 @@ const EnhancedChatInterface = () => {
           <div className="max-w-3xl mx-auto w-full px-4 py-6">
             {isEmpty ? (
               <div className="flex flex-col items-center justify-center text-center py-16">
-                <div className="w-14 h-14 bg-gradient-to-br from-indigo-500 to-indigo-700 rounded-2xl flex items-center justify-center mb-4 shadow-lg">
+                <div className="w-14 h-14 bg-gradient-to-br from-slate-700 to-slate-900 rounded-2xl flex items-center justify-center mb-4 shadow-lg">
                   <Brain className="w-7 h-7 text-white" />
                 </div>
                 <h2 className="text-2xl font-semibold text-slate-900 mb-2">
@@ -271,7 +271,7 @@ const EnhancedChatInterface = () => {
                     <div
                       className={`max-w-[90%] rounded-2xl px-4 py-3 ${
                         message.role === 'user'
-                          ? 'bg-indigo-600 text-white'
+                          ? 'bg-slate-900 text-white'
                           : 'bg-slate-100 text-slate-900'
                       }`}
                     >
@@ -368,7 +368,7 @@ const EnhancedChatInterface = () => {
                 {isLoading && (
                   <div className="flex justify-start">
                     <div className="bg-slate-100 px-4 py-3 rounded-2xl flex items-center gap-2">
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-indigo-600" />
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-slate-900" />
                       <span className="text-sm text-slate-500">Pensando...</span>
                       <Button
                         size="sm"
@@ -395,7 +395,7 @@ const EnhancedChatInterface = () => {
             onSubmit={handleSubmit}
             className="max-w-3xl mx-auto w-full px-4 py-3"
           >
-            <div className="flex items-end gap-2 rounded-2xl border border-slate-300 bg-white focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500 px-3 py-2 shadow-sm">
+            <div className="flex items-end gap-2 rounded-2xl border border-slate-300 bg-white focus-within:border-slate-300 focus-within:ring-1 focus-within:ring-slate-900 px-3 py-2 shadow-sm">
               <textarea
                 ref={inputRef}
                 value={input}
