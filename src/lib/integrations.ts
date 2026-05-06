@@ -31,6 +31,8 @@ export interface ConnectedIntegration {
   last_sync_at: string | null
   sync_status: 'idle' | 'syncing' | 'error' | null
   items_synced: number
+  last_error?: string | null
+  oauth_state?: string | null
 }
 
 export const INTEGRATIONS: Integration[] = [
