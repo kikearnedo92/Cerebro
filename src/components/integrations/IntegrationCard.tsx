@@ -147,19 +147,60 @@ export default function IntegrationCard({
                 <Unplug className="w-4 h-4" />
               </Button>
             </>
+          ) : status === 'connecting' ? (
+            <div className="space-y-2">
+              <Button
+                disabled
+                className="w-full bg-slate-300 hover:bg-slate-300 cursor-not-allowed"
+                size="sm"
+              >
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Conectando...
+              </Button>
+              <Button
+                onClick={onDisconnect}
+                variant="outline"
+                size="sm"
+                className="w-full text-slate-600 hover:bg-slate-50 hover:text-slate-900 border-slate-200"
+              >
+                Cancelar
+              </Button>
+              <p className="text-[11px] text-slate-400 text-center">
+                Si no responde en 1 minuto, click Cancelar e intenta de nuevo.
+              </p>
+            </div>
+          ) : status === 'error' ? (
+            <div className="space-y-2">
+              <Button
+                onClick={onConnect}
+                className="w-full bg-slate-900 hover:bg-slate-800"
+                size="sm"
+              >
+                <Plug className="w-4 h-4 mr-2" />
+                Reintentar
+              </Button>
+              <Button
+                onClick={onDisconnect}
+                variant="outline"
+                size="sm"
+                className="w-full text-slate-600 hover:bg-slate-50 border-slate-200"
+              >
+                Limpiar y empezar de cero
+              </Button>
+              {connection?.last_error && (
+                <p className="text-[11px] text-red-500 text-center">
+                  Error: {String(connection.last_error).slice(0, 80)}
+                </p>
+              )}
+            </div>
           ) : (
             <Button
               onClick={onConnect}
-              disabled={status === 'connecting'}
               className="w-full bg-slate-900 hover:bg-slate-800"
               size="sm"
             >
-              {status === 'connecting' ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              ) : (
-                <Plug className="w-4 h-4 mr-2" />
-              )}
-              {status === 'connecting' ? 'Conectando...' : 'Conectar'}
+              <Plug className="w-4 h-4 mr-2" />
+              Conectar
             </Button>
           )}
         </div>

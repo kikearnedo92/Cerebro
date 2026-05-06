@@ -31,6 +31,8 @@ function disconnectPathFor(id: IntegrationId): string {
   switch (id) {
     case 'notion':
       return '/api/integrations/notion/disconnect'
+    // google_drive / gmail / google_calendar usan Edge Function de Supabase
+    // (ver disconnect() abajo) para no exceder el límite de 12 functions de Vercel Hobby
     default:
       return ''
   }
@@ -175,6 +177,38 @@ export function useIntegrations() {
   }
 
   const disconnect = async (integrationId: IntegrationId) => {
+    // Caso especial: google_drive / gmail / google_calendar via Edge Function Supabase
+    // (no usan endpoint Vercel para no exceder límite de 12 functions)
+    if (integrationId === 'google_drive' || integrationId === 'gmail' || integrationId === 'google_calendar') {
+      try {
+        const service = integrationId === 'google_drive' ? 'drive' :
+                        integrationId === 'gmail' ? 'gmail' : 'calendar'
+        const { error } = await supabase.functions.invoke('google-drive-integration', {
+          body: { action: 'disconnect', service },
+        })
+        if (error) console.warn('Google disconnect via edge function failed:', error)
+      } catch (err) {
+        console.warn('Google disconnect error:', err)
+      }
+      // Fallback DB cleanup (always run, robust contra errores de la function)
+      if (tenantId) {
+        await supabase
+          .from('integrations')
+          .update({
+            status: 'disconnected',
+            access_token_encrypted: null,
+            refresh_token_encrypted: null,
+            oauth_state: null,
+            last_error: null,
+          })
+          .or(`tenant_uuid.eq.${tenantId},tenant_id.eq.${tenantId}`)
+          .eq('integration_id', integrationId)
+      }
+      await fetchConnections()
+      toast({ title: 'Desconectado', description: 'La integración fue cancelada.' })
+      return
+    }
+
     const { data: { session } } = await supabase.auth.getSession()
     const token = session?.access_token
     if (!token) return
