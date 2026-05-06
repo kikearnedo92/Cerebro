@@ -241,6 +241,54 @@ export function useIntegrations() {
     const conn = connections.find((c) => c.integration_id === integrationId)
     if (!conn || conn.status !== 'connected') return
 
+    // Caso especial: google_drive / gmail / google_calendar via Edge Function Supabase
+    // (no usan endpoint Vercel para no exceder límite de 12 functions)
+    if (integrationId === 'google_drive' || integrationId === 'gmail' || integrationId === 'google_calendar') {
+      const service = integrationId === 'google_drive' ? 'drive' :
+                      integrationId === 'gmail' ? 'gmail' : 'calendar'
+
+      // Optimistic UI
+      setConnections((prev) =>
+        prev.map((c) =>
+          c.integration_id === integrationId ? { ...c, sync_status: 'syncing' as const } : c
+        )
+      )
+
+      toast({
+        title: 'Sincronizando...',
+        description: `Importando archivos de ${service}. Puede tardar varios minutos si tienes muchos archivos.`,
+      })
+
+      try {
+        const { data, error } = await supabase.functions.invoke('google-drive-integration', {
+          body: { action: 'sync', service },
+        })
+
+        if (error) {
+          throw new Error(error.message || 'Sync failed')
+        }
+
+        if (data?.success) {
+          toast({
+            title: 'Sincronización completa',
+            description: `${data.documentsCount || 0} archivos importados (${data.newDocuments || 0} nuevos).`,
+          })
+        } else {
+          throw new Error(data?.error || 'Sync failed')
+        }
+      } catch (err: any) {
+        console.error('Google sync error:', err)
+        toast({
+          title: 'Error de sincronización',
+          description: err.message || 'Algo falló sincronizando.',
+          variant: 'destructive',
+        })
+      } finally {
+        await fetchConnections()
+      }
+      return
+    }
+
     const path = syncPathFor(integrationId)
     if (!path) {
       toast({
