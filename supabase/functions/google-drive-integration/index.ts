@@ -9,51 +9,97 @@ const corsHeaders = {
 
 const GOOGLE_CLIENT_ID = Deno.env.get('GOOGLE_CLIENT_ID') ?? ''
 const GOOGLE_CLIENT_SECRET = Deno.env.get('GOOGLE_CLIENT_SECRET') ?? ''
-const GOOGLE_REDIRECT_URI = Deno.env.get('GOOGLE_REDIRECT_URI') ??
-  'https://cerebro-ivory.vercel.app/api/integrations/google/callback'
+const TOKEN_ENCRYPTION_KEY = Deno.env.get('TOKEN_ENCRYPTION_KEY') ?? ''
 
-// Scopes mínimos: solo Drive read-only de archivos seleccionados por el usuario
-const GOOGLE_SCOPES = [
-  'https://www.googleapis.com/auth/drive.readonly',
-  'https://www.googleapis.com/auth/drive.metadata.readonly',
-].join(' ')
+// =====================================================================
+// Crypto helpers (AES-256-GCM, compatible con api/_lib/crypto.js)
+// =====================================================================
+function hexToBytes(hex: string): Uint8Array {
+  const matches = hex.match(/.{2}/g) || []
+  return new Uint8Array(matches.map((b) => parseInt(b, 16)))
+}
 
+function b64ToBytes(b64: string): Uint8Array {
+  const bin = atob(b64)
+  const out = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i)
+  return out
+}
+
+async function decryptToken(blob: string): Promise<string> {
+  if (!blob) throw new Error('No token to decrypt')
+  if (!TOKEN_ENCRYPTION_KEY || TOKEN_ENCRYPTION_KEY.length !== 64) {
+    throw new Error('TOKEN_ENCRYPTION_KEY missing or invalid (need 64 hex chars)')
+  }
+  const parts = blob.split('.')
+  if (parts.length !== 3) throw new Error('Invalid encrypted token format')
+  const [ivB64, tagB64, ctB64] = parts
+
+  const keyBytes = hexToBytes(TOKEN_ENCRYPTION_KEY)
+  const iv = b64ToBytes(ivB64)
+  const tag = b64ToBytes(tagB64)
+  const ct = b64ToBytes(ctB64)
+
+  const ctWithTag = new Uint8Array(ct.length + tag.length)
+  ctWithTag.set(ct)
+  ctWithTag.set(tag, ct.length)
+
+  const cryptoKey = await crypto.subtle.importKey(
+    'raw', keyBytes, { name: 'AES-GCM' }, false, ['decrypt']
+  )
+  const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, cryptoKey, ctWithTag)
+  return new TextDecoder().decode(decrypted)
+}
+
+// =====================================================================
+// Main handler
+// =====================================================================
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
 
   try {
-    const { action, code, refresh_token, folder_id } = await req.json()
+    const { action, service, folder_id } = await req.json()
 
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      {
-        global: {
-          headers: { Authorization: req.headers.get('Authorization')! },
-        },
-      }
+      { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
     )
 
+    // Get user
     const { data: { user } } = await supabaseClient.auth.getUser()
     if (!user) throw new Error('No autorizado')
 
-    switch (action) {
-      case 'authorize_url':
-        return await handleAuthorizeUrl(user.id)
-      case 'connect':
-        return await handleConnect(code!, user.id, supabaseClient)
-      case 'sync':
-        return await handleSync(user.id, supabaseClient, folder_id)
-      case 'list_folders':
-        return await handleListFolders(user.id, supabaseClient)
-      case 'disconnect':
-        return await handleDisconnect(user.id, supabaseClient)
-      default:
-        throw new Error('Acción no válida')
-    }
+    // Get tenant_id from profile
+    const adminClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+    )
+    const { data: profile } = await adminClient
+      .from('profiles')
+      .select('tenant_id')
+      .eq('id', user.id)
+      .single()
 
+    if (!profile?.tenant_id) throw new Error('Usuario sin tenant')
+    const tenantId = profile.tenant_id
+
+    const integrationId = service === 'gmail' ? 'gmail' :
+                          service === 'calendar' ? 'google_calendar' :
+                          'google_drive'
+
+    switch (action) {
+      case 'sync':
+        return await handleSync(adminClient, tenantId, integrationId, folder_id)
+      case 'list_folders':
+        return await handleListFolders(adminClient, tenantId, integrationId)
+      case 'disconnect':
+        return await handleDisconnect(adminClient, tenantId, integrationId)
+      default:
+        throw new Error('Acción no válida: ' + action)
+    }
   } catch (error) {
     console.error('Error in google-drive-integration:', error)
     return new Response(
@@ -64,133 +110,37 @@ serve(async (req) => {
 })
 
 // =====================================================================
-// 1. Build authorize URL (opens Google consent screen)
+// Get connected row from `integrations` table + decrypt access_token
 // =====================================================================
-async function handleAuthorizeUrl(userId: string) {
-  if (!GOOGLE_CLIENT_ID) {
-    throw new Error('GOOGLE_CLIENT_ID no configurado en Supabase env vars')
-  }
-
-  const params = new URLSearchParams({
-    client_id: GOOGLE_CLIENT_ID,
-    redirect_uri: GOOGLE_REDIRECT_URI,
-    response_type: 'code',
-    scope: GOOGLE_SCOPES,
-    access_type: 'offline',
-    prompt: 'consent',
-    state: userId, // se devuelve en el callback para identificar al user
-  })
-
-  const url = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`
-
-  return new Response(
-    JSON.stringify({ url }),
-    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-  )
-}
-
-// =====================================================================
-// 2. Connect — exchange code for tokens, save encrypted
-// =====================================================================
-async function handleConnect(code: string, userId: string, supabaseClient: any) {
-  const tokenResp = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      code,
-      client_id: GOOGLE_CLIENT_ID,
-      client_secret: GOOGLE_CLIENT_SECRET,
-      redirect_uri: GOOGLE_REDIRECT_URI,
-      grant_type: 'authorization_code',
-    }),
-  })
-
-  if (!tokenResp.ok) {
-    const errorData = await tokenResp.text()
-    throw new Error(`Google OAuth error: ${errorData}`)
-  }
-
-  const tokens = await tokenResp.json()
-
-  // Guardar config (TODO: cifrar tokens con TOKEN_ENCRYPTION_KEY)
-  const { error } = await supabaseClient
-    .from('integrations_config')
-    .upsert({
-      user_id: userId,
-      integration_type: 'google_drive',
-      config: {
-        access_token: tokens.access_token,
-        refresh_token: tokens.refresh_token,
-        expires_in: tokens.expires_in,
-        scope: tokens.scope,
-        connected_at: new Date().toISOString(),
-      },
-      status: 'connected',
-      last_sync: null,
-    })
-
-  if (error) throw error
-
-  return new Response(
-    JSON.stringify({ success: true, connected: true }),
-    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-  )
-}
-
-// =====================================================================
-// 3. List folders that user can pick to sync
-// =====================================================================
-async function handleListFolders(userId: string, supabaseClient: any) {
-  const { data: config } = await supabaseClient
-    .from('integrations_config')
-    .select('*')
-    .eq('user_id', userId)
-    .eq('integration_type', 'google_drive')
+async function getConnectedAccessToken(admin: any, tenantId: string, integrationId: string): Promise<{ accessToken: string, refreshToken: string | null, rowId: string }> {
+  const { data: row, error } = await admin
+    .from('integrations')
+    .select('id, status, access_token_encrypted, refresh_token_encrypted')
+    .or(`tenant_uuid.eq.${tenantId},tenant_id.eq.${tenantId}`)
+    .eq('integration_id', integrationId)
     .eq('status', 'connected')
-    .single()
+    .maybeSingle()
 
-  if (!config) throw new Error('Google Drive no conectado')
+  if (error) throw new Error(`DB error: ${error.message}`)
+  if (!row) throw new Error(`Integración ${integrationId} no conectada`)
+  if (!row.access_token_encrypted) throw new Error('No access_token guardado')
 
-  const accessToken = await refreshAccessTokenIfNeeded(config, supabaseClient, userId)
+  const accessToken = await decryptToken(row.access_token_encrypted)
+  const refreshToken = row.refresh_token_encrypted ? await decryptToken(row.refresh_token_encrypted) : null
 
-  // Listar folders del Drive del usuario
-  const resp = await fetch(
-    'https://www.googleapis.com/drive/v3/files?q=mimeType%3D%22application%2Fvnd.google-apps.folder%22&fields=files(id%2Cname%2CparentId)&pageSize=100',
-    { headers: { 'Authorization': `Bearer ${accessToken}` } }
-  )
-
-  if (!resp.ok) throw new Error('Error listando folders')
-
-  const data = await resp.json()
-  return new Response(
-    JSON.stringify({ folders: data.files || [] }),
-    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-  )
+  return { accessToken, refreshToken, rowId: row.id }
 }
 
 // =====================================================================
-// 4. Sync files in a folder (or all if no folder_id)
+// SYNC
 // =====================================================================
-async function handleSync(userId: string, supabaseClient: any, folderId?: string) {
-  const { data: config } = await supabaseClient
-    .from('integrations_config')
-    .select('*')
-    .eq('user_id', userId)
-    .eq('integration_type', 'google_drive')
-    .eq('status', 'connected')
-    .single()
+async function handleSync(admin: any, tenantId: string, integrationId: string, folderId?: string) {
+  const { accessToken, rowId } = await getConnectedAccessToken(admin, tenantId, integrationId)
 
-  if (!config) throw new Error('Google Drive no conectado')
-
-  const accessToken = await refreshAccessTokenIfNeeded(config, supabaseClient, userId)
-
-  // Build query: archivos no-folder, en folder específico si se pasa
+  // Build query
   let q = "mimeType != 'application/vnd.google-apps.folder' and trashed = false"
-  if (folderId) {
-    q += ` and '${folderId}' in parents`
-  }
+  if (folderId) q += ` and '${folderId}' in parents`
 
-  // Tipos soportados: Docs, Sheets, Slides, PDFs, plain text
   const supportedMimeTypes = [
     'application/vnd.google-apps.document',
     'application/vnd.google-apps.spreadsheet',
@@ -201,13 +151,13 @@ async function handleSync(userId: string, supabaseClient: any, folderId?: string
   ]
   q += ` and (${supportedMimeTypes.map(m => `mimeType = '${m}'`).join(' or ')})`
 
-  const listUrl = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id%2Cname%2CmimeType%2CmodifiedTime%2CwebViewLink)&pageSize=100`
+  const listUrl = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name,mimeType,modifiedTime,webViewLink)&pageSize=100`
+  const listResp = await fetch(listUrl, { headers: { 'Authorization': `Bearer ${accessToken}` } })
 
-  const listResp = await fetch(listUrl, {
-    headers: { 'Authorization': `Bearer ${accessToken}` }
-  })
-
-  if (!listResp.ok) throw new Error('Error listando archivos')
+  if (!listResp.ok) {
+    const errText = await listResp.text()
+    throw new Error(`Drive listing failed: ${errText.slice(0, 200)}`)
+  }
 
   const listData = await listResp.json()
   const files = listData.files || []
@@ -218,7 +168,6 @@ async function handleSync(userId: string, supabaseClient: any, folderId?: string
 
   for (const file of files) {
     try {
-      // Exportar/descargar contenido según tipo
       let content = ''
       if (file.mimeType === 'application/vnd.google-apps.document') {
         content = await exportGoogleDoc(file.id, accessToken, 'text/plain')
@@ -229,25 +178,20 @@ async function handleSync(userId: string, supabaseClient: any, folderId?: string
       } else if (file.mimeType === 'text/plain' || file.mimeType === 'text/markdown') {
         content = await downloadFile(file.id, accessToken)
       } else if (file.mimeType === 'application/pdf') {
-        // PDFs requieren extracción de texto — TODO: usar pdf-parse o similar
         content = `(PDF: ${file.name} — extracción de texto pendiente)`
       }
 
-      // Truncar si es enorme (max 50K chars)
-      if (content.length > 50000) {
-        content = content.substring(0, 50000) + '... [truncado]'
-      }
+      if (content.length > 50000) content = content.substring(0, 50000) + '... [truncado]'
 
-      // Upsert en knowledge_base
-      const { data: existing } = await supabaseClient
+      // Upsert en knowledge_base (filtrar por tenant si existe esa columna)
+      const { data: existing } = await admin
         .from('knowledge_base')
         .select('id')
-        .eq('user_id', userId)
+        .eq('source', 'google_drive')
         .eq('source_id', file.id)
         .maybeSingle()
 
-      const payload = {
-        user_id: userId,
+      const payload: any = {
         title: file.name,
         content: content || '(archivo vacío)',
         source: 'google_drive',
@@ -256,37 +200,31 @@ async function handleSync(userId: string, supabaseClient: any, folderId?: string
         active: true,
         updated_at: new Date().toISOString(),
       }
+      // Tenant scope si la tabla lo soporta (best effort)
+      payload.tenant_uuid = tenantId
+      payload.tenant_id = tenantId
 
       if (existing) {
-        await supabaseClient
-          .from('knowledge_base')
-          .update(payload)
-          .eq('id', existing.id)
+        await admin.from('knowledge_base').update(payload).eq('id', existing.id)
       } else {
-        const { error } = await supabaseClient
-          .from('knowledge_base')
-          .insert({ ...payload, created_at: new Date().toISOString() })
+        const { error } = await admin.from('knowledge_base').insert({ ...payload, created_at: new Date().toISOString() })
         if (!error) newDocuments++
+        else console.error(`Insert failed for ${file.id}: ${error.message}`)
       }
-
       totalDocuments++
     } catch (err) {
       console.error(`Error processing file ${file.id}:`, err)
     }
   }
 
-  // Actualizar last_sync
-  await supabaseClient
-    .from('integrations_config')
-    .update({ last_sync: new Date().toISOString() })
-    .eq('id', config.id)
+  // Update last_sync en integrations row
+  await admin
+    .from('integrations')
+    .update({ last_sync_at: new Date().toISOString(), items_synced: totalDocuments, sync_status: 'idle' })
+    .eq('id', rowId)
 
   return new Response(
-    JSON.stringify({
-      success: true,
-      newDocuments,
-      documentsCount: totalDocuments,
-    }),
+    JSON.stringify({ success: true, newDocuments, documentsCount: totalDocuments }),
     { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   )
 }
@@ -306,80 +244,50 @@ async function downloadFile(fileId: string, accessToken: string): Promise<string
 }
 
 // =====================================================================
-// 5. Disconnect — revoca tokens y limpia config
+// LIST FOLDERS
 // =====================================================================
-async function handleDisconnect(userId: string, supabaseClient: any) {
-  const { data: config } = await supabaseClient
-    .from('integrations_config')
-    .select('config')
-    .eq('user_id', userId)
-    .eq('integration_type', 'google_drive')
-    .single()
-
-  if (config?.config?.access_token) {
-    // Revocar token con Google
-    await fetch(`https://oauth2.googleapis.com/revoke?token=${config.config.access_token}`, {
-      method: 'POST',
-    }).catch(() => {})
-  }
-
-  await supabaseClient
-    .from('integrations_config')
-    .delete()
-    .eq('user_id', userId)
-    .eq('integration_type', 'google_drive')
-
+async function handleListFolders(admin: any, tenantId: string, integrationId: string) {
+  const { accessToken } = await getConnectedAccessToken(admin, tenantId, integrationId)
+  const resp = await fetch(
+    'https://www.googleapis.com/drive/v3/files?q=mimeType%3D%22application%2Fvnd.google-apps.folder%22&fields=files(id,name)&pageSize=100',
+    { headers: { 'Authorization': `Bearer ${accessToken}` } }
+  )
+  if (!resp.ok) throw new Error('Error listando folders')
+  const data = await resp.json()
   return new Response(
-    JSON.stringify({ success: true }),
+    JSON.stringify({ folders: data.files || [] }),
     { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   )
 }
 
 // =====================================================================
-// Helper: refresh access token si está expirado
+// DISCONNECT
 // =====================================================================
-async function refreshAccessTokenIfNeeded(config: any, supabaseClient: any, userId: string): Promise<string> {
-  const tokens = config.config
-  // Estimación simple: si el token tiene más de 50 min, refrescar
-  const connectedAt = new Date(tokens.connected_at).getTime()
-  const expiryMs = (tokens.expires_in || 3600) * 1000 - 600 * 1000 // expira 10 min antes por safety
-
-  if (Date.now() - connectedAt < expiryMs && tokens.access_token) {
-    return tokens.access_token
+async function handleDisconnect(admin: any, tenantId: string, integrationId: string) {
+  // Try to revoke
+  try {
+    const { accessToken } = await getConnectedAccessToken(admin, tenantId, integrationId)
+    if (accessToken) {
+      await fetch(`https://oauth2.googleapis.com/revoke?token=${accessToken}`, { method: 'POST' }).catch(() => {})
+    }
+  } catch (e) {
+    // No token to revoke, OK
   }
 
-  if (!tokens.refresh_token) {
-    throw new Error('No refresh_token disponible. Reconectar Google Drive.')
-  }
-
-  const resp = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      client_id: GOOGLE_CLIENT_ID,
-      client_secret: GOOGLE_CLIENT_SECRET,
-      refresh_token: tokens.refresh_token,
-      grant_type: 'refresh_token',
-    }),
-  })
-
-  if (!resp.ok) throw new Error('Error refrescando token')
-
-  const newTokens = await resp.json()
-
-  // Update config con nuevo access_token
-  await supabaseClient
-    .from('integrations_config')
+  await admin
+    .from('integrations')
     .update({
-      config: {
-        ...tokens,
-        access_token: newTokens.access_token,
-        expires_in: newTokens.expires_in,
-        connected_at: new Date().toISOString(),
-      }
+      status: 'disconnected',
+      access_token_encrypted: null,
+      refresh_token_encrypted: null,
+      oauth_state: null,
+      last_error: null,
     })
-    .eq('user_id', userId)
-    .eq('integration_type', 'google_drive')
+    .or(`tenant_uuid.eq.${tenantId},tenant_id.eq.${tenantId}`)
+    .eq('integration_id', integrationId)
 
-  return newTokens.access_token
+  return new Response(
+    JSON.stringify({ success: true }),
+    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
 }
