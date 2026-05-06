@@ -68,7 +68,7 @@ const KnowledgeBase: React.FC = () => {
     archivo_url: ''
   });
 
-  // Mock data para el demo
+  // Carga inicial de proyectos. TODO: reemplazar projects mock por fetch real cuando exista UI de gestión de proyectos.
   useEffect(() => {
     const mockProjects: Project[] = [
       { id: '1', nombre: 'ATC', descripcion: 'Atención al Cliente', color: '#10B981', icono: '📞', activo: true, orden_display: 1 },
@@ -82,63 +82,9 @@ const KnowledgeBase: React.FC = () => {
       { id: '9', nombre: 'Normativas-Compliance', descripcion: 'Normativas y Compliance', color: '#F97316', icono: '📋', activo: true, orden_display: 9 }
     ];
 
-    const mockKnowledge: KnowledgeBaseType[] = [
-      {
-        id: '1',
-        titulo: 'Manual de Atención al Cliente v2.1',
-        contenido: 'Guía completa para el manejo de consultas y resolución de problemas de clientes...',
-        project_id: '1',
-        tipo_contenido: 'archivo',
-        archivo_url: '/files/manual-atc-v2.1.pdf',
-        tags: ['manual', 'atención', 'procedimientos'],
-        fecha_creacion: new Date(Date.now() - 86400000),
-        creado_por: 'admin@empresa.com',
-        activo: true,
-        version: 1,
-        project: mockProjects[0]
-      },
-      {
-        id: '2',
-        titulo: 'Regulaciones Colombia 2024',
-        contenido: 'Nuevas regulaciones para remesas hacia Colombia vigentes desde enero 2024...',
-        project_id: '5',
-        tipo_contenido: 'manual',
-        tags: ['colombia', 'regulaciones', '2024', 'remesas'],
-        fecha_creacion: new Date(Date.now() - 172800000),
-        creado_por: 'admin@empresa.com',
-        activo: true,
-        version: 1,
-        project: mockProjects[4]
-      },
-      {
-        id: '3',
-        titulo: 'Scripts de Respuesta Comunes',
-        contenido: 'Colección de scripts para situaciones frecuentes en atención al cliente...',
-        project_id: '8',
-        tipo_contenido: 'archivo',
-        archivo_url: '/files/scripts-comunes.docx',
-        tags: ['scripts', 'respuestas', 'atención'],
-        fecha_creacion: new Date(Date.now() - 259200000),
-        creado_por: 'supervisor@empresa.com',
-        activo: true,
-        version: 2,
-        project: mockProjects[7]
-      },
-      {
-        id: '4',
-        titulo: 'Estudio de Mercado Q4 2024',
-        contenido: 'Análisis del mercado de remesas en el cuarto trimestre de 2024...',
-        project_id: '2',
-        tipo_contenido: 'archivo',
-        archivo_url: '/files/estudio-q4-2024.pdf',
-        tags: ['estudio', 'mercado', 'q4', '2024', 'análisis'],
-        fecha_creacion: new Date(Date.now() - 345600000),
-        creado_por: 'research@empresa.com',
-        activo: true,
-        version: 1,
-        project: mockProjects[1]
-      }
-    ];
+    // TODO: Reemplazar por fetch real desde Supabase (knowledge_base table filtrado por tenant_id).
+    // Mock data eliminado el 2026-05-04: contenido falso confundía a los usuarios.
+    const mockKnowledge: KnowledgeBaseType[] = [];
 
     setProjects(mockProjects);
     setKnowledgeItems(mockKnowledge);
