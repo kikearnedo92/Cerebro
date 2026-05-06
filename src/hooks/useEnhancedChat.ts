@@ -174,8 +174,14 @@ export const useEnhancedChat = () => {
         prev.map(c => c.id === conversation!.id ? updatedConversation : c)
       )
 
+      // Construir history: últimos 10 mensajes de la conversación actual (excluyendo el que acabamos de agregar localmente).
+      // Esto permite que Claude tenga contexto multi-turno (FIX 2026-05-05).
+      const history = conversation.messages
+        .slice(-10)
+        .map(m => ({ role: m.role, content: m.content }))
+
       // Llamar a la API de chat (Vercel serverless function)
-      console.log('🧠 Sending message to CEREBRO API...')
+      console.log(`🧠 Sending message to CEREBRO API with ${history.length} previous messages of context...`)
 
       const chatResponse = await fetch('/api/chat', {
         method: 'POST',
@@ -183,7 +189,8 @@ export const useEnhancedChat = () => {
         body: JSON.stringify({
           message: content,
           useKnowledgeBase,
-          imageData: selectedImage
+          imageData: selectedImage,
+          history
         }),
         signal: abortControllerRef.current?.signal
       })

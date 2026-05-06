@@ -23,7 +23,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { message, useKnowledgeBase, imageData } = req.body
+    const { message, useKnowledgeBase, imageData, history } = req.body
 
     if (!message?.trim()) {
       return res.status(400).json({ error: 'Message is required' })
@@ -138,7 +138,14 @@ INSTRUCCIONES:
         model: process.env.CLAUDE_MODEL || 'claude-sonnet-4-6',
         max_tokens: 3000,
         system: systemPrompt,
-        messages: [{ role: 'user', content: userContent }]
+        // Construir el array de messages combinando history previa + el nuevo mensaje del usuario.
+        // Sanitizamos: solo aceptamos {role, content} con role 'user' o 'assistant'.
+        messages: [
+          ...(Array.isArray(history) ? history.filter(m =>
+            m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim()
+          ).map(m => ({ role: m.role, content: m.content })) : []),
+          { role: 'user', content: userContent }
+        ]
       }),
     })
 

@@ -3,7 +3,7 @@ import { User, Session } from '@supabase/supabase-js'
 import { supabase } from '@/integrations/supabase/client'
 
 // Super admin emails - add yours here
-const SUPER_ADMIN_EMAILS = ['eduardoarnedog@gmail.com', 'kike@usacerebro.com']
+const SUPER_ADMIN_EMAILS = ['eduardoarnedog@gmail.com']
 
 interface AuthContextType {
   user: User | null
