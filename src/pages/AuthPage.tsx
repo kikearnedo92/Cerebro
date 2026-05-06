@@ -41,7 +41,7 @@ const AuthPage = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!formData.email || !formData.password) {
-      toast({ title: "Error", description: "Email y contrasena son requeridos", variant: "destructive" })
+      toast({ title: "Error", description: "Email y contraseña son requeridos", variant: "destructive" })
       return
     }
 
@@ -49,7 +49,7 @@ const AuthPage = () => {
     try {
       if (isLogin) {
         await signIn(formData.email, formData.password)
-        toast({ title: "Bienvenido a Cerebro", description: "Has iniciado sesion correctamente." })
+        toast({ title: "Bienvenido a Cerebro", description: "Has iniciado sesión correctamente." })
       } else {
         if (!formData.full_name || !formData.company_name) {
           toast({ title: "Error", description: "Nombre y empresa son requeridos", variant: "destructive" })
@@ -68,7 +68,7 @@ const AuthPage = () => {
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message || 'Error en la autenticacion',
+        description: error.message || 'Error en la autenticación',
         variant: "destructive"
       })
     } finally {
@@ -77,19 +77,19 @@ const AuthPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-indigo-50 flex items-center justify-center p-6">
+    <div className="min-h-screen bg-white flex items-center justify-center p-6 antialiased">
       <div className="w-full max-w-md">
-        <Link to="/" className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 mb-8">
+        <Link to="/" className="inline-flex items-center gap-1.5 text-[13px] text-slate-500 hover:text-slate-900 mb-8 transition-colors">
           <ArrowLeft className="w-4 h-4" /> Volver al inicio
         </Link>
 
-        <Card className="shadow-xl border-0">
+        <Card className="shadow-sm border border-slate-100 rounded-2xl">
           <CardHeader className="text-center space-y-4 pb-2">
             <div className="flex items-center justify-center gap-2">
-              <div className="w-11 h-11 bg-gradient-to-br from-indigo-500 to-indigo-700 rounded-xl flex items-center justify-center shadow-lg">
+              <div className="w-10 h-10 bg-slate-900 rounded-lg flex items-center justify-center">
                 <Brain className="w-6 h-6 text-white" />
               </div>
-              <span className="text-2xl font-bold text-slate-900">CEREBRO</span>
+              <span className="text-xl font-semibold text-slate-900 tracking-tight">cerebro</span>
             </div>
             <div>
               <h1 className="text-xl font-semibold text-slate-900">
@@ -98,7 +98,7 @@ const AuthPage = () => {
               <p className="text-sm text-slate-500">
                 {isLogin
                   ? 'Ingresa tus credenciales para continuar'
-                  : '14 dias gratis. Sin tarjeta de credito.'}
+                  : '14 días gratis. Sin tarjeta de crédito.'}
               </p>
             </div>
           </CardHeader>
@@ -114,7 +114,7 @@ const AuthPage = () => {
                       <Input
                         id="full_name"
                         type="text"
-                        placeholder="Juan Perez"
+                        placeholder="Juan Pérez"
                         value={formData.full_name}
                         onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
                         className="pl-10"
@@ -140,7 +140,7 @@ const AuthPage = () => {
               )}
 
               <div className="space-y-2">
-                <Label htmlFor="email">Correo electronico</Label>
+                <Label htmlFor="email">Correo electrónico</Label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
                   <Input
@@ -156,7 +156,7 @@ const AuthPage = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="password">Contrasena</Label>
+                <Label htmlFor="password">Contraseña</Label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
                   <Input
@@ -180,13 +180,13 @@ const AuthPage = () => {
 
               <Button
                 type="submit"
-                className="w-full bg-indigo-600 hover:bg-indigo-700 h-11"
+                className="w-full bg-slate-900 hover:bg-slate-800 h-11 rounded-lg text-sm"
                 disabled={loading}
               >
                 {loading
                   ? 'Procesando...'
                   : isLogin
-                  ? 'Iniciar sesion'
+                  ? 'Iniciar sesión'
                   : 'Crear mi Cerebro gratis'}
               </Button>
             </form>
@@ -195,9 +195,9 @@ const AuthPage = () => {
               <button
                 type="button"
                 onClick={() => setIsLogin(!isLogin)}
-                className="text-sm text-indigo-600 hover:text-indigo-700 hover:underline"
+                className="text-sm text-slate-600 hover:text-slate-900 hover:underline"
               >
-                {isLogin ? 'No tienes cuenta? Registrate gratis' : 'Ya tienes cuenta? Inicia sesion'}
+                {isLogin ? '¿No tienes cuenta? Regístrate gratis' : '¿Ya tienes cuenta? Inicia sesión'}
               </button>
             </div>
           </CardContent>

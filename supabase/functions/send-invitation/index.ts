@@ -22,9 +22,10 @@ serve(async (req) => {
     
     console.log('📧 Sending invitation to:', email);
     
-    // Validate email domain
-    if (!email.endsWith('@retorna.app')) {
-      throw new Error('Solo se permiten emails con dominio @retorna.app');
+    // Validate email format (any domain allowed)
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      throw new Error('Email inválido');
     }
 
     // Initialize Supabase client
@@ -52,8 +53,10 @@ serve(async (req) => {
     console.log('✅ User created successfully');
 
     // Send invitation email
+    // TODO: Cambiar dominio del remitente cuando se verifique cerebro-ivory.vercel.app o usacerebro.com en Resend
+    const emailFrom = Deno.env.get("EMAIL_FROM") || "CEREBRO <noreply@retorna.app>";
     const emailResponse = await resend.emails.send({
-      from: "CEREBRO <noreply@retorna.app>",
+      from: emailFrom,
       to: [email],
       subject: "Bienvenido a CEREBRO - Tu acceso a la plataforma de conocimiento",
       html: `
@@ -66,7 +69,7 @@ serve(async (req) => {
           <h2 style="color: #333;">¡Hola ${fullName}! 👋</h2>
           
           <p style="color: #555; line-height: 1.6;">
-            Has sido invitado a unirte a <strong>CEREBRO</strong>, nuestra plataforma de conocimiento inteligente en Retorna.
+            Has sido invitado a unirte a <strong>CEREBRO</strong>, la capa de contexto operacional de tu empresa.
           </p>
           
           <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
@@ -78,7 +81,7 @@ serve(async (req) => {
           </div>
           
           <div style="text-align: center; margin: 30px 0;">
-            <a href="https://cerebro-retorna.lovable.app" 
+            <a href="https://cerebro-ivory.vercel.app" 
                style="background: #7c3aed; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold;">
               Acceder a CEREBRO
             </a>
@@ -101,7 +104,7 @@ serve(async (req) => {
           <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
           
           <p style="color: #999; font-size: 12px; text-align: center;">
-            Este email fue enviado desde CEREBRO - Retorna<br>
+            Este email fue enviado desde CEREBRO<br>
             Si tienes problemas accediendo, contacta al administrador del sistema.
           </p>
         </div>

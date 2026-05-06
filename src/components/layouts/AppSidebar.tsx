@@ -75,7 +75,7 @@ const AppSidebar = () => {
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-semibold text-white">CEREBRO</span>
                   <span className="truncate text-xs text-indigo-200">
-                    {profile?.company_name || 'Tu empresa'}
+                    {profile?.company_name || profile?.full_name?.split(' ')[0] || 'Mi workspace'}
                   </span>
                 </div>
               </div>

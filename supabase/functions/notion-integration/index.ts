@@ -128,7 +128,29 @@ async function handleSync(userId: string, supabaseClient: any) {
   }
 
   const { token, database_id } = config.config
-  const syncResult = await syncNotionDatabase(token, database_id, userId, supabaseClient)
+
+  // FIX 2026-05-05: hacer ambos syncs:
+  // 1. Database query (legacy — para usuarios que conectaron una DB)
+  // 2. Workspace search (new — trae TODAS las pages accesibles, incluye páginas con sub-páginas
+  //    como Acme Wallet que NO son databases). Backward compatible.
+  let dbDocuments = 0
+  let dbNew = 0
+  if (database_id) {
+    try {
+      const dbResult = await syncNotionDatabase(token, database_id, userId, supabaseClient)
+      dbDocuments = dbResult.documentsCount
+      dbNew = dbResult.newDocuments
+    } catch (err) {
+      console.warn(`Database sync failed (probably not a DB or no longer accessible): ${err.message}`)
+    }
+  }
+
+  const searchResult = await syncNotionWorkspaceSearch(token, userId, supabaseClient)
+
+  const syncResult = {
+    documentsCount: dbDocuments + searchResult.documentsCount,
+    newDocuments: dbNew + searchResult.newDocuments
+  }
 
   // Actualizar última sincronización
   await supabaseClient
@@ -458,3 +480,123 @@ async function processImageBlock(block: any, token: string): Promise<string | nu
     return null
   }
 }
+
+// =====================================================================
+// syncNotionWorkspaceSearch (FIX 2026-05-05)
+// Usa el endpoint /v1/search de Notion para traer TODAS las pages accesibles
+// por la integración OAuth (no solo databases). Esto resuelve el bug donde
+// páginas con sub-páginas (como "Acme Wallet — Knowledge Base") no se indexaban.
+// =====================================================================
+async function syncNotionWorkspaceSearch(token: string, userId: string, supabaseClient: any) {
+  console.log(`🔍 Syncing Notion workspace via search...`)
+
+  let allPages: any[] = []
+  let cursor: string | undefined = undefined
+  let safety = 0
+
+  // Paginar hasta traer todas las pages accesibles (max 5 páginas de 100 = 500 pages para no eternizarse)
+  do {
+    safety++
+    if (safety > 5) {
+      console.warn('Search hit safety limit (500 pages). Stopping.')
+      break
+    }
+
+    const body: any = {
+      filter: { property: 'object', value: 'page' },
+      page_size: 100,
+    }
+    if (cursor) body.start_cursor = cursor
+
+    const resp = await fetch('https://api.notion.com/v1/search', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Notion-Version': '2022-06-28',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    })
+
+    if (!resp.ok) {
+      const errorData = await resp.json().catch(() => null)
+      console.error('Search error:', errorData)
+      break
+    }
+
+    const data = await resp.json()
+    allPages = allPages.concat(data.results || [])
+    cursor = data.has_more ? data.next_cursor : undefined
+  } while (cursor)
+
+  console.log(`📄 Found ${allPages.length} pages via search to process`)
+
+  let newDocuments = 0
+  let totalDocuments = 0
+
+  for (const page of allPages) {
+    try {
+      // Obtener contenido (blocks)
+      const blocksResp = await fetch(`https://api.notion.com/v1/blocks/${page.id}/children`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Notion-Version': '2022-06-28',
+        },
+      })
+
+      if (!blocksResp.ok) {
+        console.warn(`Skipping page ${page.id}: cannot fetch blocks`)
+        continue
+      }
+
+      const blocksData = await blocksResp.json()
+      const text = await extractTextFromBlocks(blocksData.results || [], token)
+      const title = getPageTitle(page) || 'Untitled'
+
+      if (!text || text.trim().length < 10) {
+        // Página vacía o solo placeholder — la indexamos igual con título
+      }
+
+      // Upsert en knowledge_base (tabla principal)
+      const { data: existing } = await supabaseClient
+        .from('knowledge_base')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('source_id', page.id)
+        .maybeSingle()
+
+      const payload = {
+        user_id: userId,
+        title: title,
+        content: text || '(página vacía)',
+        source: 'notion',
+        source_id: page.id,
+        source_url: page.url || `https://www.notion.so/${page.id.replace(/-/g, '')}`,
+        active: true,
+        updated_at: new Date().toISOString(),
+      }
+
+      if (existing) {
+        const { error } = await supabaseClient
+          .from('knowledge_base')
+          .update(payload)
+          .eq('id', existing.id)
+        if (error) console.error(`Update failed for ${page.id}:`, error.message)
+      } else {
+        const { error } = await supabaseClient
+          .from('knowledge_base')
+          .insert({ ...payload, created_at: new Date().toISOString() })
+        if (!error) newDocuments++
+        else console.error(`Insert failed for ${page.id}:`, error.message)
+      }
+
+      totalDocuments++
+    } catch (err) {
+      console.error(`Error processing page ${page.id}:`, err)
+    }
+  }
+
+  console.log(`✅ Workspace search sync done: ${totalDocuments} pages processed, ${newDocuments} new`)
+  return { newDocuments, documentsCount: totalDocuments }
+}
+

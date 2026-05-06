@@ -72,12 +72,12 @@ const LandingPage = () => {
       <section className="pt-28 pb-16 px-6">
         <div className="max-w-5xl mx-auto">
           <div className="max-w-2xl">
-            <p className="text-[13px] font-medium text-indigo-600 mb-4 tracking-wide uppercase">Powered by Claude AI</p>
+            <p className="text-[13px] font-medium text-indigo-600 mb-4 tracking-wide uppercase">Para humanos y agentes IA · Powered by Claude</p>
             <h1 className="text-4xl md:text-[56px] font-semibold text-slate-900 leading-[1.1] mb-5 tracking-tight">
-              El segundo cerebro<br />de tu empresa
+              La capa de contexto<br />para tu equipo y tus agentes IA
             </h1>
             <p className="text-lg text-slate-500 mb-8 leading-relaxed max-w-lg">
-              Un chat con IA que conecta Notion, Slack y Drive. Tu equipo pregunta, Cerebro responde con la información real de tu empresa.
+              Cerebro mantiene viva la memoria operativa de tu empresa. Para tu equipo, chat con IA sobre tu info real. Para tus agentes IA, el contexto que necesitan vía API. Un solo producto, dos audiencias.
             </p>
             <div className="flex items-center gap-3 mb-4">
               <Link to="/auth?mode=signup">
@@ -168,16 +168,16 @@ const LandingPage = () => {
             <div>
               <p className="text-[13px] font-medium text-red-500 mb-3 tracking-wide uppercase">El problema</p>
               <h2 className="text-3xl font-semibold text-slate-900 leading-snug mb-4 tracking-tight">
-                Tu equipo pierde horas buscando información que ya existe
+                Tu equipo pierde horas. Tus agentes IA alucinan.
               </h2>
               <p className="text-slate-500 leading-relaxed mb-6">
-                El conocimiento de tu empresa vive en 5 herramientas distintas, 200 documentos y la cabeza de 3 personas. Cuando alguien renuncia, se va todo con ellos.
+                El conocimiento de tu empresa vive en 5 herramientas distintas, 200 documentos y la cabeza de 3 personas. Tu equipo no lo encuentra. Tus agentes IA no lo conocen. Y cuando alguien renuncia, se va todo con ellos.
               </p>
               <div className="space-y-3">
                 {[
                   '30% del tiempo se gasta buscando información',
                   'Onboarding de nuevos empleados toma semanas',
-                  'Conocimiento crítico no está documentado',
+                  'Tus agentes IA alucinan por falta de contexto operativo',
                 ].map((item, i) => (
                   <div key={i} className="flex items-start gap-3">
                     <div className="w-5 h-5 rounded-full bg-red-50 flex items-center justify-center flex-shrink-0 mt-0.5">
