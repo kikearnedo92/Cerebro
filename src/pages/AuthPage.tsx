@@ -191,6 +191,17 @@ const AuthPage = () => {
               </Button>
             </form>
 
+            <div className="mt-3 text-center">
+              {isLogin && (
+                <Link
+                  to="/auth/forgot-password"
+                  className="text-sm text-slate-500 hover:text-slate-900 transition-colors"
+                >
+                  ¿Olvidaste tu contraseña?
+                </Link>
+              )}
+            </div>
+
             <div className="mt-6 text-center">
               <button
                 type="button"
