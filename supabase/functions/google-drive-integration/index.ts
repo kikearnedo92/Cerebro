@@ -131,11 +131,67 @@ async function getConnectedAccessToken(admin: any, tenantId: string, integration
   return { accessToken, refreshToken, rowId: row.id }
 }
 
+// Encrypt usa AES-256-GCM compatible con api/_lib/crypto.js
+async function encryptToken(plain: string): Promise<string> {
+  const keyBytes = hexToBytes(TOKEN_ENCRYPTION_KEY)
+  const iv = crypto.getRandomValues(new Uint8Array(12))
+  const cryptoKey = await crypto.subtle.importKey('raw', keyBytes, { name: 'AES-GCM' }, false, ['encrypt'])
+  const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, cryptoKey, new TextEncoder().encode(plain))
+  // Web Crypto pone tag al final, separar últimos 16 bytes
+  const ct = new Uint8Array(encrypted)
+  const tagStart = ct.length - 16
+  const ciphertext = ct.slice(0, tagStart)
+  const tag = ct.slice(tagStart)
+  const b64 = (b: Uint8Array) => btoa(String.fromCharCode(...b))
+  return [b64(iv), b64(tag), b64(ciphertext)].join('.')
+}
+
+// Refresh access token usando refresh_token + persiste el nuevo cifrado en DB
+async function refreshAccessToken(admin: any, rowId: string, refreshToken: string): Promise<string> {
+  console.log('🔄 Refreshing access token...')
+  const resp = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: GOOGLE_CLIENT_ID,
+      client_secret: GOOGLE_CLIENT_SECRET,
+      refresh_token: refreshToken,
+      grant_type: 'refresh_token',
+    }),
+  })
+  if (!resp.ok) {
+    const errText = await resp.text()
+    throw new Error(`Refresh token failed: ${errText}`)
+  }
+  const data = await resp.json()
+  const newAccessToken = data.access_token as string
+  // Persistir el nuevo access_token cifrado
+  const encNew = await encryptToken(newAccessToken)
+  await admin
+    .from('integrations')
+    .update({ access_token_encrypted: encNew })
+    .eq('id', rowId)
+  return newAccessToken
+}
+
+// Helper: hace fetch a Google API; si 401, refresh + retry una vez
+async function fetchGoogleAuth(url: string, accessToken: string, refreshToken: string | null, admin: any, rowId: string, init: RequestInit = {}): Promise<{ resp: Response, accessToken: string }> {
+  const headers = { ...(init.headers || {}), 'Authorization': `Bearer ${accessToken}` }
+  let resp = await fetch(url, { ...init, headers })
+  if (resp.status === 401 && refreshToken) {
+    console.log('Got 401, attempting token refresh...')
+    accessToken = await refreshAccessToken(admin, rowId, refreshToken)
+    const headers2 = { ...(init.headers || {}), 'Authorization': `Bearer ${accessToken}` }
+    resp = await fetch(url, { ...init, headers: headers2 })
+  }
+  return { resp, accessToken }
+}
+
 // =====================================================================
 // SYNC
 // =====================================================================
 async function handleSync(admin: any, tenantId: string, integrationId: string, folderId?: string, userId?: string) {
-  const { accessToken, rowId } = await getConnectedAccessToken(admin, tenantId, integrationId)
+  let { accessToken, refreshToken, rowId } = await getConnectedAccessToken(admin, tenantId, integrationId)
 
   // Build query
   let q = "mimeType != 'application/vnd.google-apps.folder' and trashed = false"
@@ -152,7 +208,8 @@ async function handleSync(admin: any, tenantId: string, integrationId: string, f
   q += ` and (${supportedMimeTypes.map(m => `mimeType = '${m}'`).join(' or ')})`
 
   const listUrl = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name,mimeType,modifiedTime,webViewLink)&pageSize=100`
-  const listResp = await fetch(listUrl, { headers: { 'Authorization': `Bearer ${accessToken}` } })
+  const { resp: listResp, accessToken: refreshedToken } = await fetchGoogleAuth(listUrl, accessToken, refreshToken, admin, rowId)
+  accessToken = refreshedToken
 
   if (!listResp.ok) {
     const errText = await listResp.text()
