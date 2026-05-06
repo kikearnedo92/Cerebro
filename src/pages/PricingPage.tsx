@@ -58,13 +58,13 @@ const PricingPage = () => {
       <nav className="border-b border-slate-100">
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
-            <div className="w-9 h-9 bg-gradient-to-br from-indigo-500 to-indigo-700 rounded-xl flex items-center justify-center">
+            <div className="w-9 h-9 bg-gradient-to-br from-slate-700 to-slate-900 rounded-xl flex items-center justify-center">
               <Brain className="w-5 h-5 text-white" />
             </div>
             <span className="text-xl font-bold text-slate-900">CEREBRO</span>
           </Link>
           <Link to="/auth?mode=signup">
-            <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700">
+            <Button size="sm" className="bg-slate-900 hover:bg-slate-800">
               Empezar gratis
             </Button>
           </Link>
@@ -90,7 +90,7 @@ const PricingPage = () => {
               key={plan.name}
               className={`p-8 rounded-2xl text-left ${
                 plan.highlighted
-                  ? 'bg-indigo-600 text-white relative'
+                  ? 'bg-slate-900 text-white relative'
                   : 'bg-white border border-slate-200'
               }`}
             >
@@ -118,8 +118,8 @@ const PricingPage = () => {
                 <Button
                   className={`w-full mb-6 ${
                     plan.highlighted
-                      ? 'bg-white text-indigo-700 hover:bg-indigo-50'
-                      : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                      ? 'bg-white text-slate-700 hover:bg-slate-50'
+                      : 'bg-slate-900 hover:bg-slate-800 text-white'
                   }`}
                 >
                   Empezar gratis

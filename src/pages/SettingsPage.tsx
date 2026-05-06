@@ -38,7 +38,7 @@ const SettingsPage = () => {
                 <p className="font-medium text-slate-900">Plan: Free Trial</p>
                 <p className="text-sm text-slate-500">Tu prueba gratuita esta activa</p>
               </div>
-              <Button className="bg-indigo-600 hover:bg-indigo-700">
+              <Button className="bg-slate-900 hover:bg-slate-800">
                 Elegir plan
                 <ExternalLink className="ml-2 w-4 h-4" />
               </Button>

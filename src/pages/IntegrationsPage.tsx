@@ -32,7 +32,7 @@ export default function IntegrationsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" />
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-900" />
       </div>
     )
   }
@@ -75,7 +75,7 @@ export default function IntegrationsPage() {
               onClick={() => setCategory(cat)}
               className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
                 category === cat
-                  ? 'bg-indigo-100 text-indigo-800'
+                  ? 'bg-slate-100 text-slate-800'
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
@@ -86,8 +86,8 @@ export default function IntegrationsPage() {
       </div>
 
       {/* Info banner */}
-      <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-4">
-        <p className="text-sm text-indigo-800">
+      <div className="bg-slate-50 border border-indigo-100 rounded-lg p-4">
+        <p className="text-sm text-slate-800">
           <strong>¿Cómo funciona?</strong> Cuando conectas una herramienta, Cerebro importa y vectoriza
           el contenido para que tu equipo pueda hacer preguntas al chat y obtener respuestas basadas en
           información real de tu empresa. Tus datos nunca se comparten entre empresas.
