@@ -1,0 +1,34 @@
+name: Research Agent
+
+on:
+  schedule:
+    # Domingo 8 PM Chile (UTC-3) = lunes 23:00 UTC
+    - cron: '0 23 * * 0'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run Research Agent
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: node scripts/research-agent.mjs
+      - name: Commit research if changed
+        run: |
+          git config user.name "Research Agent"
+          git config user.email "agent@usacerebro.com"
+          git add docs/research/
+          if git diff --cached --quiet; then
+            echo "No research file to commit"
+            exit 0
+          fi
+          git commit -m "chore(research): semanal $(date +%Y-%m-%d)"
+          git push
