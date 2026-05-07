@@ -74,6 +74,10 @@ const DriveSyncProgress: React.FC<DriveSyncProgressProps> = ({ active, onFinishe
   const elapsed = Math.floor((Date.now() - startedAt) / 1000)
   const isLong = elapsed > 60 // > 1 min
 
+  // Display percentage: floor (not round) so 99.5% shows 99%, not 100%.
+  // 100% reserved for actual completion (all rows done/error/skipped).
+  const displayPct = stats.finished ? 100 : Math.min(99, Math.floor(((stats.done + stats.error) / stats.total) * 100))
+
   if (stats.finished) {
     return (
       <div className="mt-3 p-3 rounded-lg bg-emerald-50 border border-emerald-200 flex items-start gap-2">
@@ -96,7 +100,7 @@ const DriveSyncProgress: React.FC<DriveSyncProgressProps> = ({ active, onFinishe
           Sincronizando {stats.done + stats.error} de {stats.total}
         </p>
         <span className="ml-auto text-sm font-bold text-indigo-700">
-          {stats.percentage}%
+          {displayPct}%
         </span>
       </div>
 
@@ -104,7 +108,7 @@ const DriveSyncProgress: React.FC<DriveSyncProgressProps> = ({ active, onFinishe
       <div className="h-2 bg-indigo-100 rounded-full overflow-hidden mb-2">
         <div
           className="h-full bg-indigo-600 rounded-full transition-all duration-500"
-          style={{ width: `${stats.percentage}%` }}
+          style={{ width: `${displayPct}%` }}
         />
       </div>
 
