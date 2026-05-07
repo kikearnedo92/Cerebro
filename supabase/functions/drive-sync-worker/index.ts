@@ -79,11 +79,21 @@ async function encryptToken(plaintext: string): Promise<string> {
 
 // =====================================================================
 // Token cache per tenant (avoid decrypting on every file)
+// TTL: 55 min (Google access tokens last 1h, refresh 5 min before expiry)
 // =====================================================================
-const tokenCache = new Map<string, { accessToken: string, refreshToken: string | null, rowId: string }>()
+interface CachedToken {
+  accessToken: string
+  refreshToken: string | null
+  rowId: string
+  expiresAt: number
+}
+const tokenCache = new Map<string, CachedToken>()
+const TOKEN_TTL_MS = 55 * 60 * 1000
 
-async function getTokensForTenant(admin: any, tenantId: string) {
-  if (tokenCache.has(tenantId)) return tokenCache.get(tenantId)!
+async function getTokensForTenant(admin: any, tenantId: string): Promise<CachedToken> {
+  const cached = tokenCache.get(tenantId)
+  if (cached && cached.expiresAt > Date.now()) return cached
+
   const { data: row } = await admin
     .from('integrations')
     .select('id, access_token_encrypted, refresh_token_encrypted')
@@ -94,7 +104,7 @@ async function getTokensForTenant(admin: any, tenantId: string) {
   if (!row?.access_token_encrypted) throw new Error('Drive integration not connected for tenant')
   const accessToken = await decryptToken(row.access_token_encrypted)
   const refreshToken = row.refresh_token_encrypted ? await decryptToken(row.refresh_token_encrypted) : null
-  const ctx = { accessToken, refreshToken, rowId: row.id }
+  const ctx: CachedToken = { accessToken, refreshToken, rowId: row.id, expiresAt: Date.now() + TOKEN_TTL_MS }
   tokenCache.set(tenantId, ctx)
   return ctx
 }
@@ -124,6 +134,7 @@ async function fetchGoogleAuth(admin: any, tenantId: string, url: string, opts: 
   if (resp.status === 401 && ctx.refreshToken) {
     const newToken = await refreshGoogleAccessToken(ctx.refreshToken)
     ctx.accessToken = newToken
+    ctx.expiresAt = Date.now() + TOKEN_TTL_MS
     tokenCache.set(tenantId, ctx)
     try {
       const encrypted = await encryptToken(newToken)
