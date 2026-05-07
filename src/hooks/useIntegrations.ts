@@ -269,9 +269,11 @@ export function useIntegrations() {
         }
 
         if (data?.success) {
+          const desc = data.message
+            || `${data.documentsCount || 0} archivos importados (${data.newDocuments || 0} nuevos${data.updatedDocuments ? `, ${data.updatedDocuments} actualizados` : ''}${data.errorDocuments ? `, ${data.errorDocuments} errores` : ''}).`
           toast({
-            title: 'Sincronización completa',
-            description: `${data.documentsCount || 0} archivos importados (${data.newDocuments || 0} nuevos).`,
+            title: data.hasMore ? 'Lote sincronizado' : 'Sincronización completa',
+            description: desc,
           })
         } else {
           throw new Error(data?.error || 'Sync failed')

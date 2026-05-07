@@ -261,124 +261,96 @@ async function handleSync(admin: any, tenantId: string, integrationId: string, f
 
   console.log(`🔍 Drive query: ${q}`)
 
-  // Pagination
-  const allFiles: any[] = []
-  let pageToken: string | undefined = undefined
-  const MAX_PAGES = 5
-  let pages = 0
+  // List 1 page (100 files max) per sync run to stay within CPU/timeout limits
+  // Each file requires download + parse, which is expensive.
+  // Strategy: skip already-synced files whose modifiedTime hasn't changed.
+  const params = new URLSearchParams({
+    q,
+    fields: 'files(id,name,mimeType,modifiedTime,webViewLink,size),nextPageToken',
+    pageSize: '100',
+  })
 
-  do {
-    const params = new URLSearchParams({
-      q,
-      fields: 'files(id,name,mimeType,modifiedTime,webViewLink,size),nextPageToken',
-      pageSize: '100',
-    })
-    if (pageToken) params.set('pageToken', pageToken)
+  const listUrl = `https://www.googleapis.com/drive/v3/files?${params.toString()}`
+  const listResp = await fetchGoogleAuth(ctx, listUrl)
+  if (!listResp.ok) {
+    const errText = await listResp.text()
+    throw new Error(`Drive listing failed: ${errText.slice(0, 200)}`)
+  }
+  const listData = await listResp.json()
+  const allFiles: any[] = listData.files || []
+  const hasMore = !!listData.nextPageToken
 
-    const listUrl = `https://www.googleapis.com/drive/v3/files?${params.toString()}`
-    const listResp = await fetchGoogleAuth(ctx, listUrl)
-    if (!listResp.ok) {
-      const errText = await listResp.text()
-      throw new Error(`Drive listing failed: ${errText.slice(0, 200)}`)
+  console.log(`📄 Found ${allFiles.length} files (hasMore: ${hasMore})`)
+
+  // Pre-fetch existing rows for this tenant to enable batch lookup + skip-unchanged
+  const fileIds = allFiles.map((f: any) => f.id)
+  const { data: existingRows } = await admin
+    .from('knowledge_base')
+    .select('id, metadata, updated_at')
+    .eq('source', 'google_drive')
+    .eq('tenant_id', tenantId)
+    .filter('metadata->>external_id', 'in', `(${fileIds.map((id: string) => `"${id}"`).join(',')})`)
+
+  const existingMap = new Map<string, { id: string, modified_time: string | null }>()
+  for (const row of existingRows || []) {
+    const extId = row.metadata?.external_id
+    if (extId) {
+      existingMap.set(extId, { id: row.id, modified_time: row.metadata?.modified_time || null })
     }
-    const listData = await listResp.json()
-    const files = listData.files || []
-    allFiles.push(...files)
-    pageToken = listData.nextPageToken
-    pages++
-  } while (pageToken && pages < MAX_PAGES)
-
-  console.log(`📄 Found ${allFiles.length} files across ${pages} page(s)`)
+  }
 
   let newDocuments = 0
   let updatedDocuments = 0
   let skippedDocuments = 0
+  let unchangedDocuments = 0
   let errorDocuments = 0
-  let totalDocuments = 0
 
+  // Filter files we actually need to process
+  const filesToProcess: any[] = []
   for (const file of allFiles) {
-    try {
-      // Defensive skip for image/video/audio
-      if (
-        file.mimeType?.startsWith('image/') ||
-        file.mimeType?.startsWith('video/') ||
-        file.mimeType?.startsWith('audio/')
-      ) {
-        skippedDocuments++
-        continue
-      }
+    if (
+      file.mimeType?.startsWith('image/') ||
+      file.mimeType?.startsWith('video/') ||
+      file.mimeType?.startsWith('audio/')
+    ) {
+      skippedDocuments++
+      continue
+    }
+    const sizeBytes = parseInt(file.size || '0', 10)
+    if (sizeBytes > 25 * 1024 * 1024) {
+      skippedDocuments++
+      continue
+    }
+    // Skip if already synced AND modifiedTime hasn't changed
+    const prev = existingMap.get(file.id)
+    if (prev && prev.modified_time === file.modifiedTime) {
+      unchangedDocuments++
+      continue
+    }
+    filesToProcess.push(file)
+  }
 
-      const sizeBytes = parseInt(file.size || '0', 10)
-      if (sizeBytes > 25 * 1024 * 1024) {
-        console.log(`⏭️  Skipping ${file.name} (>25MB)`)
-        skippedDocuments++
-        continue
-      }
+  console.log(`🔄 Processing ${filesToProcess.length} files (skipping ${skippedDocuments} non-text, ${unchangedDocuments} unchanged)`)
 
-      const { content, contentType } = await extractContent(ctx, file)
-
-      const truncatedContent = content.length > 50000
-        ? content.substring(0, 50000) + '... [truncado]'
-        : content
-
-      // Upsert by (tenant_id, source, metadata->external_id)
-      // Index: knowledge_base_tenant_source_external_uniq (created in migration)
-      const { data: existing } = await admin
-        .from('knowledge_base')
-        .select('id')
-        .eq('source', 'google_drive')
-        .eq('tenant_id', tenantId)
-        .filter('metadata->>external_id', 'eq', file.id)
-        .maybeSingle()
-
-      const payload: any = {
-        title: file.name,
-        content: truncatedContent || `(${contentType}: ${file.name} — sin contenido extraído)`,
-        project: 'Google Drive',
-        file_type: file.mimeType,
-        source: 'google_drive',
-        active: true,
-        tenant_id: tenantId,
-        created_by: userId,
-        updated_at: new Date().toISOString(),
-        metadata: {
-          external_id: file.id,
-          file_url: file.webViewLink,
-          modified_time: file.modifiedTime,
-          synced_at: new Date().toISOString(),
-          content_type: contentType,
-          size_bytes: sizeBytes,
-        },
-      }
-
-      if (existing) {
-        const { error } = await admin
-          .from('knowledge_base')
-          .update(payload)
-          .eq('id', existing.id)
-        if (error) {
-          console.error(`Update failed for ${file.id} (${file.name}): ${error.message}`)
-          errorDocuments++
-        } else {
-          updatedDocuments++
-        }
+  // Process in parallel batches of 5 — balances CPU usage with throughput
+  const CONCURRENCY = 5
+  for (let i = 0; i < filesToProcess.length; i += CONCURRENCY) {
+    const batch = filesToProcess.slice(i, i + CONCURRENCY)
+    const results = await Promise.allSettled(batch.map((file) => processFile(ctx, admin, tenantId, userId!, file, existingMap)))
+    for (const r of results) {
+      if (r.status === 'fulfilled') {
+        if (r.value === 'new') newDocuments++
+        else if (r.value === 'updated') updatedDocuments++
+        else errorDocuments++
       } else {
-        const { error } = await admin.from('knowledge_base').insert(payload)
-        if (!error) {
-          newDocuments++
-        } else {
-          console.error(`Insert failed for ${file.id} (${file.name}): ${error.message}`)
-          errorDocuments++
-        }
+        errorDocuments++
       }
-      totalDocuments++
-    } catch (err: any) {
-      console.error(`Error processing file ${file.id} (${file.name}): ${err.message || err}`)
-      errorDocuments++
     }
   }
 
-  console.log(`✅ Sync done — new: ${newDocuments}, updated: ${updatedDocuments}, skipped: ${skippedDocuments}, errors: ${errorDocuments}, total: ${totalDocuments}`)
+  const totalDocuments = newDocuments + updatedDocuments + unchangedDocuments
+
+  console.log(`✅ Sync done — new: ${newDocuments}, updated: ${updatedDocuments}, unchanged: ${unchangedDocuments}, skipped: ${skippedDocuments}, errors: ${errorDocuments}`)
 
   await admin
     .from('integrations')
@@ -390,12 +362,75 @@ async function handleSync(admin: any, tenantId: string, integrationId: string, f
       success: true,
       newDocuments,
       updatedDocuments,
+      unchangedDocuments,
       skippedDocuments,
       errorDocuments,
       documentsCount: totalDocuments,
+      hasMore,
+      message: hasMore
+        ? `Procesados ${totalDocuments} archivos. Hay más archivos por sincronizar — dale "Sincronizar" de nuevo.`
+        : `Procesados ${totalDocuments} archivos. Todo al día.`,
     }),
     { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   )
+}
+
+// Process a single file — download, parse, upsert. Returns 'new' | 'updated' | 'error'.
+async function processFile(
+  ctx: AuthContext,
+  admin: any,
+  tenantId: string,
+  userId: string,
+  file: any,
+  existingMap: Map<string, { id: string, modified_time: string | null }>,
+): Promise<'new' | 'updated' | 'error'> {
+  try {
+    const sizeBytes = parseInt(file.size || '0', 10)
+    const { content, contentType } = await extractContent(ctx, file)
+    const truncatedContent = content.length > 50000
+      ? content.substring(0, 50000) + '... [truncado]'
+      : content
+
+    const payload: any = {
+      title: file.name,
+      content: truncatedContent || `(${contentType}: ${file.name} — sin contenido extraído)`,
+      project: 'Google Drive',
+      file_type: file.mimeType,
+      source: 'google_drive',
+      active: true,
+      tenant_id: tenantId,
+      created_by: userId,
+      updated_at: new Date().toISOString(),
+      metadata: {
+        external_id: file.id,
+        file_url: file.webViewLink,
+        modified_time: file.modifiedTime,
+        synced_at: new Date().toISOString(),
+        content_type: contentType,
+        size_bytes: sizeBytes,
+      },
+    }
+
+    const prev = existingMap.get(file.id)
+    if (prev) {
+      const { error } = await admin.from('knowledge_base').update(payload).eq('id', prev.id)
+      if (error) {
+        console.error(`Update failed for ${file.id} (${file.name}): ${error.message}`)
+        return 'error'
+      }
+      return 'updated'
+    } else {
+      const { error } = await admin.from('knowledge_base').insert(payload)
+      if (error) {
+        console.error(`Insert failed for ${file.id} (${file.name}): ${error.message}`)
+        return 'error'
+      }
+      return 'new'
+    }
+  } catch (err: any) {
+    console.error(`Error processing ${file.id} (${file.name}): ${err.message || err}`)
+    return 'error'
+  }
 }
 
 // =====================================================================
