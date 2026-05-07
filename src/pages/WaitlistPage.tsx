@@ -39,20 +39,29 @@ const WaitlistPage = () => {
     }
     setSubmitting(true)
     try {
+      const params = new URLSearchParams(window.location.search)
       const { error: insertError } = await supabase.from('waitlist').insert({
         email: email.trim().toLowerCase(),
         company_name: companyName.trim() || null,
         company_size: companySize,
         use_case: useCase,
         referrer: referrer || (typeof document !== 'undefined' ? document.referrer : null),
-        utm_source: new URLSearchParams(window.location.search).get('utm_source'),
-        utm_medium: new URLSearchParams(window.location.search).get('utm_medium'),
-        utm_campaign: new URLSearchParams(window.location.search).get('utm_campaign'),
+        utm_source: params.get('utm_source'),
+        utm_medium: params.get('utm_medium'),
+        utm_campaign: params.get('utm_campaign'),
+        // ip_address and user_agent are populated server-side by the
+        // capture_waitlist_request_meta() trigger (see migration). Do NOT send them
+        // from the client — they would be untrusted and easy to spoof.
       })
       if (insertError) {
-        // Duplicate email is OK — show as success
+        // 23505 (unique violation) → treat as success to avoid email-enumeration oracle.
+        // P0001 with message 'rate_limit_exceeded' → show generic error.
         if (insertError.code === '23505') {
           setSubmitted(true)
+          return
+        }
+        if (insertError.message?.includes('rate_limit_exceeded')) {
+          setError('Has hecho demasiadas solicitudes. Espera unos minutos e intenta de nuevo.')
           return
         }
         throw insertError
@@ -60,7 +69,7 @@ const WaitlistPage = () => {
       setSubmitted(true)
     } catch (err: any) {
       console.error('Waitlist error:', err)
-      setError(err.message || 'Hubo un error. Intenta de nuevo.')
+      setError('Hubo un error procesando tu solicitud. Intenta de nuevo en unos minutos.')
     } finally {
       setSubmitting(false)
     }
@@ -168,6 +177,8 @@ const WaitlistPage = () => {
                 <button
                   key={s}
                   type="button"
+                  aria-pressed={companySize === s}
+                  aria-label={`Tamaño del equipo: ${s} personas`}
                   onClick={() => setCompanySize(s)}
                   className={`px-3 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
                     companySize === s
@@ -190,6 +201,7 @@ const WaitlistPage = () => {
                 <button
                   key={u}
                   type="button"
+                  aria-pressed={useCase === u}
                   onClick={() => setUseCase(u)}
                   className={`w-full text-left px-4 py-3 rounded-lg border text-sm transition-colors ${
                     useCase === u
