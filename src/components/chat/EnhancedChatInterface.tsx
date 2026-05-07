@@ -27,6 +27,7 @@ import {
 import { useEnhancedChat } from '@/hooks/useEnhancedChat'
 import { useAuth } from '@/hooks/useAuth'
 import { toast } from '@/hooks/use-toast'
+import OnboardingChecklist from '@/components/onboarding/OnboardingChecklist'
 
 const EnhancedChatInterface = () => {
   const [input, setInput] = useState('')
@@ -233,6 +234,7 @@ const EnhancedChatInterface = () => {
         {/* Messages — scrollable area */}
         <div className="flex-1 min-h-0 overflow-y-auto" ref={scrollAreaRef}>
           <div className="max-w-3xl mx-auto w-full px-4 py-6">
+            <OnboardingChecklist />
             {isEmpty ? (
               <div className="flex flex-col items-center justify-center text-center py-16">
                 <div className="w-14 h-14 bg-gradient-to-br from-slate-700 to-slate-900 rounded-2xl flex items-center justify-center mb-4 shadow-lg">
