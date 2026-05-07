@@ -1,0 +1,44 @@
+name: Drive Sync Worker
+
+# Runs every minute. Claims up to 5 pending Drive files from the queue and parses them.
+# Triggered automatically; can also be run manually from the Actions tab.
+
+on:
+  schedule:
+    - cron: '* * * * *' # every minute
+  workflow_dispatch: # manual trigger
+
+jobs:
+  process:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Invoke drive-sync-worker
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          # Call the worker. It returns 200 even if there's no work to do.
+          # We invoke 6 times in a row (every 10s) to effectively process up to
+          # 30 files per minute without needing per-second cron.
+          for i in 1 2 3 4 5 6; do
+            response=$(curl -sS -X POST "$SUPABASE_URL/functions/v1/drive-sync-worker" \
+              -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+              -H "Content-Type: application/json" \
+              -d '{}' \
+              -w "\nHTTP_STATUS:%{http_code}")
+
+            http_status=$(echo "$response" | grep "HTTP_STATUS" | cut -d':' -f2)
+            body=$(echo "$response" | sed '/HTTP_STATUS/d')
+
+            echo "Run $i — status $http_status — $body"
+
+            # Short-circuit if no work claimed (saves CPU on quiet periods)
+            claimed=$(echo "$body" | grep -o '"claimed":[0-9]*' | cut -d':' -f2)
+            if [ "$claimed" = "0" ]; then
+              echo "No pending work, exiting early"
+              exit 0
+            fi
+
+            # Sleep 8s between runs (so 6 runs ≈ 48s total, fits within 60s cron tick)
+            if [ "$i" != "6" ]; then sleep 8; fi
+          done

@@ -159,7 +159,12 @@ serve(async (req) => {
 
     switch (action) {
       case 'sync':
-        return await handleSync(adminClient, tenantId, integrationId, folder_id, user.id)
+        // Lightweight: list files from Drive and enqueue them. Returns immediately.
+        // Background worker (separate edge function + cron) does the heavy parsing.
+        return await handleEnqueue(adminClient, tenantId, integrationId, folder_id, user.id)
+      case 'sync_status':
+        // Progress polling: returns pending/processing/done/error counts
+        return await handleSyncStatus(adminClient, tenantId)
       case 'list_folders':
         return await handleListFolders(adminClient, tenantId, integrationId)
       case 'disconnect':
@@ -287,195 +292,160 @@ const DRIVE_ID_PATTERN = /^[a-zA-Z0-9_-]+$/
 // Sprint 3 will replace this with a background queue (cron-driven).
 // =====================================================================
 
-// 10 files × ~150ms parse avg ≈ 1.5s wall time (well under 2s CPU cap).
-// Sequential processing — parsing libs are CPU-bound, parallelism does not
-// reduce CPU time (only wall time). Sequential makes the budget predictable.
-const DRIVE_PAGE_SIZE = 10
-const CONCURRENCY = 1
-
-async function handleSync(admin: any, tenantId: string, integrationId: string, folderId?: string, userId?: string) {
-  // Fail fast before any DB call
-  if (!userId) {
-    throw new Error('userId is required for sync')
-  }
+// =====================================================================
+// ENQUEUE — list files from Drive, push them into drive_sync_queue.
+// Worker (separate edge function + GitHub cron) processes them async.
+// This call returns within ~5s regardless of how many files the user has.
+// =====================================================================
+async function handleEnqueue(admin: any, tenantId: string, integrationId: string, folderId?: string, userId?: string) {
+  if (!userId) throw new Error('userId is required for sync')
 
   const ctx = await getAuthContext(admin, tenantId, integrationId)
-
-  // Recover saved pageToken from previous incomplete sync
-  const { data: integrationRow } = await admin
-    .from('integrations')
-    .select('id, metadata')
-    .eq('id', ctx.rowId)
-    .single()
-  const savedPageToken: string | undefined = integrationRow?.metadata?.drive_page_token || undefined
 
   let q = "trashed = false"
   if (folderId) q += ` and '${folderId}' in parents`
   q += ` and (${SUPPORTED_MIMES.map(m => `mimeType = '${m}'`).join(' or ')})`
 
-  console.log(`🔍 Drive query: ${q}${savedPageToken ? ' (resuming from saved pageToken)' : ''}`)
+  console.log(`🔍 Enqueue: ${q}`)
 
-  const params = new URLSearchParams({
-    q,
-    fields: 'files(id,name,mimeType,modifiedTime,webViewLink,size),nextPageToken',
-    pageSize: String(DRIVE_PAGE_SIZE),
+  // List ALL files (with pagination), but only metadata — no parsing here
+  const allFiles: DriveFile[] = []
+  let pageToken: string | undefined = undefined
+  const MAX_LIST_PAGES = 20 // 100 × 20 = 2000 files max
+
+  for (let page = 0; page < MAX_LIST_PAGES; page++) {
+    const params = new URLSearchParams({
+      q,
+      fields: 'files(id,name,mimeType,modifiedTime,webViewLink,size),nextPageToken',
+      pageSize: '100',
+    })
+    if (pageToken) params.set('pageToken', pageToken)
+
+    const listResp = await fetchGoogleAuth(ctx, `https://www.googleapis.com/drive/v3/files?${params.toString()}`)
+    if (!listResp.ok) {
+      const errText = await listResp.text()
+      throw new Error(`Drive listing failed: ${errText.slice(0, 200)}`)
+    }
+    const listData = await listResp.json()
+    const files: DriveFile[] = listData.files || []
+    allFiles.push(...files)
+    pageToken = listData.nextPageToken
+    if (!pageToken) break
+  }
+
+  console.log(`📄 Listed ${allFiles.length} files from Drive`)
+
+  // Filter eligible files (skip image/video/audio + oversized)
+  const eligible = allFiles.filter((f) => {
+    if (!DRIVE_ID_PATTERN.test(f.id)) return false
+    if (f.mimeType?.startsWith('image/') || f.mimeType?.startsWith('video/') || f.mimeType?.startsWith('audio/')) return false
+    const size = parseInt(f.size || '0', 10)
+    if (size > 25 * 1024 * 1024) return false
+    return true
   })
-  if (savedPageToken) params.set('pageToken', savedPageToken)
 
-  const listUrl = `https://www.googleapis.com/drive/v3/files?${params.toString()}`
-  const listResp = await fetchGoogleAuth(ctx, listUrl)
-  if (!listResp.ok) {
-    const errText = await listResp.text()
-    throw new Error(`Drive listing failed: ${errText.slice(0, 200)}`)
-  }
-  const listData = await listResp.json()
-  const allFiles: DriveFile[] = listData.files || []
-  const nextPageToken: string | undefined = listData.nextPageToken
-  const hasMore = !!nextPageToken
-
-  console.log(`📄 Found ${allFiles.length} files (hasMore: ${hasMore})`)
-
-  // Pre-fetch existing rows. Sanitize IDs first to prevent any injection
-  // through the manual JSONB filter string.
-  const safeFileIds = allFiles
-    .map((f) => f.id)
-    .filter((id) => DRIVE_ID_PATTERN.test(id))
-  if (safeFileIds.length !== allFiles.length) {
-    console.warn(`⚠️  ${allFiles.length - safeFileIds.length} files had unsafe IDs and were filtered`)
-  }
-
-  const existingMap = new Map<string, { id: string, modified_time: string | null }>()
-  if (safeFileIds.length > 0) {
-    // Build the IN clause manually but only with sanitized IDs.
-    // PostgREST .filter() does not natively support .in() over JSONB paths.
-    const inList = safeFileIds.map((id) => `"${id}"`).join(',')
-    const { data: existingRows } = await admin
-      .from('knowledge_base')
-      .select('id, metadata, updated_at')
-      .eq('source', 'google_drive')
-      .eq('tenant_id', tenantId)
-      .filter('metadata->>external_id', 'in', `(${inList})`)
-    for (const row of existingRows || []) {
-      const extId = row.metadata?.external_id
-      if (extId) {
-        existingMap.set(extId, { id: row.id, modified_time: row.metadata?.modified_time || null })
-      }
+  // Upsert into queue. ON CONFLICT: if same (tenant_id, file_id) already exists,
+  // refresh modified_time and reset status to 'pending' if file changed.
+  // We do this in chunks to avoid huge payloads.
+  const CHUNK = 100
+  let enqueued = 0
+  for (let i = 0; i < eligible.length; i += CHUNK) {
+    const chunk = eligible.slice(i, i + CHUNK)
+    const rows = chunk.map((f) => ({
+      tenant_id: tenantId,
+      user_id: userId,
+      file_id: f.id,
+      file_name: f.name,
+      file_mime: f.mimeType,
+      file_size: parseInt(f.size || '0', 10) || null,
+      modified_time: f.modifiedTime,
+      web_view_link: f.webViewLink,
+      status: 'pending',
+      attempts: 0,
+      error_message: null,
+    }))
+    const { error } = await admin
+      .from('drive_sync_queue')
+      .upsert(rows, { onConflict: 'tenant_id,file_id', ignoreDuplicates: false })
+    if (error) {
+      console.error(`Enqueue chunk failed: ${error.message}`)
+    } else {
+      enqueued += chunk.length
     }
   }
 
-  let newDocuments = 0
-  let updatedDocuments = 0
-  let skippedDocuments = 0
-  let unchangedDocuments = 0
-  let errorDocuments = 0
+  // Reset status of unchanged files back to 'done' so worker doesn't reprocess
+  // them. We compare against existing knowledge_base rows.
+  // (Simple approach: worker itself short-circuits if modified_time matches.)
 
-  // Filter + dedupe by file.id (Drive can return duplicates in edge cases;
-  // duplicates in the same batch with CONCURRENCY > 1 would cause races.)
-  const seenIds = new Set<string>()
-  const filesToProcess: DriveFile[] = []
-  for (const file of allFiles) {
-    if (!DRIVE_ID_PATTERN.test(file.id)) {
-      skippedDocuments++
-      continue
-    }
-    if (seenIds.has(file.id)) {
-      skippedDocuments++
-      continue
-    }
-    if (
-      file.mimeType?.startsWith('image/') ||
-      file.mimeType?.startsWith('video/') ||
-      file.mimeType?.startsWith('audio/')
-    ) {
-      skippedDocuments++
-      continue
-    }
-    const sizeBytes = parseInt(file.size || '0', 10)
-    if (sizeBytes > 25 * 1024 * 1024) {
-      skippedDocuments++
-      continue
-    }
-    const prev = existingMap.get(file.id)
-    if (prev && prev.modified_time === file.modifiedTime) {
-      unchangedDocuments++
-      seenIds.add(file.id)
-      continue
-    }
-    seenIds.add(file.id)
-    filesToProcess.push(file)
-  }
-
-  // Pagination is fully Drive-side now — hasMore == nextPageToken exists
-  console.log(`🔄 Processing ${filesToProcess.length} files (skipping ${skippedDocuments}, unchanged ${unchangedDocuments})`)
-
-  // Process in parallel batches — small concurrency to fit CPU budget
-  for (let i = 0; i < filesToProcess.length; i += CONCURRENCY) {
-    const batch = filesToProcess.slice(i, i + CONCURRENCY)
-    const results = await Promise.allSettled(batch.map((file) => processFile(ctx, admin, tenantId, userId, file, existingMap)))
-    for (const r of results) {
-      if (r.status === 'fulfilled') {
-        if (r.value === 'new') newDocuments++
-        else if (r.value === 'updated') updatedDocuments++
-        else errorDocuments++
-      } else {
-        errorDocuments++
-      }
-    }
-  }
-
-  const totalProcessed = newDocuments + updatedDocuments
-
-  console.log(`✅ Sync batch done — new: ${newDocuments}, updated: ${updatedDocuments}, unchanged: ${unchangedDocuments}, skipped: ${skippedDocuments}, errors: ${errorDocuments}, hasMore: ${hasMore}`)
-
-  // Persist nextPageToken so the next "Sincronizar" click resumes
-  // where we left off. Clear it when listing finished.
-  const newMetadata = {
-    ...(integrationRow?.metadata || {}),
-    drive_page_token: hasMore ? nextPageToken : null,
-  }
-
-  // Real count from DB — not just this batch. So the "X elementos indexados"
-  // shown in the UI reflects the true total across all sync runs.
-  const { count: totalIndexed } = await admin
-    .from('knowledge_base')
-    .select('*', { count: 'exact', head: true })
-    .eq('source', 'google_drive')
-    .eq('tenant_id', tenantId)
-
+  // Update integration metadata for last_sync timestamp
   await admin
     .from('integrations')
     .update({
       last_sync_at: new Date().toISOString(),
-      items_synced: totalIndexed || 0,
-      sync_status: 'idle',
-      metadata: newMetadata,
+      sync_status: 'syncing',
     })
     .eq('id', ctx.rowId)
 
-  // UX-friendly message: distinguish between "did real work" and "just verified up to date"
-  let message: string
-  if (hasMore) {
-    if (totalProcessed > 0) {
-      message = `Indexados ${totalProcessed} nuevos. Total en Cerebro: ${totalIndexed}. Hay más por sincronizar — dale "Sincronizar" de nuevo.`
-    } else {
-      message = `${unchangedDocuments} archivos verificados (sin cambios). Total en Cerebro: ${totalIndexed}. Hay más por sincronizar — dale "Sincronizar" de nuevo.`
+  // Return queue stats so frontend can show progress immediately
+  const { data: stats } = await admin.rpc('drive_sync_stats', { p_tenant_id: tenantId })
+  const s = stats?.[0] || { pending: 0, processing: 0, done: 0, error: 0, total: 0 }
+
+  return new Response(
+    JSON.stringify({
+      success: true,
+      enqueued,
+      total_in_drive: allFiles.length,
+      stats: {
+        pending: Number(s.pending),
+        processing: Number(s.processing),
+        done: Number(s.done),
+        error: Number(s.error),
+        total: Number(s.total),
+      },
+      message: `Encolados ${enqueued} archivos. Procesando en background — la barra de progreso se actualiza sola.`,
+    }),
+    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
+}
+
+// =====================================================================
+// SYNC STATUS — for the progress bar polling
+// =====================================================================
+async function handleSyncStatus(admin: any, tenantId: string) {
+  const { data: stats } = await admin.rpc('drive_sync_stats', { p_tenant_id: tenantId })
+  const s = stats?.[0] || { pending: 0, processing: 0, done: 0, error: 0, skipped: 0, total: 0, oldest_pending_at: null }
+
+  const pending = Number(s.pending)
+  const processing = Number(s.processing)
+  const done = Number(s.done)
+  const error = Number(s.error)
+  const total = Number(s.total)
+
+  const finished = pending === 0 && processing === 0
+  const percentage = total > 0 ? Math.round(((done + error) / total) * 100) : 0
+
+  // Optional warning: if oldest pending is > 5 min old, the user might
+  // worry — surface a friendly message
+  let warning: string | null = null
+  if (s.oldest_pending_at) {
+    const ageMs = Date.now() - new Date(s.oldest_pending_at).getTime()
+    if (ageMs > 5 * 60 * 1000) {
+      warning = 'El proceso está tardando un poco — esto puede pasar la primera vez con muchos archivos. El sync sigue activo.'
     }
-  } else {
-    message = `Sincronización completa. ${totalIndexed} archivos en Cerebro.`
   }
 
   return new Response(
     JSON.stringify({
       success: true,
-      newDocuments,
-      updatedDocuments,
-      unchangedDocuments,
-      skippedDocuments,
-      errorDocuments,
-      documentsCount: totalIndexed || 0,
-      totalProcessed,
-      hasMore,
-      message,
+      pending,
+      processing,
+      done,
+      error,
+      total,
+      percentage,
+      finished,
+      warning,
     }),
     { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   )

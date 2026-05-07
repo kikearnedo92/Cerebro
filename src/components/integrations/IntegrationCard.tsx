@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -12,6 +12,7 @@ import {
   Database,
 } from 'lucide-react'
 import { Integration, ConnectedIntegration, IntegrationStatus } from '@/lib/integrations'
+import DriveSyncProgress from './DriveSyncProgress'
 
 interface IntegrationCardProps {
   integration: Integration
@@ -56,6 +57,17 @@ export default function IntegrationCard({
   const isConnected = status === 'connected'
   const isSyncing = connection?.sync_status === 'syncing'
   const statusInfo = statusConfig[status]
+  const isDrive = integration.id === 'google_drive'
+
+  // Show progress bar if user just clicked Sync (or sync is still in progress
+  // from a previous tab/session, indicated by sync_status = 'syncing')
+  const [progressActive, setProgressActive] = useState(false)
+  const showProgress = isDrive && isConnected && (progressActive || isSyncing)
+
+  const handleSyncClick = () => {
+    if (isDrive) setProgressActive(true)
+    onSync()
+  }
 
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return null
@@ -121,22 +133,30 @@ export default function IntegrationCard({
           </div>
         )}
 
+        {/* Drive sync progress bar (only for Drive, when active) */}
+        {showProgress && (
+          <DriveSyncProgress
+            active={true}
+            onFinished={() => setProgressActive(false)}
+          />
+        )}
+
         {/* Actions */}
         <div className="flex gap-2">
           {isConnected ? (
             <>
               <Button
-                onClick={onSync}
-                disabled={isSyncing}
+                onClick={handleSyncClick}
+                disabled={isSyncing || progressActive}
                 className="flex-1 bg-slate-900 hover:bg-slate-800"
                 size="sm"
               >
-                {isSyncing ? (
+                {isSyncing || progressActive ? (
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 ) : (
                   <RefreshCw className="w-4 h-4 mr-2" />
                 )}
-                {isSyncing ? 'Sincronizando...' : 'Sincronizar ahora'}
+                {isSyncing || progressActive ? 'Sincronizando...' : 'Sincronizar ahora'}
               </Button>
               <Button
                 onClick={onDisconnect}
