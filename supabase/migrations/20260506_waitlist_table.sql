@@ -121,7 +121,7 @@ CREATE POLICY "Super admin can read waitlist"
     EXISTS (
       SELECT 1 FROM public.profiles
       WHERE profiles.id = auth.uid()
-        AND profiles.role = 'super_admin'
+        AND profiles.role_system = 'super_admin'
     )
   );
 
@@ -135,7 +135,7 @@ CREATE POLICY "Super admin can update waitlist"
     EXISTS (
       SELECT 1 FROM public.profiles
       WHERE profiles.id = auth.uid()
-        AND profiles.role = 'super_admin'
+        AND profiles.role_system = 'super_admin'
     )
   );
 

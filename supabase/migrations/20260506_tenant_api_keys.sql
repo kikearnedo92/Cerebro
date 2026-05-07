@@ -60,7 +60,7 @@ CREATE POLICY "Tenant admins can create keys"
   WITH CHECK (
     tenant_id IN (
       SELECT tenant_id FROM public.profiles
-      WHERE id = auth.uid() AND role IN ('admin', 'super_admin')
+      WHERE id = auth.uid() AND role_system IN ('admin', 'super_admin')
     )
   );
 
@@ -72,7 +72,7 @@ CREATE POLICY "Tenant admins can revoke keys"
   USING (
     tenant_id IN (
       SELECT tenant_id FROM public.profiles
-      WHERE id = auth.uid() AND role IN ('admin', 'super_admin')
+      WHERE id = auth.uid() AND role_system IN ('admin', 'super_admin')
     )
   );
 
