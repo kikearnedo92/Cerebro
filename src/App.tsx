@@ -1,6 +1,7 @@
 import React from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { Toaster } from './components/ui/toaster'
+import CookieBanner from './components/CookieBanner'
 import { useAuth } from './hooks/useAuth'
 
 // Public pages
@@ -79,6 +80,7 @@ function App() {
           <Route path="*" element={<NotFound />} />
         </Routes>
         <Toaster />
+        <CookieBanner />
       </div>
     </Router>
   )
