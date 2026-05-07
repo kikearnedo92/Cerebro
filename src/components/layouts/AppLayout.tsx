@@ -26,6 +26,10 @@ const AppLayout = () => {
         return 'Usuarios'
       case '/integrations':
         return 'Integraciones'
+      case '/api-keys':
+        return 'API Keys & MCP'
+      case '/mcp-docs':
+        return 'Documentación MCP'
       case '/settings':
         return 'Configuracion'
       case '/profile':

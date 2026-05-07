@@ -21,6 +21,8 @@ import UsersPage from './pages/UsersPage'
 import SettingsPage from './pages/SettingsPage'
 import IntegrationsPage from './pages/IntegrationsPage'
 import ProfilePage from './pages/ProfilePage'
+import ApiKeysPage from './pages/ApiKeysPage'
+import McpDocsPage from './pages/McpDocsPage'
 import NotFound from './pages/NotFound'
 
 // Admin
@@ -62,6 +64,8 @@ function App() {
             <Route path="integrations" element={<IntegrationsPage />} />
             <Route path="settings" element={<SettingsPage />} />
             <Route path="profile" element={<ProfilePage />} />
+            <Route path="api-keys" element={<ApiKeysPage />} />
+            <Route path="mcp-docs" element={<McpDocsPage />} />
           </Route>
 
           {/* Super Admin */}
