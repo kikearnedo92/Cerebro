@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Brain, ArrowLeft, CheckCircle2, Sparkles } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
+import { supabase } from '@/integrations/supabase/client'
 
 const COMPANY_SIZES = [
   '1-10',
