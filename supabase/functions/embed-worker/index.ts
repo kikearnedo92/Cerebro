@@ -123,12 +123,14 @@ serve(async (req) => {
 
   let updated = 0
   let errored = 0
+  const errorSamples: string[] = []
 
   for (let i = 0; i < jobs.length; i++) {
     const row = jobs[i]
     const emb = embeddings[i]
     if (!emb || emb.length !== EMBED_DIM) {
       errored++
+      if (errorSamples.length < 3) errorSamples.push(`Row ${row.id}: bad embedding (len=${emb?.length})`)
       continue
     }
 
@@ -146,6 +148,7 @@ serve(async (req) => {
     if (updateErr) {
       console.error(`Update failed for ${row.id}: ${updateErr.message}`)
       errored++
+      if (errorSamples.length < 3) errorSamples.push(`Row ${row.id}: ${updateErr.message}`)
     } else {
       updated++
     }
@@ -154,7 +157,7 @@ serve(async (req) => {
   console.log(`✅ Embed batch — updated: ${updated}, errored: ${errored}`)
 
   return new Response(
-    JSON.stringify({ success: true, claimed: jobs.length, processed: updated, errored }),
+    JSON.stringify({ success: true, claimed: jobs.length, processed: updated, errored, errorSamples }),
     { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   )
 })
