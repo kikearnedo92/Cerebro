@@ -24,8 +24,9 @@ const WORKER_AUTH_TOKEN = Deno.env.get('WORKER_AUTH_TOKEN') ?? ''
 
 const EMBED_MODEL = 'voyage-3-large'
 const EMBED_DIM = 1024
-const BATCH_SIZE = 20            // Voyage accepts up to 128 inputs per call
-const MAX_INPUT_TOKENS = 16000   // voyage-3-large context window is 32K — leave headroom
+// Voyage accepts max 120K tokens per batch. With 10 docs × 8K tokens = 80K. Safe.
+const BATCH_SIZE = 10
+const MAX_INPUT_TOKENS = 8000
 const CHARS_PER_TOKEN_APPROX = 4
 
 function truncateForEmbedding(s: string): string {
