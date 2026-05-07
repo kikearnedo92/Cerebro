@@ -264,11 +264,39 @@ export function useIntegrations() {
       return
     }
 
-    // Caso especial: google_drive / gmail / google_calendar via Edge Function Supabase
+    // Gmail: edge function dedicada (no comparte código con drive)
+    if (integrationId === 'gmail') {
+      setConnections((prev) =>
+        prev.map((c) => c.integration_id === integrationId ? { ...c, sync_status: 'syncing' as const } : c)
+      )
+      toast({
+        title: 'Sincronizando Gmail...',
+        description: 'Indexando últimos 30 días de threads.',
+      })
+      try {
+        const { data, error } = await supabase.functions.invoke('gmail-integration', { body: { action: 'sync' } })
+        if (error) throw new Error(error.message || 'Sync failed')
+        if (data?.success) {
+          toast({
+            title: 'Sincronización completa',
+            description: data.message || `${data.documentsCount || 0} threads indexados.`,
+          })
+        } else {
+          throw new Error(data?.error || 'Sync failed')
+        }
+      } catch (err: any) {
+        console.error('Gmail sync error:', err)
+        toast({ title: 'Error de sincronización', description: err.message || 'Algo falló.', variant: 'destructive' })
+      } finally {
+        await fetchConnections()
+      }
+      return
+    }
+
+    // Caso especial: google_drive / google_calendar via Edge Function Supabase
     // (no usan endpoint Vercel para no exceder límite de 12 functions)
-    if (integrationId === 'google_drive' || integrationId === 'gmail' || integrationId === 'google_calendar') {
-      const service = integrationId === 'google_drive' ? 'drive' :
-                      integrationId === 'gmail' ? 'gmail' : 'calendar'
+    if (integrationId === 'google_drive' || integrationId === 'google_calendar') {
+      const service = integrationId === 'google_drive' ? 'drive' : 'calendar'
 
       // Optimistic UI
       setConnections((prev) =>
