@@ -344,33 +344,30 @@ async function handleEnqueue(admin: any, tenantId: string, integrationId: string
     return true
   })
 
-  // Upsert into queue. ON CONFLICT: if same (tenant_id, file_id) already exists,
-  // refresh modified_time and reset status to 'pending' if file changed.
-  // We do this in chunks to avoid huge payloads.
+  // Enqueue via RPC. The RPC ONLY resets status='pending' when modified_time
+  // actually changed — preserves done/processing rows from prior runs.
+  // (Fix for Code Reviewer #2: silent corruption on repeat sync clicks.)
   const CHUNK = 100
   let enqueued = 0
   for (let i = 0; i < eligible.length; i += CHUNK) {
     const chunk = eligible.slice(i, i + CHUNK)
-    const rows = chunk.map((f) => ({
-      tenant_id: tenantId,
-      user_id: userId,
+    const filesPayload = chunk.map((f) => ({
       file_id: f.id,
       file_name: f.name,
       file_mime: f.mimeType,
-      file_size: parseInt(f.size || '0', 10) || null,
+      file_size: f.size || null,
       modified_time: f.modifiedTime,
       web_view_link: f.webViewLink,
-      status: 'pending',
-      attempts: 0,
-      error_message: null,
     }))
-    const { error } = await admin
-      .from('drive_sync_queue')
-      .upsert(rows, { onConflict: 'tenant_id,file_id', ignoreDuplicates: false })
+    const { data: rpcRes, error } = await admin.rpc('enqueue_drive_files', {
+      p_tenant_id: tenantId,
+      p_user_id: userId,
+      p_files: filesPayload,
+    })
     if (error) {
       console.error(`Enqueue chunk failed: ${error.message}`)
     } else {
-      enqueued += chunk.length
+      enqueued += Number(rpcRes?.[0]?.enqueued || chunk.length)
     }
   }
 
