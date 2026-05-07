@@ -250,25 +250,66 @@ async function fetchGoogleAuth(ctx: AuthContext, url: string, opts: RequestInit 
 }
 
 // =====================================================================
+// Type definitions
+// =====================================================================
+interface DriveFile {
+  id: string
+  name: string
+  mimeType: string
+  modifiedTime: string
+  webViewLink?: string
+  size?: string
+}
+
+// Google Drive file IDs are URL-safe base64-style strings.
+// Defensive validator: only accept alphanumerics, dashes, and underscores.
+const DRIVE_ID_PATTERN = /^[a-zA-Z0-9_-]+$/
+
+// =====================================================================
 // SYNC
 // =====================================================================
+//
+// Per-call budget (Supabase Edge Function CPU limit is ~2s of compute,
+// not wall time, but parsing libs are CPU-intensive):
+//   - List up to 100 files (1 Drive API page)
+//   - Skip image/video/audio + files > 25 MB + unchanged-since-last-sync
+//   - Process at most MAX_PROCESS_PER_CALL files (download + parse)
+//   - Persist nextPageToken in integrations.metadata so subsequent
+//     "Sincronizar" clicks pick up where we left off
+//
+// Sprint 3 will replace this with a background queue (cron-driven).
+// =====================================================================
+
+const MAX_PROCESS_PER_CALL = 25 // hard cap on parsed files per sync
+const CONCURRENCY = 3            // parallel download+parse per batch
+
 async function handleSync(admin: any, tenantId: string, integrationId: string, folderId?: string, userId?: string) {
+  if (!userId) {
+    throw new Error('userId is required for sync')
+  }
+
   const ctx = await getAuthContext(admin, tenantId, integrationId)
+
+  // Recover saved pageToken from previous incomplete sync
+  const { data: integrationRow } = await admin
+    .from('integrations')
+    .select('id, metadata')
+    .eq('id', ctx.rowId)
+    .single()
+  const savedPageToken: string | undefined = integrationRow?.metadata?.drive_page_token || undefined
 
   let q = "trashed = false"
   if (folderId) q += ` and '${folderId}' in parents`
   q += ` and (${SUPPORTED_MIMES.map(m => `mimeType = '${m}'`).join(' or ')})`
 
-  console.log(`🔍 Drive query: ${q}`)
+  console.log(`🔍 Drive query: ${q}${savedPageToken ? ' (resuming from saved pageToken)' : ''}`)
 
-  // List 1 page (100 files max) per sync run to stay within CPU/timeout limits
-  // Each file requires download + parse, which is expensive.
-  // Strategy: skip already-synced files whose modifiedTime hasn't changed.
   const params = new URLSearchParams({
     q,
     fields: 'files(id,name,mimeType,modifiedTime,webViewLink,size),nextPageToken',
     pageSize: '100',
   })
+  if (savedPageToken) params.set('pageToken', savedPageToken)
 
   const listUrl = `https://www.googleapis.com/drive/v3/files?${params.toString()}`
   const listResp = await fetchGoogleAuth(ctx, listUrl)
@@ -277,25 +318,37 @@ async function handleSync(admin: any, tenantId: string, integrationId: string, f
     throw new Error(`Drive listing failed: ${errText.slice(0, 200)}`)
   }
   const listData = await listResp.json()
-  const allFiles: any[] = listData.files || []
-  const hasMore = !!listData.nextPageToken
+  const allFiles: DriveFile[] = listData.files || []
+  const nextPageToken: string | undefined = listData.nextPageToken
+  const hasMore = !!nextPageToken
 
   console.log(`📄 Found ${allFiles.length} files (hasMore: ${hasMore})`)
 
-  // Pre-fetch existing rows for this tenant to enable batch lookup + skip-unchanged
-  const fileIds = allFiles.map((f: any) => f.id)
-  const { data: existingRows } = await admin
-    .from('knowledge_base')
-    .select('id, metadata, updated_at')
-    .eq('source', 'google_drive')
-    .eq('tenant_id', tenantId)
-    .filter('metadata->>external_id', 'in', `(${fileIds.map((id: string) => `"${id}"`).join(',')})`)
+  // Pre-fetch existing rows. Sanitize IDs first to prevent any injection
+  // through the manual JSONB filter string.
+  const safeFileIds = allFiles
+    .map((f) => f.id)
+    .filter((id) => DRIVE_ID_PATTERN.test(id))
+  if (safeFileIds.length !== allFiles.length) {
+    console.warn(`⚠️  ${allFiles.length - safeFileIds.length} files had unsafe IDs and were filtered`)
+  }
 
   const existingMap = new Map<string, { id: string, modified_time: string | null }>()
-  for (const row of existingRows || []) {
-    const extId = row.metadata?.external_id
-    if (extId) {
-      existingMap.set(extId, { id: row.id, modified_time: row.metadata?.modified_time || null })
+  if (safeFileIds.length > 0) {
+    // Build the IN clause manually but only with sanitized IDs.
+    // PostgREST .filter() does not natively support .in() over JSONB paths.
+    const inList = safeFileIds.map((id) => `"${id}"`).join(',')
+    const { data: existingRows } = await admin
+      .from('knowledge_base')
+      .select('id, metadata, updated_at')
+      .eq('source', 'google_drive')
+      .eq('tenant_id', tenantId)
+      .filter('metadata->>external_id', 'in', `(${inList})`)
+    for (const row of existingRows || []) {
+      const extId = row.metadata?.external_id
+      if (extId) {
+        existingMap.set(extId, { id: row.id, modified_time: row.metadata?.modified_time || null })
+      }
     }
   }
 
@@ -304,10 +357,15 @@ async function handleSync(admin: any, tenantId: string, integrationId: string, f
   let skippedDocuments = 0
   let unchangedDocuments = 0
   let errorDocuments = 0
+  let deferredDocuments = 0 // files in this page we won't process this call
 
-  // Filter files we actually need to process
-  const filesToProcess: any[] = []
+  // Filter + cap to MAX_PROCESS_PER_CALL
+  const filesToProcess: DriveFile[] = []
   for (const file of allFiles) {
+    if (!DRIVE_ID_PATTERN.test(file.id)) {
+      skippedDocuments++
+      continue
+    }
     if (
       file.mimeType?.startsWith('image/') ||
       file.mimeType?.startsWith('video/') ||
@@ -321,22 +379,27 @@ async function handleSync(admin: any, tenantId: string, integrationId: string, f
       skippedDocuments++
       continue
     }
-    // Skip if already synced AND modifiedTime hasn't changed
     const prev = existingMap.get(file.id)
     if (prev && prev.modified_time === file.modifiedTime) {
       unchangedDocuments++
       continue
     }
+    if (filesToProcess.length >= MAX_PROCESS_PER_CALL) {
+      deferredDocuments++
+      continue
+    }
     filesToProcess.push(file)
   }
 
-  console.log(`🔄 Processing ${filesToProcess.length} files (skipping ${skippedDocuments} non-text, ${unchangedDocuments} unchanged)`)
+  // If we deferred files OR there are more pages, signal hasMore
+  const hasMoreOverall = hasMore || deferredDocuments > 0
 
-  // Process in parallel batches of 5 — balances CPU usage with throughput
-  const CONCURRENCY = 5
+  console.log(`🔄 Processing ${filesToProcess.length} files (skipping ${skippedDocuments} non-text, ${unchangedDocuments} unchanged, ${deferredDocuments} deferred to next call)`)
+
+  // Process in parallel batches — small concurrency to fit CPU budget
   for (let i = 0; i < filesToProcess.length; i += CONCURRENCY) {
     const batch = filesToProcess.slice(i, i + CONCURRENCY)
-    const results = await Promise.allSettled(batch.map((file) => processFile(ctx, admin, tenantId, userId!, file, existingMap)))
+    const results = await Promise.allSettled(batch.map((file) => processFile(ctx, admin, tenantId, userId, file, existingMap)))
     for (const r of results) {
       if (r.status === 'fulfilled') {
         if (r.value === 'new') newDocuments++
@@ -348,13 +411,27 @@ async function handleSync(admin: any, tenantId: string, integrationId: string, f
     }
   }
 
-  const totalDocuments = newDocuments + updatedDocuments + unchangedDocuments
+  const totalProcessed = newDocuments + updatedDocuments
+  const totalSeen = totalProcessed + unchangedDocuments
 
-  console.log(`✅ Sync done — new: ${newDocuments}, updated: ${updatedDocuments}, unchanged: ${unchangedDocuments}, skipped: ${skippedDocuments}, errors: ${errorDocuments}`)
+  console.log(`✅ Sync batch done — new: ${newDocuments}, updated: ${updatedDocuments}, unchanged: ${unchangedDocuments}, skipped: ${skippedDocuments}, deferred: ${deferredDocuments}, errors: ${errorDocuments}, hasMoreOverall: ${hasMoreOverall}`)
+
+  // Persist nextPageToken so the next "Sincronizar" click resumes
+  // from where we left off. Clear it when we finished the listing AND
+  // didn't defer anything in this page.
+  const newMetadata = {
+    ...(integrationRow?.metadata || {}),
+    drive_page_token: hasMoreOverall ? (deferredDocuments > 0 ? savedPageToken || null : nextPageToken || null) : null,
+  }
 
   await admin
     .from('integrations')
-    .update({ last_sync_at: new Date().toISOString(), items_synced: totalDocuments, sync_status: 'idle' })
+    .update({
+      last_sync_at: new Date().toISOString(),
+      items_synced: totalSeen,
+      sync_status: 'idle',
+      metadata: newMetadata,
+    })
     .eq('id', ctx.rowId)
 
   return new Response(
@@ -364,24 +441,28 @@ async function handleSync(admin: any, tenantId: string, integrationId: string, f
       updatedDocuments,
       unchangedDocuments,
       skippedDocuments,
+      deferredDocuments,
       errorDocuments,
-      documentsCount: totalDocuments,
-      hasMore,
-      message: hasMore
-        ? `Procesados ${totalDocuments} archivos. Hay más archivos por sincronizar — dale "Sincronizar" de nuevo.`
-        : `Procesados ${totalDocuments} archivos. Todo al día.`,
+      documentsCount: totalSeen,
+      hasMore: hasMoreOverall,
+      message: hasMoreOverall
+        ? `Procesados ${totalProcessed} archivos en este lote. Hay más por sincronizar — dale "Sincronizar" de nuevo.`
+        : `Procesados ${totalProcessed} archivos. Todo al día.`,
     }),
     { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   )
 }
 
 // Process a single file — download, parse, upsert. Returns 'new' | 'updated' | 'error'.
+//
+// IMPORTANT: existingMap is mutated post-insert so duplicate file.ids in the
+// same batch don't cause UNIQUE constraint violations. Stateless across calls.
 async function processFile(
   ctx: AuthContext,
   admin: any,
   tenantId: string,
   userId: string,
-  file: any,
+  file: DriveFile,
   existingMap: Map<string, { id: string, modified_time: string | null }>,
 ): Promise<'new' | 'updated' | 'error'> {
   try {
@@ -418,12 +499,22 @@ async function processFile(
         console.error(`Update failed for ${file.id} (${file.name}): ${error.message}`)
         return 'error'
       }
+      // Mutate map so a duplicate file.id later in the same batch becomes an UPDATE not an INSERT
+      existingMap.set(file.id, { id: prev.id, modified_time: file.modifiedTime })
       return 'updated'
     } else {
-      const { error } = await admin.from('knowledge_base').insert(payload)
+      const { data: inserted, error } = await admin
+        .from('knowledge_base')
+        .insert(payload)
+        .select('id')
+        .single()
       if (error) {
         console.error(`Insert failed for ${file.id} (${file.name}): ${error.message}`)
         return 'error'
+      }
+      // Mutate map so duplicate file.id later in the same batch becomes UPDATE
+      if (inserted?.id) {
+        existingMap.set(file.id, { id: inserted.id, modified_time: file.modifiedTime })
       }
       return 'new'
     }
@@ -436,7 +527,7 @@ async function processFile(
 // =====================================================================
 // Content extraction — by mime type
 // =====================================================================
-async function extractContent(ctx: AuthContext, file: any): Promise<{ content: string, contentType: string }> {
+async function extractContent(ctx: AuthContext, file: DriveFile): Promise<{ content: string, contentType: string }> {
   const mime = file.mimeType
 
   // Google Workspace native — export as text
