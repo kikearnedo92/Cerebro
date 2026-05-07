@@ -23,7 +23,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { message, useKnowledgeBase, imageData, history } = req.body
+    const { message, useKnowledgeBase, imageData, history, tenantId } = req.body
 
     if (!message?.trim()) {
       return res.status(400).json({ error: 'Message is required' })
@@ -37,43 +37,94 @@ export default async function handler(req, res) {
       })
     }
 
-    // Initialize Supabase (service role for server-side access)
+    const openaiApiKey = process.env.OPENAI_API_KEY
     const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
     let relevantDocs = []
     let sources = []
+    let searchMode = 'none'
 
     // Search knowledge base if enabled and Supabase is configured
     if (useKnowledgeBase && supabaseUrl && supabaseServiceKey) {
       try {
         const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-        // Try semantic search first
-        const { data: searchResults, error: searchError } = await supabase.rpc('search_knowledge_semantic', {
-          query_text: message,
-          project_filter: null,
-          active_only: true,
-          match_count: 8
-        })
+        // ============ Semantic search (preferred path) ============
+        // Generate embedding for the query and use match_knowledge_base_semantic.
+        // Falls back to keyword search if OpenAI unavailable or no tenantId.
+        if (openaiApiKey && tenantId) {
+          try {
+            const embedResp = await fetch('https://api.openai.com/v1/embeddings', {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${openaiApiKey}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                model: 'text-embedding-3-small',
+                input: message.slice(0, 32000),
+                encoding_format: 'float',
+              }),
+            })
+            if (embedResp.ok) {
+              const embedData = await embedResp.json()
+              const queryEmbedding = embedData?.data?.[0]?.embedding
+              if (queryEmbedding) {
+                const vecLiteral = `[${queryEmbedding.join(',')}]`
+                const { data: semantic, error: semErr } = await supabase.rpc('match_knowledge_base_semantic', {
+                  p_tenant_id: tenantId,
+                  p_query_embedding: vecLiteral,
+                  p_match_threshold: 0.4,
+                  p_match_count: 8,
+                })
+                if (!semErr && semantic?.length > 0) {
+                  relevantDocs = semantic.map(d => ({ ...d, relevance_score: d.similarity }))
+                  searchMode = 'semantic'
+                }
+              }
+            } else {
+              console.error('OpenAI embed failed:', embedResp.status, await embedResp.text())
+            }
+          } catch (e) {
+            console.error('Semantic search error:', e?.message || e)
+          }
+        }
 
-        if (!searchError && searchResults?.length > 0) {
-          relevantDocs = searchResults
-        } else {
-          // Fallback to recent docs
-          const { data: recentDocs } = await supabase
+        // ============ Keyword fallback (full-text + ilike) ============
+        if (relevantDocs.length === 0) {
+          let q = supabase
             .from('knowledge_base')
-            .select('id, title, content, project, file_type, created_at')
+            .select('id, title, content, source, file_type, project, metadata, updated_at')
             .eq('active', true)
-            .order('created_at', { ascending: false })
-            .limit(3)
+            .or(`title.ilike.%${message.slice(0, 100)}%,content.ilike.%${message.slice(0, 100)}%`)
+            .limit(8)
+          if (tenantId) q = q.eq('tenant_id', tenantId)
+          const { data: kw } = await q
+          if (kw?.length > 0) {
+            relevantDocs = kw.map(d => ({ ...d, relevance_score: 0.4 }))
+            searchMode = 'keyword'
+          }
+        }
 
-          if (recentDocs) {
-            relevantDocs = recentDocs.map(doc => ({ ...doc, relevance_score: 0.3 }))
+        // ============ Recency fallback (no matches at all) ============
+        if (relevantDocs.length === 0) {
+          let q = supabase
+            .from('knowledge_base')
+            .select('id, title, content, source, file_type, project, metadata, updated_at')
+            .eq('active', true)
+            .order('updated_at', { ascending: false })
+            .limit(3)
+          if (tenantId) q = q.eq('tenant_id', tenantId)
+          const { data: recent } = await q
+          if (recent) {
+            relevantDocs = recent.map(d => ({ ...d, relevance_score: 0.2 }))
+            searchMode = 'recency'
           }
         }
 
         sources = relevantDocs.map(doc => doc.title)
+        console.log(`KB search mode: ${searchMode}, ${relevantDocs.length} docs, tenant ${tenantId || 'none'}`)
       } catch (error) {
         console.error('Knowledge base search error:', error)
       }
