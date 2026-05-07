@@ -1,0 +1,182 @@
+// Cerebro · Customer Feedback Agent
+//
+// Runs daily. Reads new entries from public.waitlist (last 24h),
+// classifies each one as ICP-fit / not-fit using Claude, generates
+// a personalized response draft, and writes a markdown digest to
+// docs/feedback/YYYY-MM-DD.md committed to the repo.
+//
+// Environment variables required (GitHub Actions secrets):
+//   - SUPABASE_URL
+//   - SUPABASE_SERVICE_ROLE_KEY
+//   - ANTHROPIC_API_KEY
+//
+// Run via .github/workflows/customer-feedback-agent.yml
+
+import { writeFileSync, mkdirSync, existsSync } from 'node:fs'
+import { dirname } from 'node:path'
+
+const SUPABASE_URL = process.env.SUPABASE_URL
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
+const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY
+
+if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !ANTHROPIC_API_KEY) {
+  console.error('Missing required env vars')
+  process.exit(1)
+}
+
+const today = new Date().toISOString().slice(0, 10)
+const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString()
+
+// =====================================================================
+// 1. Pull new waitlist entries from Supabase
+// =====================================================================
+async function fetchNewSignups() {
+  const url = `${SUPABASE_URL}/rest/v1/waitlist?created_at=gte.${since}&order=created_at.desc&select=*`
+  const resp = await fetch(url, {
+    headers: {
+      apikey: SUPABASE_SERVICE_ROLE_KEY,
+      Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+    },
+  })
+  if (!resp.ok) {
+    console.error('Supabase fetch failed:', await resp.text())
+    process.exit(1)
+  }
+  return await resp.json()
+}
+
+// =====================================================================
+// 2. Classify each signup using Claude
+// =====================================================================
+async function classifySignup(entry) {
+  const prompt = `Eres analista de Customer Success en Cerebro, una capa de contexto para humanos y agentes IA.
+Cerebro indexa Notion/Drive/Slack/Gmail. ICP: empresas tech-forward de 50–200 empleados en LATAM/España, Heads de Ops/CS/People, Head of AI/CTO.
+
+Evalúa este signup del waitlist:
+- Email: ${entry.email}
+- Empresa: ${entry.company_name || 'N/A'}
+- Tamaño: ${entry.company_size || 'N/A'}
+- Caso de uso: ${entry.use_case || 'N/A'}
+- Referrer: ${entry.referrer || 'N/A'}
+- UTM source: ${entry.utm_source || 'N/A'}
+
+Responde con JSON estricto (sin markdown):
+{
+  "icp_fit": "high" | "medium" | "low",
+  "priority_score": 0-10,
+  "reasoning": "máximo 2 oraciones",
+  "response_draft": "borrador de email de bienvenida personalizado, máximo 4 oraciones, en español, tono cercano profesional. Mencionar 1 cosa específica del use_case. Cerrar invitando a 15 min de demo."
+}`
+
+  const resp = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': ANTHROPIC_API_KEY,
+      'anthropic-version': '2023-06-01',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-5',
+      max_tokens: 1024,
+      messages: [{ role: 'user', content: prompt }],
+    }),
+  })
+
+  if (!resp.ok) {
+    console.error(`Claude classify failed for ${entry.email}:`, await resp.text())
+    return null
+  }
+
+  const data = await resp.json()
+  const text = data?.content?.[0]?.text || ''
+  const jsonMatch = text.match(/\{[\s\S]*\}/)
+  if (!jsonMatch) {
+    console.error(`No JSON in Claude response for ${entry.email}`)
+    return null
+  }
+  try {
+    return JSON.parse(jsonMatch[0])
+  } catch (e) {
+    console.error(`Invalid JSON for ${entry.email}:`, e.message)
+    return null
+  }
+}
+
+// =====================================================================
+// 3. Build markdown digest
+// =====================================================================
+function buildDigest(entries, classifications) {
+  const enriched = entries.map((e, i) => ({ ...e, ...(classifications[i] || {}) }))
+  enriched.sort((a, b) => (b.priority_score || 0) - (a.priority_score || 0))
+
+  const high = enriched.filter((e) => e.icp_fit === 'high')
+  const medium = enriched.filter((e) => e.icp_fit === 'medium')
+  const low = enriched.filter((e) => e.icp_fit === 'low')
+
+  let md = `# Cerebro · Waitlist Digest ${today}\n\n`
+  md += `**${entries.length} signups en las últimas 24h** · 🔥 ${high.length} high-fit · ⚪ ${medium.length} medium-fit · 🟡 ${low.length} low-fit\n\n`
+
+  if (high.length > 0) {
+    md += `## 🔥 High-fit — contacta primero\n\n`
+    for (const e of high) {
+      md += renderEntry(e)
+    }
+  }
+
+  if (medium.length > 0) {
+    md += `## ⚪ Medium-fit\n\n`
+    for (const e of medium) {
+      md += renderEntry(e)
+    }
+  }
+
+  if (low.length > 0) {
+    md += `## 🟡 Low-fit (no urgent)\n\n`
+    for (const e of low) {
+      md += renderEntry(e, true)
+    }
+  }
+
+  md += `\n---\n_Generated by Customer Feedback Agent · ${new Date().toISOString()}_\n`
+  return md
+}
+
+function renderEntry(e, brief = false) {
+  let s = `### ${e.email}\n`
+  s += `- **Empresa:** ${e.company_name || '—'} · **Tamaño:** ${e.company_size || '—'}\n`
+  s += `- **Use case:** ${e.use_case || '—'}\n`
+  s += `- **Score:** ${e.priority_score ?? '—'}/10 · **Razonamiento:** ${e.reasoning || '—'}\n`
+  if (e.utm_source) s += `- **Source:** ${e.utm_source}${e.utm_campaign ? ` / ${e.utm_campaign}` : ''}\n`
+  if (!brief && e.response_draft) {
+    s += `\n**Borrador de respuesta:**\n\n> ${e.response_draft.replace(/\n/g, '\n> ')}\n`
+  }
+  s += `\n`
+  return s
+}
+
+// =====================================================================
+// 4. Main
+// =====================================================================
+console.log(`📊 Customer Feedback Agent · ${today}`)
+const entries = await fetchNewSignups()
+console.log(`Found ${entries.length} new signups`)
+
+if (entries.length === 0) {
+  console.log('No new signups, skipping digest generation')
+  process.exit(0)
+}
+
+console.log('Classifying with Claude...')
+const classifications = []
+for (const e of entries) {
+  const c = await classifySignup(e)
+  classifications.push(c)
+  // small delay to avoid rate limits
+  await new Promise((r) => setTimeout(r, 500))
+}
+
+const md = buildDigest(entries, classifications)
+const path = `docs/feedback/${today}.md`
+mkdirSync(dirname(path), { recursive: true })
+writeFileSync(path, md)
+console.log(`✅ Digest written to ${path}`)
