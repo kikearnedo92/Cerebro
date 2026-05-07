@@ -1,0 +1,35 @@
+name: Growth Agent
+
+on:
+  schedule:
+    - cron: '0 11 * * 1' # 7 AM Chile (UTC-4) Monday — gives full week to post
+  workflow_dispatch:
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run agent
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: node scripts/growth-agent.mjs
+
+      - name: Commit if changed
+        run: |
+          git config user.name "Cerebro Bot"
+          git config user.email "bot@cerebro.app"
+          if [ -n "$(git status --porcelain docs/growth)" ]; then
+            git add docs/growth
+            git commit -m "growth: weekly calendar $(date +%Y-%m-%d)"
+            git push
+          fi
