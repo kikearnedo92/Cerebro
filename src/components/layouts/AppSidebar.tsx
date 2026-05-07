@@ -10,6 +10,7 @@ import {
   Brain,
   LayoutDashboard,
   Plug,
+  Key,
 } from 'lucide-react'
 
 import {
@@ -55,6 +56,7 @@ const AppSidebar = () => {
     { title: 'Chat', url: '/chat', icon: MessageSquare },
     { title: 'Base de Conocimiento', url: '/knowledge', icon: BookOpen },
     { title: 'Integraciones', url: '/integrations', icon: Plug },
+    { title: 'API Keys & MCP', url: '/api-keys', icon: Key },
   ]
 
   const adminItems = [
