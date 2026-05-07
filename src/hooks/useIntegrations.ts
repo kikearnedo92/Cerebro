@@ -241,6 +241,29 @@ export function useIntegrations() {
     const conn = connections.find((c) => c.integration_id === integrationId)
     if (!conn || conn.status !== 'connected') return
 
+    // Slack: Edge Function Supabase
+    if (integrationId === 'slack') {
+      setConnections((prev) =>
+        prev.map((c) => c.integration_id === integrationId ? { ...c, sync_status: 'syncing' as const } : c)
+      )
+      toast({ title: 'Sincronizando Slack...', description: 'Indexando últimos 30 días de canales.' })
+      try {
+        const { data, error } = await supabase.functions.invoke('slack-integration', { body: { action: 'sync' } })
+        if (error) throw new Error(error.message || 'Sync failed')
+        if (data?.success) {
+          toast({ title: 'Sincronización completa', description: data.message || `${data.documentsCount || 0} días indexados.` })
+        } else {
+          throw new Error(data?.error || 'Sync failed')
+        }
+      } catch (err: any) {
+        console.error('Slack sync error:', err)
+        toast({ title: 'Error de sincronización', description: err.message || 'Algo falló.', variant: 'destructive' })
+      } finally {
+        await fetchConnections()
+      }
+      return
+    }
+
     // Caso especial: google_drive / gmail / google_calendar via Edge Function Supabase
     // (no usan endpoint Vercel para no exceder límite de 12 functions)
     if (integrationId === 'google_drive' || integrationId === 'gmail' || integrationId === 'google_calendar') {

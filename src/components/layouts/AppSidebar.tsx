@@ -11,6 +11,7 @@ import {
   LayoutDashboard,
   Plug,
   Key,
+  BarChart3,
 } from 'lucide-react'
 
 import {
@@ -59,6 +60,7 @@ const AppSidebar = () => {
   ]
 
   const adminItems = [
+    { title: 'Uso del workspace', url: '/usage', icon: BarChart3 },
     { title: 'Usuarios', url: '/users', icon: Users },
     { title: 'API Keys & MCP', url: '/api-keys', icon: Key },
     { title: 'Configuracion', url: '/settings', icon: Settings },
