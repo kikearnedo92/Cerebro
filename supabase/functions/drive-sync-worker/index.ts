@@ -24,6 +24,12 @@ const GOOGLE_CLIENT_SECRET = Deno.env.get('GOOGLE_CLIENT_SECRET') ?? ''
 const TOKEN_ENCRYPTION_KEY = Deno.env.get('TOKEN_ENCRYPTION_KEY') ?? ''
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
 
+// Worker auth token — the cron job authenticates with this shared secret.
+// Set in both:
+//   - Supabase Edge Function secrets (supabase secrets set WORKER_AUTH_TOKEN=...)
+//   - GitHub repository secrets (WORKER_AUTH_TOKEN)
+const WORKER_AUTH_TOKEN = Deno.env.get('WORKER_AUTH_TOKEN') ?? ''
+
 const FILES_PER_INVOCATION = 5
 const MAX_ATTEMPTS = 3
 
@@ -278,10 +284,22 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders })
   }
 
-  // Require service_role auth (server-to-server only — no user JWT)
+  // Require WORKER_AUTH_TOKEN — shared secret between cron and worker
+  if (!WORKER_AUTH_TOKEN) {
+    console.error('WORKER_AUTH_TOKEN env var not set')
+    return new Response(JSON.stringify({ error: 'Worker not configured' }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
+  }
   const auth = req.headers.get('Authorization') || ''
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : ''
-  if (token !== SERVICE_ROLE_KEY) {
+  // Constant-time comparison to prevent timing attacks
+  let mismatch = token.length !== WORKER_AUTH_TOKEN.length ? 1 : 0
+  for (let i = 0; i < Math.max(token.length, WORKER_AUTH_TOKEN.length); i++) {
+    mismatch |= (token.charCodeAt(i) || 0) ^ (WORKER_AUTH_TOKEN.charCodeAt(i) || 0)
+  }
+  if (mismatch !== 0) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), {
       status: 401,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

@@ -15,14 +15,14 @@ jobs:
       - name: Invoke drive-sync-worker
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          WORKER_AUTH_TOKEN: ${{ secrets.WORKER_AUTH_TOKEN }}
         run: |
           # Call the worker. It returns 200 even if there's no work to do.
           # We invoke 6 times in a row (every 10s) to effectively process up to
           # 30 files per minute without needing per-second cron.
           for i in 1 2 3 4 5 6; do
             response=$(curl -sS -X POST "$SUPABASE_URL/functions/v1/drive-sync-worker" \
-              -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+              -H "Authorization: Bearer $WORKER_AUTH_TOKEN" \
               -H "Content-Type: application/json" \
               -d '{}' \
               -w "\nHTTP_STATUS:%{http_code}")
