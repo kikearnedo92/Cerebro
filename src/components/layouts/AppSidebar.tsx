@@ -56,11 +56,11 @@ const AppSidebar = () => {
     { title: 'Chat', url: '/chat', icon: MessageSquare },
     { title: 'Base de Conocimiento', url: '/knowledge', icon: BookOpen },
     { title: 'Integraciones', url: '/integrations', icon: Plug },
-    { title: 'API Keys & MCP', url: '/api-keys', icon: Key },
   ]
 
   const adminItems = [
     { title: 'Usuarios', url: '/users', icon: Users },
+    { title: 'API Keys & MCP', url: '/api-keys', icon: Key },
     { title: 'Configuracion', url: '/settings', icon: Settings },
   ]
 

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { Key, Plus, Copy, Trash2, ExternalLink, AlertCircle, CheckCircle2 } from 'lucide-react'
+import { Link, Navigate } from 'react-router-dom'
+import { Key, Plus, Copy, Trash2, ExternalLink, AlertCircle, CheckCircle2, ShieldOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { supabase } from '@/integrations/supabase/client'
@@ -20,7 +20,7 @@ interface ApiKey {
 }
 
 const ApiKeysPage = () => {
-  const { profile } = useAuth()
+  const { profile, isAdmin, isSuperAdmin } = useAuth()
   const [keys, setKeys] = useState<ApiKey[]>([])
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
@@ -43,8 +43,29 @@ const ApiKeysPage = () => {
   }
 
   useEffect(() => {
-    loadKeys()
-  }, [tenantId])
+    if (isAdmin || isSuperAdmin) loadKeys()
+  }, [tenantId, isAdmin, isSuperAdmin])
+
+  // Block non-admins. Even if they hit the URL directly, the RLS policy
+  // (defined in 20260506_tenant_api_keys.sql) blocks INSERT for non-admins,
+  // but better UX to show a clear message.
+  if (!isAdmin && !isSuperAdmin) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-16 text-center">
+        <div className="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-5">
+          <ShieldOff className="w-8 h-8 text-slate-500" />
+        </div>
+        <h1 className="text-2xl font-bold text-slate-900 mb-2">Acceso restringido</h1>
+        <p className="text-slate-500 mb-6">
+          Las API keys del MCP server solo pueden ser administradas por administradores del workspace.
+          Contacta al admin de tu equipo para obtener acceso.
+        </p>
+        <Link to="/app/chat">
+          <Button variant="outline">Volver al chat</Button>
+        </Link>
+      </div>
+    )
+  }
 
   // Generate a random API key client-side, hash it server-side via insert
   const generateKey = async () => {

@@ -1,6 +1,25 @@
+// =====================================================================
+// Cerebro · Google Drive Sync (Edge Function)
+//
+// Strategy: download + parse server-side (no Drive API copy → no need
+// for write scope). Works with read-only OAuth scope.
+//
+// Supported file types:
+//   - Google Workspace (gdoc/gsheet/gslides): export as text via Drive API
+//   - Microsoft Office (.docx/.xlsx/.pptx): download bytes + parse with npm libs
+//   - PDF: download bytes + parse with unpdf
+//   - Plain text/markdown/csv/html: direct download
+//
+// Excluded: image/*, video/*, audio/*
+// =====================================================================
+
 import "https://deno.land/x/xhr@0.1.0/mod.ts"
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import mammoth from 'npm:mammoth@1.6.0'
+import * as XLSX from 'npm:xlsx@0.18.5'
+import { extractText, getDocumentProxy } from 'npm:unpdf@0.12.1'
+import JSZip from 'npm:jszip@3.10.1'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -40,19 +59,14 @@ async function decryptToken(blob: string): Promise<string> {
   const parts = blob.split('.')
   if (parts.length !== 3) throw new Error('Invalid encrypted token format')
   const [ivB64, tagB64, ctB64] = parts
-
   const keyBytes = hexToBytes(TOKEN_ENCRYPTION_KEY)
   const iv = b64ToBytes(ivB64)
   const tag = b64ToBytes(tagB64)
   const ct = b64ToBytes(ctB64)
-
   const ctWithTag = new Uint8Array(ct.length + tag.length)
   ctWithTag.set(ct)
   ctWithTag.set(tag, ct.length)
-
-  const cryptoKey = await crypto.subtle.importKey(
-    'raw', keyBytes, { name: 'AES-GCM' }, false, ['decrypt']
-  )
+  const cryptoKey = await crypto.subtle.importKey('raw', keyBytes, { name: 'AES-GCM' }, false, ['decrypt'])
   const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, cryptoKey, ctWithTag)
   return new TextDecoder().decode(decrypted)
 }
@@ -63,19 +77,16 @@ async function encryptToken(plaintext: string): Promise<string> {
   }
   const keyBytes = hexToBytes(TOKEN_ENCRYPTION_KEY)
   const iv = crypto.getRandomValues(new Uint8Array(12))
-  const cryptoKey = await crypto.subtle.importKey(
-    'raw', keyBytes, { name: 'AES-GCM' }, false, ['encrypt']
-  )
+  const cryptoKey = await crypto.subtle.importKey('raw', keyBytes, { name: 'AES-GCM' }, false, ['encrypt'])
   const enc = new TextEncoder().encode(plaintext)
   const ctBuf = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, cryptoKey, enc))
-  // Web Crypto AES-GCM appends 16-byte tag at end of ciphertext
   const ct = ctBuf.slice(0, ctBuf.length - 16)
   const tag = ctBuf.slice(ctBuf.length - 16)
   return `${bytesToB64(iv)}.${bytesToB64(tag)}.${bytesToB64(ct)}`
 }
 
 // =====================================================================
-// MIME type filters — what Cerebro indexes vs ignores
+// MIME type filters
 // =====================================================================
 const GOOGLE_NATIVE_MIMES = [
   'application/vnd.google-apps.document',
@@ -83,14 +94,14 @@ const GOOGLE_NATIVE_MIMES = [
   'application/vnd.google-apps.presentation',
 ]
 
-const OFFICE_MIMES = [
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',        // .xlsx
-  'application/vnd.openxmlformats-officedocument.presentationml.presentation', // .pptx
-  'application/msword',                                                       // .doc
-  'application/vnd.ms-excel',                                                 // .xls
-  'application/vnd.ms-powerpoint',                                            // .ppt
-]
+const OFFICE_DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+const OFFICE_XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+const OFFICE_PPTX = 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+const OFFICE_DOC = 'application/msword'
+const OFFICE_XLS = 'application/vnd.ms-excel'
+const OFFICE_PPT = 'application/vnd.ms-powerpoint'
+
+const OFFICE_MIMES = [OFFICE_DOCX, OFFICE_XLSX, OFFICE_PPTX, OFFICE_DOC, OFFICE_XLS, OFFICE_PPT]
 
 const PLAIN_MIMES = [
   'text/plain',
@@ -101,23 +112,12 @@ const PLAIN_MIMES = [
 
 const PDF_MIMES = ['application/pdf']
 
-// All supported (positive filter for Drive query)
 const SUPPORTED_MIMES = [
   ...GOOGLE_NATIVE_MIMES,
   ...OFFICE_MIMES,
   ...PLAIN_MIMES,
   ...PDF_MIMES,
 ]
-
-// Conversion map for files that need to be copied as Google Docs to extract text
-const OFFICE_TO_GOOGLE_TARGET: Record<string, string> = {
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'application/vnd.google-apps.document',
-  'application/msword': 'application/vnd.google-apps.document',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'application/vnd.google-apps.spreadsheet',
-  'application/vnd.ms-excel': 'application/vnd.google-apps.spreadsheet',
-  'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'application/vnd.google-apps.presentation',
-  'application/vnd.ms-powerpoint': 'application/vnd.google-apps.presentation',
-}
 
 // =====================================================================
 // Main handler
@@ -234,7 +234,6 @@ async function fetchGoogleAuth(ctx: AuthContext, url: string, opts: RequestInit 
     console.log('🔄 Access token expired, refreshing...')
     const newToken = await refreshGoogleAccessToken(ctx.refreshToken)
     ctx.accessToken = newToken
-    // Persist refreshed token
     try {
       const encrypted = await encryptToken(newToken)
       await ctx.admin
@@ -256,19 +255,16 @@ async function fetchGoogleAuth(ctx: AuthContext, url: string, opts: RequestInit 
 async function handleSync(admin: any, tenantId: string, integrationId: string, folderId?: string, userId?: string) {
   const ctx = await getAuthContext(admin, tenantId, integrationId)
 
-  // Build query — explicit positive list AND explicit exclude of image/video/audio
   let q = "trashed = false"
   if (folderId) q += ` and '${folderId}' in parents`
-
-  // Positive filter — only supported types
   q += ` and (${SUPPORTED_MIMES.map(m => `mimeType = '${m}'`).join(' or ')})`
 
   console.log(`🔍 Drive query: ${q}`)
 
-  // Pagination loop — handle large drives
+  // Pagination
   const allFiles: any[] = []
   let pageToken: string | undefined = undefined
-  const MAX_PAGES = 5 // safety cap → max 500 files per sync run
+  const MAX_PAGES = 5
   let pages = 0
 
   do {
@@ -281,12 +277,10 @@ async function handleSync(admin: any, tenantId: string, integrationId: string, f
 
     const listUrl = `https://www.googleapis.com/drive/v3/files?${params.toString()}`
     const listResp = await fetchGoogleAuth(ctx, listUrl)
-
     if (!listResp.ok) {
       const errText = await listResp.text()
       throw new Error(`Drive listing failed: ${errText.slice(0, 200)}`)
     }
-
     const listData = await listResp.json()
     const files = listData.files || []
     allFiles.push(...files)
@@ -304,7 +298,7 @@ async function handleSync(admin: any, tenantId: string, integrationId: string, f
 
   for (const file of allFiles) {
     try {
-      // Defensive double-check: skip if mime is excluded category
+      // Defensive skip for image/video/audio
       if (
         file.mimeType?.startsWith('image/') ||
         file.mimeType?.startsWith('video/') ||
@@ -314,7 +308,6 @@ async function handleSync(admin: any, tenantId: string, integrationId: string, f
         continue
       }
 
-      // Skip files larger than 25 MB (Drive export limit + cost control)
       const sizeBytes = parseInt(file.size || '0', 10)
       if (sizeBytes > 25 * 1024 * 1024) {
         console.log(`⏭️  Skipping ${file.name} (>25MB)`)
@@ -322,28 +315,14 @@ async function handleSync(admin: any, tenantId: string, integrationId: string, f
         continue
       }
 
-      let content = ''
-      let contentType: 'native' | 'office' | 'pdf' | 'plain' | 'unknown' = 'unknown'
+      const { content, contentType } = await extractContent(ctx, file)
 
-      if (GOOGLE_NATIVE_MIMES.includes(file.mimeType)) {
-        contentType = 'native'
-        const exportMime = file.mimeType === 'application/vnd.google-apps.spreadsheet' ? 'text/csv' : 'text/plain'
-        content = await exportGoogleDoc(ctx, file.id, exportMime)
-      } else if (OFFICE_MIMES.includes(file.mimeType)) {
-        contentType = 'office'
-        // Strategy: copy as Google Doc/Sheet/Slide → export → delete temp
-        content = await convertAndExtract(ctx, file.id, file.mimeType)
-      } else if (file.mimeType === 'application/pdf') {
-        contentType = 'pdf'
-        // Strategy: copy as Google Doc (triggers OCR) → export plain text → delete temp
-        content = await convertAndExtract(ctx, file.id, file.mimeType)
-      } else if (PLAIN_MIMES.includes(file.mimeType)) {
-        contentType = 'plain'
-        content = await downloadFile(ctx, file.id)
-      }
+      const truncatedContent = content.length > 50000
+        ? content.substring(0, 50000) + '... [truncado]'
+        : content
 
-      if (content.length > 50000) content = content.substring(0, 50000) + '... [truncado]'
-
+      // Upsert by (tenant_id, source, metadata->external_id)
+      // Index: knowledge_base_tenant_source_external_uniq (created in migration)
       const { data: existing } = await admin
         .from('knowledge_base')
         .select('id')
@@ -354,7 +333,7 @@ async function handleSync(admin: any, tenantId: string, integrationId: string, f
 
       const payload: any = {
         title: file.name,
-        content: content || `(${contentType}: ${file.name} — sin contenido extraído)`,
+        content: truncatedContent || `(${contentType}: ${file.name} — sin contenido extraído)`,
         project: 'Google Drive',
         file_type: file.mimeType,
         source: 'google_drive',
@@ -378,7 +357,7 @@ async function handleSync(admin: any, tenantId: string, integrationId: string, f
           .update(payload)
           .eq('id', existing.id)
         if (error) {
-          console.error(`Update failed for ${file.id}: ${error.message}`)
+          console.error(`Update failed for ${file.id} (${file.name}): ${error.message}`)
           errorDocuments++
         } else {
           updatedDocuments++
@@ -388,13 +367,13 @@ async function handleSync(admin: any, tenantId: string, integrationId: string, f
         if (!error) {
           newDocuments++
         } else {
-          console.error(`Insert failed for ${file.id}: ${error.message}`)
+          console.error(`Insert failed for ${file.id} (${file.name}): ${error.message}`)
           errorDocuments++
         }
       }
       totalDocuments++
-    } catch (err) {
-      console.error(`Error processing file ${file.id} (${file.name}):`, err)
+    } catch (err: any) {
+      console.error(`Error processing file ${file.id} (${file.name}): ${err.message || err}`)
       errorDocuments++
     }
   }
@@ -420,8 +399,44 @@ async function handleSync(admin: any, tenantId: string, integrationId: string, f
 }
 
 // =====================================================================
-// File extractors
+// Content extraction — by mime type
 // =====================================================================
+async function extractContent(ctx: AuthContext, file: any): Promise<{ content: string, contentType: string }> {
+  const mime = file.mimeType
+
+  // Google Workspace native — export as text
+  if (GOOGLE_NATIVE_MIMES.includes(mime)) {
+    const exportMime = mime === 'application/vnd.google-apps.spreadsheet' ? 'text/csv' : 'text/plain'
+    const text = await exportGoogleDoc(ctx, file.id, exportMime)
+    return { content: text, contentType: 'google-native' }
+  }
+
+  // Plain text / markdown / csv / html
+  if (PLAIN_MIMES.includes(mime)) {
+    const text = await downloadFileAsText(ctx, file.id)
+    return { content: text, contentType: 'plain' }
+  }
+
+  // Office / PDF — download bytes + parse server-side
+  const bytes = await downloadFileAsBytes(ctx, file.id)
+  if (!bytes) return { content: '', contentType: 'unknown' }
+
+  if (mime === OFFICE_DOCX || mime === OFFICE_DOC) {
+    return { content: await parseDocx(bytes), contentType: 'docx' }
+  }
+  if (mime === OFFICE_XLSX || mime === OFFICE_XLS) {
+    return { content: await parseXlsx(bytes), contentType: 'xlsx' }
+  }
+  if (mime === OFFICE_PPTX || mime === OFFICE_PPT) {
+    return { content: await parsePptx(bytes), contentType: 'pptx' }
+  }
+  if (PDF_MIMES.includes(mime)) {
+    return { content: await parsePdf(bytes), contentType: 'pdf' }
+  }
+
+  return { content: '', contentType: 'unsupported' }
+}
+
 async function exportGoogleDoc(ctx: AuthContext, fileId: string, mimeType: string): Promise<string> {
   const url = `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=${encodeURIComponent(mimeType)}`
   const resp = await fetchGoogleAuth(ctx, url)
@@ -432,63 +447,88 @@ async function exportGoogleDoc(ctx: AuthContext, fileId: string, mimeType: strin
   return await resp.text()
 }
 
-async function downloadFile(ctx: AuthContext, fileId: string): Promise<string> {
+async function downloadFileAsText(ctx: AuthContext, fileId: string): Promise<string> {
+  const url = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`
+  const resp = await fetchGoogleAuth(ctx, url)
+  if (!resp.ok) return ''
+  return await resp.text()
+}
+
+async function downloadFileAsBytes(ctx: AuthContext, fileId: string): Promise<Uint8Array | null> {
   const url = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`
   const resp = await fetchGoogleAuth(ctx, url)
   if (!resp.ok) {
     console.error(`Download failed for ${fileId}: ${resp.status}`)
-    return ''
+    return null
   }
-  return await resp.text()
+  const buf = await resp.arrayBuffer()
+  return new Uint8Array(buf)
 }
 
-/**
- * Convert Office file or PDF to a Google Workspace doc by COPYING it (Drive does the conversion),
- * export the text, then delete the temp copy.
- *
- * For PDFs, copying with target=google-apps.document triggers Google's OCR pipeline.
- */
-async function convertAndExtract(ctx: AuthContext, fileId: string, sourceMime: string): Promise<string> {
-  const targetMime = sourceMime === 'application/pdf'
-    ? 'application/vnd.google-apps.document'
-    : OFFICE_TO_GOOGLE_TARGET[sourceMime]
+// ---- Parsers ---------------------------------------------------------
 
-  if (!targetMime) {
-    console.warn(`No conversion target for mime ${sourceMime}`)
-    return `(formato no soportado: ${sourceMime})`
-  }
-
-  // Step 1: copy with target mime
-  const copyResp = await fetchGoogleAuth(ctx, `https://www.googleapis.com/drive/v3/files/${fileId}/copy`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      name: `__cerebro_temp_${Date.now()}`,
-      mimeType: targetMime,
-    }),
-  })
-
-  if (!copyResp.ok) {
-    const errText = await copyResp.text()
-    console.error(`Copy/convert failed for ${fileId}: ${errText.slice(0, 200)}`)
-    return `(no se pudo convertir: ${sourceMime})`
-  }
-
-  const copy = await copyResp.json()
-  const tempId = copy.id
-
+async function parseDocx(bytes: Uint8Array): Promise<string> {
   try {
-    // Step 2: export as text
-    const exportMime = targetMime === 'application/vnd.google-apps.spreadsheet' ? 'text/csv' : 'text/plain'
-    const text = await exportGoogleDoc(ctx, tempId, exportMime)
-    return text
-  } finally {
-    // Step 3: delete the temp copy (best-effort)
-    try {
-      await fetchGoogleAuth(ctx, `https://www.googleapis.com/drive/v3/files/${tempId}`, { method: 'DELETE' })
-    } catch (e) {
-      console.error(`Failed to delete temp ${tempId}:`, e)
+    const result = await mammoth.extractRawText({ buffer: bytes })
+    return result.value || ''
+  } catch (e: any) {
+    console.error(`DOCX parse failed: ${e.message}`)
+    return ''
+  }
+}
+
+async function parseXlsx(bytes: Uint8Array): Promise<string> {
+  try {
+    const wb = XLSX.read(bytes, { type: 'array' })
+    const out: string[] = []
+    for (const sheetName of wb.SheetNames) {
+      const sheet = wb.Sheets[sheetName]
+      const csv = XLSX.utils.sheet_to_csv(sheet)
+      if (csv.trim().length > 0) {
+        out.push(`=== Hoja: ${sheetName} ===\n${csv}`)
+      }
     }
+    return out.join('\n\n')
+  } catch (e: any) {
+    console.error(`XLSX parse failed: ${e.message}`)
+    return ''
+  }
+}
+
+async function parsePptx(bytes: Uint8Array): Promise<string> {
+  // PPTX = zip containing ppt/slides/slide{N}.xml. Extract <a:t> tags = text runs.
+  try {
+    const zip = await JSZip.loadAsync(bytes)
+    const slideFiles: string[] = []
+    zip.forEach((path) => {
+      if (/^ppt\/slides\/slide\d+\.xml$/.test(path)) slideFiles.push(path)
+    })
+    slideFiles.sort()
+
+    const out: string[] = []
+    let i = 1
+    for (const path of slideFiles) {
+      const xml = await zip.file(path)?.async('string') ?? ''
+      const texts = Array.from(xml.matchAll(/<a:t[^>]*>([^<]*)<\/a:t>/g)).map(m => m[1])
+      const slideText = texts.join(' ').trim()
+      if (slideText) out.push(`--- Slide ${i} ---\n${slideText}`)
+      i++
+    }
+    return out.join('\n\n')
+  } catch (e: any) {
+    console.error(`PPTX parse failed: ${e.message}`)
+    return ''
+  }
+}
+
+async function parsePdf(bytes: Uint8Array): Promise<string> {
+  try {
+    const pdf = await getDocumentProxy(bytes)
+    const { text } = await extractText(pdf, { mergePages: true })
+    return Array.isArray(text) ? text.join('\n\n') : (text || '')
+  } catch (e: any) {
+    console.error(`PDF parse failed: ${e.message}`)
+    return ''
   }
 }
 
@@ -518,9 +558,7 @@ async function handleDisconnect(admin: any, tenantId: string, integrationId: str
     if (ctx.accessToken) {
       await fetch(`https://oauth2.googleapis.com/revoke?token=${ctx.accessToken}`, { method: 'POST' }).catch(() => {})
     }
-  } catch (e) {
-    // No token to revoke, OK
-  }
+  } catch {}
 
   await admin
     .from('integrations')
