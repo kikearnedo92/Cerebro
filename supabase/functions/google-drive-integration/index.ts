@@ -26,6 +26,12 @@ function b64ToBytes(b64: string): Uint8Array {
   return out
 }
 
+function bytesToB64(bytes: Uint8Array): string {
+  let bin = ''
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i])
+  return btoa(bin)
+}
+
 async function decryptToken(blob: string): Promise<string> {
   if (!blob) throw new Error('No token to decrypt')
   if (!TOKEN_ENCRYPTION_KEY || TOKEN_ENCRYPTION_KEY.length !== 64) {
@@ -51,6 +57,68 @@ async function decryptToken(blob: string): Promise<string> {
   return new TextDecoder().decode(decrypted)
 }
 
+async function encryptToken(plaintext: string): Promise<string> {
+  if (!TOKEN_ENCRYPTION_KEY || TOKEN_ENCRYPTION_KEY.length !== 64) {
+    throw new Error('TOKEN_ENCRYPTION_KEY missing or invalid')
+  }
+  const keyBytes = hexToBytes(TOKEN_ENCRYPTION_KEY)
+  const iv = crypto.getRandomValues(new Uint8Array(12))
+  const cryptoKey = await crypto.subtle.importKey(
+    'raw', keyBytes, { name: 'AES-GCM' }, false, ['encrypt']
+  )
+  const enc = new TextEncoder().encode(plaintext)
+  const ctBuf = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, cryptoKey, enc))
+  // Web Crypto AES-GCM appends 16-byte tag at end of ciphertext
+  const ct = ctBuf.slice(0, ctBuf.length - 16)
+  const tag = ctBuf.slice(ctBuf.length - 16)
+  return `${bytesToB64(iv)}.${bytesToB64(tag)}.${bytesToB64(ct)}`
+}
+
+// =====================================================================
+// MIME type filters — what Cerebro indexes vs ignores
+// =====================================================================
+const GOOGLE_NATIVE_MIMES = [
+  'application/vnd.google-apps.document',
+  'application/vnd.google-apps.spreadsheet',
+  'application/vnd.google-apps.presentation',
+]
+
+const OFFICE_MIMES = [
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',        // .xlsx
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation', // .pptx
+  'application/msword',                                                       // .doc
+  'application/vnd.ms-excel',                                                 // .xls
+  'application/vnd.ms-powerpoint',                                            // .ppt
+]
+
+const PLAIN_MIMES = [
+  'text/plain',
+  'text/markdown',
+  'text/csv',
+  'text/html',
+]
+
+const PDF_MIMES = ['application/pdf']
+
+// All supported (positive filter for Drive query)
+const SUPPORTED_MIMES = [
+  ...GOOGLE_NATIVE_MIMES,
+  ...OFFICE_MIMES,
+  ...PLAIN_MIMES,
+  ...PDF_MIMES,
+]
+
+// Conversion map for files that need to be copied as Google Docs to extract text
+const OFFICE_TO_GOOGLE_TARGET: Record<string, string> = {
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'application/vnd.google-apps.document',
+  'application/msword': 'application/vnd.google-apps.document',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'application/vnd.google-apps.spreadsheet',
+  'application/vnd.ms-excel': 'application/vnd.google-apps.spreadsheet',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'application/vnd.google-apps.presentation',
+  'application/vnd.ms-powerpoint': 'application/vnd.google-apps.presentation',
+}
+
 // =====================================================================
 // Main handler
 // =====================================================================
@@ -68,11 +136,9 @@ serve(async (req) => {
       { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
     )
 
-    // Get user
     const { data: { user } } = await supabaseClient.auth.getUser()
     if (!user) throw new Error('No autorizado')
 
-    // Get tenant_id from profile
     const adminClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
@@ -110,9 +176,16 @@ serve(async (req) => {
 })
 
 // =====================================================================
-// Get connected row from `integrations` table + decrypt access_token
+// Auth context with refresh-on-401
 // =====================================================================
-async function getConnectedAccessToken(admin: any, tenantId: string, integrationId: string): Promise<{ accessToken: string, refreshToken: string | null, rowId: string }> {
+interface AuthContext {
+  accessToken: string
+  refreshToken: string | null
+  rowId: string
+  admin: any
+}
+
+async function getAuthContext(admin: any, tenantId: string, integrationId: string): Promise<AuthContext> {
   const { data: row, error } = await admin
     .from('integrations')
     .select('id, status, access_token_encrypted, refresh_token_encrypted')
@@ -128,67 +201,148 @@ async function getConnectedAccessToken(admin: any, tenantId: string, integration
   const accessToken = await decryptToken(row.access_token_encrypted)
   const refreshToken = row.refresh_token_encrypted ? await decryptToken(row.refresh_token_encrypted) : null
 
-  return { accessToken, refreshToken, rowId: row.id }
+  return { accessToken, refreshToken, rowId: row.id, admin }
+}
+
+async function refreshGoogleAccessToken(refreshToken: string): Promise<string> {
+  const params = new URLSearchParams({
+    client_id: GOOGLE_CLIENT_ID,
+    client_secret: GOOGLE_CLIENT_SECRET,
+    refresh_token: refreshToken,
+    grant_type: 'refresh_token',
+  })
+  const resp = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: params.toString(),
+  })
+  if (!resp.ok) {
+    const errText = await resp.text()
+    throw new Error(`Token refresh failed: ${errText.slice(0, 200)}`)
+  }
+  const data = await resp.json()
+  if (!data.access_token) throw new Error('Refresh response missing access_token')
+  return data.access_token
+}
+
+async function fetchGoogleAuth(ctx: AuthContext, url: string, opts: RequestInit = {}): Promise<Response> {
+  const headers = new Headers(opts.headers || {})
+  headers.set('Authorization', `Bearer ${ctx.accessToken}`)
+  let resp = await fetch(url, { ...opts, headers })
+
+  if (resp.status === 401 && ctx.refreshToken) {
+    console.log('🔄 Access token expired, refreshing...')
+    const newToken = await refreshGoogleAccessToken(ctx.refreshToken)
+    ctx.accessToken = newToken
+    // Persist refreshed token
+    try {
+      const encrypted = await encryptToken(newToken)
+      await ctx.admin
+        .from('integrations')
+        .update({ access_token_encrypted: encrypted })
+        .eq('id', ctx.rowId)
+    } catch (e) {
+      console.error('Failed to persist refreshed token:', e)
+    }
+    headers.set('Authorization', `Bearer ${newToken}`)
+    resp = await fetch(url, { ...opts, headers })
+  }
+  return resp
 }
 
 // =====================================================================
 // SYNC
 // =====================================================================
 async function handleSync(admin: any, tenantId: string, integrationId: string, folderId?: string, userId?: string) {
-  const { accessToken, rowId } = await getConnectedAccessToken(admin, tenantId, integrationId)
+  const ctx = await getAuthContext(admin, tenantId, integrationId)
 
-  // Build query
-  let q = "mimeType != 'application/vnd.google-apps.folder' and trashed = false"
+  // Build query — explicit positive list AND explicit exclude of image/video/audio
+  let q = "trashed = false"
   if (folderId) q += ` and '${folderId}' in parents`
 
-  const supportedMimeTypes = [
-    'application/vnd.google-apps.document',
-    'application/vnd.google-apps.spreadsheet',
-    'application/vnd.google-apps.presentation',
-    'application/pdf',
-    'text/plain',
-    'text/markdown',
-  ]
-  q += ` and (${supportedMimeTypes.map(m => `mimeType = '${m}'`).join(' or ')})`
+  // Positive filter — only supported types
+  q += ` and (${SUPPORTED_MIMES.map(m => `mimeType = '${m}'`).join(' or ')})`
 
-  const listUrl = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name,mimeType,modifiedTime,webViewLink)&pageSize=100`
-  const listResp = await fetch(listUrl, { headers: { 'Authorization': `Bearer ${accessToken}` } })
+  console.log(`🔍 Drive query: ${q}`)
 
-  if (!listResp.ok) {
-    const errText = await listResp.text()
-    throw new Error(`Drive listing failed: ${errText.slice(0, 200)}`)
-  }
+  // Pagination loop — handle large drives
+  const allFiles: any[] = []
+  let pageToken: string | undefined = undefined
+  const MAX_PAGES = 5 // safety cap → max 500 files per sync run
+  let pages = 0
 
-  const listData = await listResp.json()
-  const files = listData.files || []
-  console.log(`📄 Found ${files.length} files in Drive to sync`)
+  do {
+    const params = new URLSearchParams({
+      q,
+      fields: 'files(id,name,mimeType,modifiedTime,webViewLink,size),nextPageToken',
+      pageSize: '100',
+    })
+    if (pageToken) params.set('pageToken', pageToken)
+
+    const listUrl = `https://www.googleapis.com/drive/v3/files?${params.toString()}`
+    const listResp = await fetchGoogleAuth(ctx, listUrl)
+
+    if (!listResp.ok) {
+      const errText = await listResp.text()
+      throw new Error(`Drive listing failed: ${errText.slice(0, 200)}`)
+    }
+
+    const listData = await listResp.json()
+    const files = listData.files || []
+    allFiles.push(...files)
+    pageToken = listData.nextPageToken
+    pages++
+  } while (pageToken && pages < MAX_PAGES)
+
+  console.log(`📄 Found ${allFiles.length} files across ${pages} page(s)`)
 
   let newDocuments = 0
+  let updatedDocuments = 0
+  let skippedDocuments = 0
+  let errorDocuments = 0
   let totalDocuments = 0
 
-  for (const file of files) {
+  for (const file of allFiles) {
     try {
+      // Defensive double-check: skip if mime is excluded category
+      if (
+        file.mimeType?.startsWith('image/') ||
+        file.mimeType?.startsWith('video/') ||
+        file.mimeType?.startsWith('audio/')
+      ) {
+        skippedDocuments++
+        continue
+      }
+
+      // Skip files larger than 25 MB (Drive export limit + cost control)
+      const sizeBytes = parseInt(file.size || '0', 10)
+      if (sizeBytes > 25 * 1024 * 1024) {
+        console.log(`⏭️  Skipping ${file.name} (>25MB)`)
+        skippedDocuments++
+        continue
+      }
+
       let content = ''
-      if (file.mimeType === 'application/vnd.google-apps.document') {
-        content = await exportGoogleDoc(file.id, accessToken, 'text/plain')
-      } else if (file.mimeType === 'application/vnd.google-apps.spreadsheet') {
-        content = await exportGoogleDoc(file.id, accessToken, 'text/csv')
-      } else if (file.mimeType === 'application/vnd.google-apps.presentation') {
-        content = await exportGoogleDoc(file.id, accessToken, 'text/plain')
-      } else if (file.mimeType === 'text/plain' || file.mimeType === 'text/markdown') {
-        content = await downloadFile(file.id, accessToken)
+      let contentType: 'native' | 'office' | 'pdf' | 'plain' | 'unknown' = 'unknown'
+
+      if (GOOGLE_NATIVE_MIMES.includes(file.mimeType)) {
+        contentType = 'native'
+        const exportMime = file.mimeType === 'application/vnd.google-apps.spreadsheet' ? 'text/csv' : 'text/plain'
+        content = await exportGoogleDoc(ctx, file.id, exportMime)
+      } else if (OFFICE_MIMES.includes(file.mimeType)) {
+        contentType = 'office'
+        // Strategy: copy as Google Doc/Sheet/Slide → export → delete temp
+        content = await convertAndExtract(ctx, file.id, file.mimeType)
       } else if (file.mimeType === 'application/pdf') {
-        content = `(PDF: ${file.name} — extracción de texto pendiente)`
+        contentType = 'pdf'
+        // Strategy: copy as Google Doc (triggers OCR) → export plain text → delete temp
+        content = await convertAndExtract(ctx, file.id, file.mimeType)
+      } else if (PLAIN_MIMES.includes(file.mimeType)) {
+        contentType = 'plain'
+        content = await downloadFile(ctx, file.id)
       }
 
       if (content.length > 50000) content = content.substring(0, 50000) + '... [truncado]'
-
-      // Upsert en knowledge_base usando schema REAL (validado 2026-05-06):
-      // id, title, content, project, file_type, source, active, tenant_id,
-      // created_by, created_at, updated_at, metadata (jsonb)
-      //
-      // No hay external_id ni file_url como columnas → guardamos en metadata jsonb.
-      // Detección de duplicados via metadata->>'external_id'.
 
       const { data: existing } = await admin
         .from('knowledge_base')
@@ -200,7 +354,7 @@ async function handleSync(admin: any, tenantId: string, integrationId: string, f
 
       const payload: any = {
         title: file.name,
-        content: content || '(archivo vacío)',
+        content: content || `(${contentType}: ${file.name} — sin contenido extraído)`,
         project: 'Google Drive',
         file_type: file.mimeType,
         source: 'google_drive',
@@ -213,6 +367,8 @@ async function handleSync(admin: any, tenantId: string, integrationId: string, f
           file_url: file.webViewLink,
           modified_time: file.modifiedTime,
           synced_at: new Date().toISOString(),
+          content_type: contentType,
+          size_bytes: sizeBytes,
         },
       }
 
@@ -221,55 +377,129 @@ async function handleSync(admin: any, tenantId: string, integrationId: string, f
           .from('knowledge_base')
           .update(payload)
           .eq('id', existing.id)
-        if (error) console.error(`Update failed for ${file.id}: ${error.message}`)
+        if (error) {
+          console.error(`Update failed for ${file.id}: ${error.message}`)
+          errorDocuments++
+        } else {
+          updatedDocuments++
+        }
       } else {
         const { error } = await admin.from('knowledge_base').insert(payload)
         if (!error) {
           newDocuments++
         } else {
           console.error(`Insert failed for ${file.id}: ${error.message}`)
+          errorDocuments++
         }
       }
       totalDocuments++
     } catch (err) {
-      console.error(`Error processing file ${file.id}:`, err)
+      console.error(`Error processing file ${file.id} (${file.name}):`, err)
+      errorDocuments++
     }
   }
 
-  // Update last_sync en integrations row
+  console.log(`✅ Sync done — new: ${newDocuments}, updated: ${updatedDocuments}, skipped: ${skippedDocuments}, errors: ${errorDocuments}, total: ${totalDocuments}`)
+
   await admin
     .from('integrations')
     .update({ last_sync_at: new Date().toISOString(), items_synced: totalDocuments, sync_status: 'idle' })
-    .eq('id', rowId)
+    .eq('id', ctx.rowId)
 
   return new Response(
-    JSON.stringify({ success: true, newDocuments, documentsCount: totalDocuments }),
+    JSON.stringify({
+      success: true,
+      newDocuments,
+      updatedDocuments,
+      skippedDocuments,
+      errorDocuments,
+      documentsCount: totalDocuments,
+    }),
     { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   )
 }
 
-async function exportGoogleDoc(fileId: string, accessToken: string, mimeType: string): Promise<string> {
+// =====================================================================
+// File extractors
+// =====================================================================
+async function exportGoogleDoc(ctx: AuthContext, fileId: string, mimeType: string): Promise<string> {
   const url = `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=${encodeURIComponent(mimeType)}`
-  const resp = await fetch(url, { headers: { 'Authorization': `Bearer ${accessToken}` } })
-  if (!resp.ok) return ''
+  const resp = await fetchGoogleAuth(ctx, url)
+  if (!resp.ok) {
+    console.error(`Export failed for ${fileId}: ${resp.status}`)
+    return ''
+  }
   return await resp.text()
 }
 
-async function downloadFile(fileId: string, accessToken: string): Promise<string> {
+async function downloadFile(ctx: AuthContext, fileId: string): Promise<string> {
   const url = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`
-  const resp = await fetch(url, { headers: { 'Authorization': `Bearer ${accessToken}` } })
-  if (!resp.ok) return ''
+  const resp = await fetchGoogleAuth(ctx, url)
+  if (!resp.ok) {
+    console.error(`Download failed for ${fileId}: ${resp.status}`)
+    return ''
+  }
   return await resp.text()
+}
+
+/**
+ * Convert Office file or PDF to a Google Workspace doc by COPYING it (Drive does the conversion),
+ * export the text, then delete the temp copy.
+ *
+ * For PDFs, copying with target=google-apps.document triggers Google's OCR pipeline.
+ */
+async function convertAndExtract(ctx: AuthContext, fileId: string, sourceMime: string): Promise<string> {
+  const targetMime = sourceMime === 'application/pdf'
+    ? 'application/vnd.google-apps.document'
+    : OFFICE_TO_GOOGLE_TARGET[sourceMime]
+
+  if (!targetMime) {
+    console.warn(`No conversion target for mime ${sourceMime}`)
+    return `(formato no soportado: ${sourceMime})`
+  }
+
+  // Step 1: copy with target mime
+  const copyResp = await fetchGoogleAuth(ctx, `https://www.googleapis.com/drive/v3/files/${fileId}/copy`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name: `__cerebro_temp_${Date.now()}`,
+      mimeType: targetMime,
+    }),
+  })
+
+  if (!copyResp.ok) {
+    const errText = await copyResp.text()
+    console.error(`Copy/convert failed for ${fileId}: ${errText.slice(0, 200)}`)
+    return `(no se pudo convertir: ${sourceMime})`
+  }
+
+  const copy = await copyResp.json()
+  const tempId = copy.id
+
+  try {
+    // Step 2: export as text
+    const exportMime = targetMime === 'application/vnd.google-apps.spreadsheet' ? 'text/csv' : 'text/plain'
+    const text = await exportGoogleDoc(ctx, tempId, exportMime)
+    return text
+  } finally {
+    // Step 3: delete the temp copy (best-effort)
+    try {
+      await fetchGoogleAuth(ctx, `https://www.googleapis.com/drive/v3/files/${tempId}`, { method: 'DELETE' })
+    } catch (e) {
+      console.error(`Failed to delete temp ${tempId}:`, e)
+    }
+  }
 }
 
 // =====================================================================
 // LIST FOLDERS
 // =====================================================================
 async function handleListFolders(admin: any, tenantId: string, integrationId: string) {
-  const { accessToken } = await getConnectedAccessToken(admin, tenantId, integrationId)
-  const resp = await fetch(
+  const ctx = await getAuthContext(admin, tenantId, integrationId)
+  const resp = await fetchGoogleAuth(
+    ctx,
     'https://www.googleapis.com/drive/v3/files?q=mimeType%3D%22application%2Fvnd.google-apps.folder%22&fields=files(id,name)&pageSize=100',
-    { headers: { 'Authorization': `Bearer ${accessToken}` } }
   )
   if (!resp.ok) throw new Error('Error listando folders')
   const data = await resp.json()
@@ -283,11 +513,10 @@ async function handleListFolders(admin: any, tenantId: string, integrationId: st
 // DISCONNECT
 // =====================================================================
 async function handleDisconnect(admin: any, tenantId: string, integrationId: string) {
-  // Try to revoke
   try {
-    const { accessToken } = await getConnectedAccessToken(admin, tenantId, integrationId)
-    if (accessToken) {
-      await fetch(`https://oauth2.googleapis.com/revoke?token=${accessToken}`, { method: 'POST' }).catch(() => {})
+    const ctx = await getAuthContext(admin, tenantId, integrationId)
+    if (ctx.accessToken) {
+      await fetch(`https://oauth2.googleapis.com/revoke?token=${ctx.accessToken}`, { method: 'POST' }).catch(() => {})
     }
   } catch (e) {
     // No token to revoke, OK
