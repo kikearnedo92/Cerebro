@@ -261,8 +261,10 @@ interface DriveFile {
   size?: string
 }
 
-// Google Drive file IDs are URL-safe base64-style strings.
-// Defensive validator: only accept alphanumerics, dashes, and underscores.
+// Google Drive file IDs (v3 API) are URL-safe base64-style strings.
+// Spec: https://developers.google.com/drive/api/reference/rest/v3/files#File
+// IDs only use [a-zA-Z0-9_-]. If Google ever changes that, files will be
+// silently filtered — bump this regex when updating the Drive API version.
 const DRIVE_ID_PATTERN = /^[a-zA-Z0-9_-]+$/
 
 // =====================================================================
@@ -271,19 +273,24 @@ const DRIVE_ID_PATTERN = /^[a-zA-Z0-9_-]+$/
 //
 // Per-call budget (Supabase Edge Function CPU limit is ~2s of compute,
 // not wall time, but parsing libs are CPU-intensive):
-//   - List up to 100 files (1 Drive API page)
+//   - List exactly DRIVE_PAGE_SIZE files per Drive API call (no intra-page deferral)
 //   - Skip image/video/audio + files > 25 MB + unchanged-since-last-sync
-//   - Process at most MAX_PROCESS_PER_CALL files (download + parse)
+//   - Process all eligible files in the page in parallel (CONCURRENCY at a time)
 //   - Persist nextPageToken in integrations.metadata so subsequent
 //     "Sincronizar" clicks pick up where we left off
+//
+// Why no intra-page deferral: it caused the page cursor to never advance
+// when filesToProcess.length kept hitting the cap on the same page (Code
+// Reviewer #20 critical bug). Pagination is now Drive-side only.
 //
 // Sprint 3 will replace this with a background queue (cron-driven).
 // =====================================================================
 
-const MAX_PROCESS_PER_CALL = 25 // hard cap on parsed files per sync
-const CONCURRENCY = 3            // parallel download+parse per batch
+const DRIVE_PAGE_SIZE = 25  // small page = predictable CPU per call
+const CONCURRENCY = 3        // parallel download+parse per batch
 
 async function handleSync(admin: any, tenantId: string, integrationId: string, folderId?: string, userId?: string) {
+  // Fail fast before any DB call
   if (!userId) {
     throw new Error('userId is required for sync')
   }
@@ -307,7 +314,7 @@ async function handleSync(admin: any, tenantId: string, integrationId: string, f
   const params = new URLSearchParams({
     q,
     fields: 'files(id,name,mimeType,modifiedTime,webViewLink,size),nextPageToken',
-    pageSize: '100',
+    pageSize: String(DRIVE_PAGE_SIZE),
   })
   if (savedPageToken) params.set('pageToken', savedPageToken)
 
@@ -357,12 +364,17 @@ async function handleSync(admin: any, tenantId: string, integrationId: string, f
   let skippedDocuments = 0
   let unchangedDocuments = 0
   let errorDocuments = 0
-  let deferredDocuments = 0 // files in this page we won't process this call
 
-  // Filter + cap to MAX_PROCESS_PER_CALL
+  // Filter + dedupe by file.id (Drive can return duplicates in edge cases;
+  // duplicates in the same batch with CONCURRENCY > 1 would cause races.)
+  const seenIds = new Set<string>()
   const filesToProcess: DriveFile[] = []
   for (const file of allFiles) {
     if (!DRIVE_ID_PATTERN.test(file.id)) {
+      skippedDocuments++
+      continue
+    }
+    if (seenIds.has(file.id)) {
       skippedDocuments++
       continue
     }
@@ -382,19 +394,15 @@ async function handleSync(admin: any, tenantId: string, integrationId: string, f
     const prev = existingMap.get(file.id)
     if (prev && prev.modified_time === file.modifiedTime) {
       unchangedDocuments++
+      seenIds.add(file.id)
       continue
     }
-    if (filesToProcess.length >= MAX_PROCESS_PER_CALL) {
-      deferredDocuments++
-      continue
-    }
+    seenIds.add(file.id)
     filesToProcess.push(file)
   }
 
-  // If we deferred files OR there are more pages, signal hasMore
-  const hasMoreOverall = hasMore || deferredDocuments > 0
-
-  console.log(`🔄 Processing ${filesToProcess.length} files (skipping ${skippedDocuments} non-text, ${unchangedDocuments} unchanged, ${deferredDocuments} deferred to next call)`)
+  // Pagination is fully Drive-side now — hasMore == nextPageToken exists
+  console.log(`🔄 Processing ${filesToProcess.length} files (skipping ${skippedDocuments}, unchanged ${unchangedDocuments})`)
 
   // Process in parallel batches — small concurrency to fit CPU budget
   for (let i = 0; i < filesToProcess.length; i += CONCURRENCY) {
@@ -414,14 +422,13 @@ async function handleSync(admin: any, tenantId: string, integrationId: string, f
   const totalProcessed = newDocuments + updatedDocuments
   const totalSeen = totalProcessed + unchangedDocuments
 
-  console.log(`✅ Sync batch done — new: ${newDocuments}, updated: ${updatedDocuments}, unchanged: ${unchangedDocuments}, skipped: ${skippedDocuments}, deferred: ${deferredDocuments}, errors: ${errorDocuments}, hasMoreOverall: ${hasMoreOverall}`)
+  console.log(`✅ Sync batch done — new: ${newDocuments}, updated: ${updatedDocuments}, unchanged: ${unchangedDocuments}, skipped: ${skippedDocuments}, errors: ${errorDocuments}, hasMore: ${hasMore}`)
 
   // Persist nextPageToken so the next "Sincronizar" click resumes
-  // from where we left off. Clear it when we finished the listing AND
-  // didn't defer anything in this page.
+  // where we left off. Clear it when listing finished.
   const newMetadata = {
     ...(integrationRow?.metadata || {}),
-    drive_page_token: hasMoreOverall ? (deferredDocuments > 0 ? savedPageToken || null : nextPageToken || null) : null,
+    drive_page_token: hasMore ? nextPageToken : null,
   }
 
   await admin
@@ -441,11 +448,10 @@ async function handleSync(admin: any, tenantId: string, integrationId: string, f
       updatedDocuments,
       unchangedDocuments,
       skippedDocuments,
-      deferredDocuments,
       errorDocuments,
       documentsCount: totalSeen,
-      hasMore: hasMoreOverall,
-      message: hasMoreOverall
+      hasMore,
+      message: hasMore
         ? `Procesados ${totalProcessed} archivos en este lote. Hay más por sincronizar — dale "Sincronizar" de nuevo.`
         : `Procesados ${totalProcessed} archivos. Todo al día.`,
     }),
