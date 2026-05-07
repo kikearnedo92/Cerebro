@@ -11,6 +11,7 @@ import ForgotPasswordPage from './pages/ForgotPasswordPage'
 import ResetPasswordPage from './pages/ResetPasswordPage'
 import PrivacyPage from './pages/PrivacyPage'
 import TermsPage from './pages/TermsPage'
+import WaitlistPage from './pages/WaitlistPage'
 
 // Protected layout & pages
 import AppLayout from './components/layouts/AppLayout'
@@ -52,6 +53,7 @@ function App() {
           <Route path="/auth/reset-password" element={<ResetPasswordPage />} />
           <Route path="/privacy" element={<PrivacyPage />} />
           <Route path="/terms" element={<TermsPage />} />
+          <Route path="/waitlist" element={<WaitlistPage />} />
 
           {/* Protected app routes */}
           <Route path="/app" element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>

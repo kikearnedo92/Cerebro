@@ -59,9 +59,9 @@ const LandingPage = () => {
             <Link to="/auth">
               <Button variant="ghost" size="sm" className="text-[13px] text-slate-600 h-8">Ingresar</Button>
             </Link>
-            <Link to="/auth?mode=signup">
+            <Link to="/waitlist">
               <Button size="sm" className="bg-slate-900 hover:bg-slate-800 text-[13px] h-8 rounded-lg">
-                Probar gratis
+                Acceso anticipado
               </Button>
             </Link>
           </div>
@@ -80,9 +80,9 @@ const LandingPage = () => {
               Cerebro mantiene viva la memoria operativa de tu empresa. Para tu equipo, chat con IA sobre tu info real. Para tus agentes IA, el contexto que necesitan vía API. Un solo producto, dos audiencias.
             </p>
             <div className="flex items-center gap-3 mb-4">
-              <Link to="/auth?mode=signup">
+              <Link to="/waitlist">
                 <Button className="bg-slate-900 hover:bg-slate-800 h-11 px-6 rounded-lg text-sm">
-                  Empezar gratis
+                  Únete a la waitlist
                   <ArrowRight className="ml-2 w-4 h-4" />
                 </Button>
               </Link>
