@@ -16,10 +16,11 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts"
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import mammoth from 'npm:mammoth@1.6.0'
-import * as XLSX from 'npm:xlsx@0.18.5'
-import { extractText, getDocumentProxy } from 'npm:unpdf@0.12.1'
-import JSZip from 'npm:jszip@3.10.1'
+
+// Heavy parsing libs (mammoth ~3MB, xlsx ~2MB, unpdf ~5MB, jszip ~700KB)
+// are imported lazily inside the parser functions, so cold start CPU is
+// only paid when a doc actually needs that lib. This prevents CPU exceeded
+// on syncs that only see Google Workspace native or plain text files.
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -286,8 +287,11 @@ const DRIVE_ID_PATTERN = /^[a-zA-Z0-9_-]+$/
 // Sprint 3 will replace this with a background queue (cron-driven).
 // =====================================================================
 
-const DRIVE_PAGE_SIZE = 25  // small page = predictable CPU per call
-const CONCURRENCY = 3        // parallel download+parse per batch
+// 10 files × ~150ms parse avg ≈ 1.5s wall time (well under 2s CPU cap).
+// Sequential processing — parsing libs are CPU-bound, parallelism does not
+// reduce CPU time (only wall time). Sequential makes the budget predictable.
+const DRIVE_PAGE_SIZE = 10
+const CONCURRENCY = 1
 
 async function handleSync(admin: any, tenantId: string, integrationId: string, folderId?: string, userId?: string) {
   // Fail fast before any DB call
@@ -420,7 +424,6 @@ async function handleSync(admin: any, tenantId: string, integrationId: string, f
   }
 
   const totalProcessed = newDocuments + updatedDocuments
-  const totalSeen = totalProcessed + unchangedDocuments
 
   console.log(`✅ Sync batch done — new: ${newDocuments}, updated: ${updatedDocuments}, unchanged: ${unchangedDocuments}, skipped: ${skippedDocuments}, errors: ${errorDocuments}, hasMore: ${hasMore}`)
 
@@ -431,15 +434,35 @@ async function handleSync(admin: any, tenantId: string, integrationId: string, f
     drive_page_token: hasMore ? nextPageToken : null,
   }
 
+  // Real count from DB — not just this batch. So the "X elementos indexados"
+  // shown in the UI reflects the true total across all sync runs.
+  const { count: totalIndexed } = await admin
+    .from('knowledge_base')
+    .select('*', { count: 'exact', head: true })
+    .eq('source', 'google_drive')
+    .eq('tenant_id', tenantId)
+
   await admin
     .from('integrations')
     .update({
       last_sync_at: new Date().toISOString(),
-      items_synced: totalSeen,
+      items_synced: totalIndexed || 0,
       sync_status: 'idle',
       metadata: newMetadata,
     })
     .eq('id', ctx.rowId)
+
+  // UX-friendly message: distinguish between "did real work" and "just verified up to date"
+  let message: string
+  if (hasMore) {
+    if (totalProcessed > 0) {
+      message = `Indexados ${totalProcessed} nuevos. Total en Cerebro: ${totalIndexed}. Hay más por sincronizar — dale "Sincronizar" de nuevo.`
+    } else {
+      message = `${unchangedDocuments} archivos verificados (sin cambios). Total en Cerebro: ${totalIndexed}. Hay más por sincronizar — dale "Sincronizar" de nuevo.`
+    }
+  } else {
+    message = `Sincronización completa. ${totalIndexed} archivos en Cerebro.`
+  }
 
   return new Response(
     JSON.stringify({
@@ -449,11 +472,10 @@ async function handleSync(admin: any, tenantId: string, integrationId: string, f
       unchangedDocuments,
       skippedDocuments,
       errorDocuments,
-      documentsCount: totalSeen,
+      documentsCount: totalIndexed || 0,
+      totalProcessed,
       hasMore,
-      message: hasMore
-        ? `Procesados ${totalProcessed} archivos en este lote. Hay más por sincronizar — dale "Sincronizar" de nuevo.`
-        : `Procesados ${totalProcessed} archivos. Todo al día.`,
+      message,
     }),
     { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   )
@@ -601,6 +623,7 @@ async function downloadFileAsBytes(ctx: AuthContext, fileId: string): Promise<Ui
 
 async function parseDocx(bytes: Uint8Array): Promise<string> {
   try {
+    const mammoth = (await import('npm:mammoth@1.6.0')).default
     const result = await mammoth.extractRawText({ buffer: bytes })
     return result.value || ''
   } catch (e: any) {
@@ -611,6 +634,7 @@ async function parseDocx(bytes: Uint8Array): Promise<string> {
 
 async function parseXlsx(bytes: Uint8Array): Promise<string> {
   try {
+    const XLSX = await import('npm:xlsx@0.18.5')
     const wb = XLSX.read(bytes, { type: 'array' })
     const out: string[] = []
     for (const sheetName of wb.SheetNames) {
@@ -630,9 +654,10 @@ async function parseXlsx(bytes: Uint8Array): Promise<string> {
 async function parsePptx(bytes: Uint8Array): Promise<string> {
   // PPTX = zip containing ppt/slides/slide{N}.xml. Extract <a:t> tags = text runs.
   try {
+    const JSZip = (await import('npm:jszip@3.10.1')).default
     const zip = await JSZip.loadAsync(bytes)
     const slideFiles: string[] = []
-    zip.forEach((path) => {
+    zip.forEach((path: string) => {
       if (/^ppt\/slides\/slide\d+\.xml$/.test(path)) slideFiles.push(path)
     })
     slideFiles.sort()
@@ -655,6 +680,7 @@ async function parsePptx(bytes: Uint8Array): Promise<string> {
 
 async function parsePdf(bytes: Uint8Array): Promise<string> {
   try {
+    const { extractText, getDocumentProxy } = await import('npm:unpdf@0.12.1')
     const pdf = await getDocumentProxy(bytes)
     const { text } = await extractText(pdf, { mergePages: true })
     return Array.isArray(text) ? text.join('\n\n') : (text || '')
