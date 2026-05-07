@@ -1,0 +1,43 @@
+name: Customer Feedback Agent
+
+# Runs daily at 9 AM Chile (12 UTC). Reads new waitlist entries,
+# classifies them with Claude, generates a markdown digest, commits
+# to docs/feedback/.
+
+on:
+  schedule:
+    - cron: '0 12 * * *' # 9 AM America/Santiago (UTC-3) ≈ 12 UTC
+  workflow_dispatch:
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run agent
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: node scripts/customer-feedback-agent.mjs
+
+      - name: Commit digest if changed
+        run: |
+          git config user.name "Cerebro Bot"
+          git config user.email "bot@cerebro.app"
+          if [ -n "$(git status --porcelain docs/feedback)" ]; then
+            git add docs/feedback
+            git commit -m "feedback: digest $(date +%Y-%m-%d)"
+            git push
+          else
+            echo "No changes to commit"
+          fi
