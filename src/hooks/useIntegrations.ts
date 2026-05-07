@@ -269,11 +269,11 @@ export function useIntegrations() {
         }
 
         if (data?.success) {
-          const desc = data.message
-            || `${data.documentsCount || 0} archivos importados (${data.newDocuments || 0} nuevos${data.updatedDocuments ? `, ${data.updatedDocuments} actualizados` : ''}${data.errorDocuments ? `, ${data.errorDocuments} errores` : ''}).`
+          // New flow: enqueue returns immediately. The progress is reported
+          // via sync_status polling (handled by IntegrationCard).
           toast({
-            title: data.hasMore ? 'Lote sincronizado' : 'Sincronización completa',
-            description: desc,
+            title: 'Sincronización iniciada',
+            description: data.message || `Encolados ${data.enqueued || 0} archivos. Procesando en background.`,
           })
         } else {
           throw new Error(data?.error || 'Sync failed')
