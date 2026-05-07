@@ -1,0 +1,38 @@
+name: Embed Worker
+
+# Runs every 5 minutes. Processes up to 20 rows per invocation × 6 batches = 120 docs/run.
+# At ~$0.02/1M tokens with text-embedding-3-small, embedding 1000 docs ≈ $0.02.
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+jobs:
+  embed:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Invoke embed-worker
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          WORKER_AUTH_TOKEN: ${{ secrets.WORKER_AUTH_TOKEN }}
+        run: |
+          for i in 1 2 3 4 5 6; do
+            response=$(curl -sS -X POST "$SUPABASE_URL/functions/v1/embed-worker" \
+              -H "Authorization: Bearer $WORKER_AUTH_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d '{}' \
+              -w "\nHTTP_STATUS:%{http_code}")
+
+            http_status=$(echo "$response" | grep "HTTP_STATUS" | cut -d':' -f2)
+            body=$(echo "$response" | sed '/HTTP_STATUS/d')
+            processed=$(echo "$body" | grep -o '"processed":[0-9]*' | cut -d':' -f2)
+            echo "Run $i — HTTP $http_status — processed: $processed"
+
+            if [ "$processed" = "0" ]; then
+              echo "No pending embeddings, exiting early"
+              exit 0
+            fi
+
+            if [ "$i" != "6" ]; then sleep 8; fi
+          done

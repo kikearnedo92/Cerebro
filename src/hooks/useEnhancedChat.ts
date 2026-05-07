@@ -26,7 +26,7 @@ export const useEnhancedChat = () => {
   const [isLoading, setIsLoading] = useState(false)
   const [isLoadingConversations, setIsLoadingConversations] = useState(true)
   const [useKnowledgeBase, setUseKnowledgeBase] = useState(true)
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
   const abortControllerRef = useRef<AbortController | null>(null)
 
   // Cargar conversaciones del usuario
@@ -190,7 +190,8 @@ export const useEnhancedChat = () => {
           message: content,
           useKnowledgeBase,
           imageData: selectedImage,
-          history
+          history,
+          tenantId: profile?.tenant_id || null,
         }),
         signal: abortControllerRef.current?.signal
       })
