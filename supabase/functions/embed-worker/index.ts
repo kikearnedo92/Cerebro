@@ -1,10 +1,11 @@
 // =====================================================================
-// Cerebro · Embedding Worker
+// Cerebro · Embedding Worker (Voyage AI)
 //
-// Background job that generates OpenAI embeddings for knowledge_base
-// rows where embedding IS NULL. Invoked by GitHub Actions cron every
-// 5 minutes (and on-demand from drive-sync-worker after inserts).
+// Background job that generates Voyage AI embeddings for knowledge_base
+// rows where embedding IS NULL. Voyage is Anthropic's official embedding
+// partner — keeps the stack consistent with Claude.
 //
+// Model: voyage-3-large (1024 dim, best quality for RAG)
 // Auth: requires WORKER_AUTH_TOKEN in Authorization header.
 // =====================================================================
 
@@ -18,13 +19,13 @@ const corsHeaders = {
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? ''
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY') ?? ''
+const VOYAGE_API_KEY = Deno.env.get('VOYAGE_API_KEY') ?? ''
 const WORKER_AUTH_TOKEN = Deno.env.get('WORKER_AUTH_TOKEN') ?? ''
 
-const EMBED_MODEL = 'text-embedding-3-small'
-const EMBED_DIM = 1536
-const BATCH_SIZE = 20            // OpenAI accepts up to 2048 inputs per call
-const MAX_INPUT_TOKENS = 8000    // text-embedding-3-small limit is 8191
+const EMBED_MODEL = 'voyage-3-large'
+const EMBED_DIM = 1024
+const BATCH_SIZE = 20            // Voyage accepts up to 128 inputs per call
+const MAX_INPUT_TOKENS = 16000   // voyage-3-large context window is 32K — leave headroom
 const CHARS_PER_TOKEN_APPROX = 4
 
 function truncateForEmbedding(s: string): string {
@@ -33,25 +34,26 @@ function truncateForEmbedding(s: string): string {
 }
 
 async function embedBatch(texts: string[]): Promise<number[][]> {
-  const resp = await fetch('https://api.openai.com/v1/embeddings', {
+  const resp = await fetch('https://api.voyageai.com/v1/embeddings', {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${OPENAI_API_KEY}`,
+      Authorization: `Bearer ${VOYAGE_API_KEY}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
       model: EMBED_MODEL,
       input: texts,
-      encoding_format: 'float',
+      input_type: 'document', // documents being indexed (vs 'query' at search time)
+      truncation: true,
     }),
   })
   if (!resp.ok) {
     const errText = await resp.text()
-    throw new Error(`OpenAI embed failed (${resp.status}): ${errText.slice(0, 300)}`)
+    throw new Error(`Voyage embed failed (${resp.status}): ${errText.slice(0, 300)}`)
   }
   const data = await resp.json()
   if (!Array.isArray(data?.data) || data.data.length !== texts.length) {
-    throw new Error('OpenAI returned malformed embedding response')
+    throw new Error('Voyage returned malformed embedding response')
   }
   return data.data.map((d: any) => d.embedding)
 }
@@ -61,7 +63,7 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders })
   }
 
-  // Auth
+  // Auth (constant-time)
   if (!WORKER_AUTH_TOKEN) {
     return new Response(JSON.stringify({ error: 'Worker not configured' }), {
       status: 500,
@@ -81,8 +83,8 @@ serve(async (req) => {
     })
   }
 
-  if (!OPENAI_API_KEY) {
-    return new Response(JSON.stringify({ error: 'OPENAI_API_KEY not set' }), {
+  if (!VOYAGE_API_KEY) {
+    return new Response(JSON.stringify({ error: 'VOYAGE_API_KEY not set' }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
@@ -90,7 +92,6 @@ serve(async (req) => {
 
   const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
-  // Pull batch of rows that need embedding
   const { data: jobs, error } = await admin.rpc('claim_embedding_jobs', { p_limit: BATCH_SIZE })
   if (error) {
     return new Response(JSON.stringify({ error: error.message }), {
@@ -105,9 +106,8 @@ serve(async (req) => {
     })
   }
 
-  console.log(`🧠 Embedding ${jobs.length} rows`)
+  console.log(`🧠 Embedding ${jobs.length} rows with Voyage`)
 
-  // Build inputs: combine title + content. Truncate to fit token limit.
   const inputs = jobs.map((j: any) => truncateForEmbedding(`${j.title || ''}\n\n${j.content || ''}`))
 
   let embeddings: number[][]
@@ -132,7 +132,6 @@ serve(async (req) => {
       continue
     }
 
-    // Format vector for pgvector: '[v1,v2,...]'
     const vecLiteral = `[${emb.join(',')}]`
 
     const { error: updateErr } = await admin

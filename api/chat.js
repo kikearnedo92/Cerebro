@@ -37,7 +37,7 @@ export default async function handler(req, res) {
       })
     }
 
-    const openaiApiKey = process.env.OPENAI_API_KEY
+    const voyageApiKey = process.env.VOYAGE_API_KEY
     const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
@@ -51,20 +51,22 @@ export default async function handler(req, res) {
         const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
         // ============ Semantic search (preferred path) ============
-        // Generate embedding for the query and use match_knowledge_base_semantic.
-        // Falls back to keyword search if OpenAI unavailable or no tenantId.
-        if (openaiApiKey && tenantId) {
+        // Generate embedding for the query with Voyage AI (Anthropic-recommended)
+        // and use match_knowledge_base_semantic. Falls back to keyword search
+        // if Voyage unavailable or no tenantId.
+        if (voyageApiKey && tenantId) {
           try {
-            const embedResp = await fetch('https://api.openai.com/v1/embeddings', {
+            const embedResp = await fetch('https://api.voyageai.com/v1/embeddings', {
               method: 'POST',
               headers: {
-                Authorization: `Bearer ${openaiApiKey}`,
+                Authorization: `Bearer ${voyageApiKey}`,
                 'Content-Type': 'application/json',
               },
               body: JSON.stringify({
-                model: 'text-embedding-3-small',
+                model: 'voyage-3-large',
                 input: message.slice(0, 32000),
-                encoding_format: 'float',
+                input_type: 'query',
+                truncation: true,
               }),
             })
             if (embedResp.ok) {
@@ -84,7 +86,7 @@ export default async function handler(req, res) {
                 }
               }
             } else {
-              console.error('OpenAI embed failed:', embedResp.status, await embedResp.text())
+              console.error('Voyage embed failed:', embedResp.status, await embedResp.text())
             }
           } catch (e) {
             console.error('Semantic search error:', e?.message || e)

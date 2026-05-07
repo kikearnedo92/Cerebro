@@ -11,8 +11,10 @@
 
 CREATE EXTENSION IF NOT EXISTS vector;
 
+-- Voyage AI voyage-3-large with default 1024 dimension (Anthropic-recommended).
+-- If switching providers later: drop and recreate column with new dimension.
 ALTER TABLE public.knowledge_base
-  ADD COLUMN IF NOT EXISTS embedding vector(1536),
+  ADD COLUMN IF NOT EXISTS embedding vector(1024),
   ADD COLUMN IF NOT EXISTS embedding_model text,
   ADD COLUMN IF NOT EXISTS embedded_at timestamptz;
 
@@ -49,7 +51,7 @@ CREATE TRIGGER knowledge_base_invalidate_embedding_trigger
 -- =====================================================================
 CREATE OR REPLACE FUNCTION public.match_knowledge_base_semantic(
   p_tenant_id uuid,
-  p_query_embedding vector(1536),
+  p_query_embedding vector(1024),
   p_match_threshold float DEFAULT 0.5,
   p_match_count int DEFAULT 5
 )
@@ -101,7 +103,7 @@ BEGIN
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION public.match_knowledge_base_semantic(uuid, vector(1536), float, int) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.match_knowledge_base_semantic(uuid, vector(1024), float, int) TO authenticated;
 
 -- =====================================================================
 -- Embedding queue helper — claim N rows that need embedding
@@ -126,7 +128,7 @@ REVOKE EXECUTE ON FUNCTION public.claim_embedding_jobs(int) FROM PUBLIC;
 
 -- ROLLBACK:
 --   DROP FUNCTION IF EXISTS public.claim_embedding_jobs(int);
---   DROP FUNCTION IF EXISTS public.match_knowledge_base_semantic(uuid, vector(1536), float, int);
+--   DROP FUNCTION IF EXISTS public.match_knowledge_base_semantic(uuid, vector(1024), float, int);
 --   DROP TRIGGER IF EXISTS knowledge_base_invalidate_embedding_trigger ON public.knowledge_base;
 --   DROP FUNCTION IF EXISTS public.knowledge_base_invalidate_embedding();
 --   DROP INDEX IF EXISTS public.knowledge_base_embedding_hnsw;
