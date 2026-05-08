@@ -13,6 +13,10 @@ import ResetPasswordPage from './pages/ResetPasswordPage'
 import PrivacyPage from './pages/PrivacyPage'
 import TermsPage from './pages/TermsPage'
 import WaitlistPage from './pages/WaitlistPage'
+import SubprocessorsPage from './pages/SubprocessorsPage'
+import AcceptableUsePage from './pages/AcceptableUsePage'
+import AIDisclosurePage from './pages/AIDisclosurePage'
+import DataExportPage from './pages/DataExportPage'
 
 // Protected layout & pages
 import AppLayout from './components/layouts/AppLayout'
@@ -57,6 +61,9 @@ function App() {
           <Route path="/auth/reset-password" element={<ResetPasswordPage />} />
           <Route path="/privacy" element={<PrivacyPage />} />
           <Route path="/terms" element={<TermsPage />} />
+          <Route path="/aup" element={<AcceptableUsePage />} />
+          <Route path="/subprocessors" element={<SubprocessorsPage />} />
+          <Route path="/ai-disclosure" element={<AIDisclosurePage />} />
           <Route path="/waitlist" element={<WaitlistPage />} />
 
           {/* Protected app routes */}
@@ -71,6 +78,7 @@ function App() {
             <Route path="api-keys" element={<ApiKeysPage />} />
             <Route path="mcp-docs" element={<McpDocsPage />} />
             <Route path="usage" element={<UsageDashboardPage />} />
+            <Route path="data-export" element={<DataExportPage />} />
           </Route>
 
           {/* Super Admin */}
