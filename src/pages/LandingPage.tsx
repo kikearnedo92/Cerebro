@@ -449,8 +449,13 @@ const LandingPage = () => {
             </div>
             <span className="text-sm font-semibold text-slate-900">cerebro</span>
           </div>
-          <div className="flex gap-6 text-xs text-slate-400">
+          <div className="flex flex-wrap gap-x-5 gap-y-2 text-xs text-slate-400 justify-center">
             <Link to="/pricing" className="hover:text-slate-900 transition-colors">Precios</Link>
+            <Link to="/privacy" className="hover:text-slate-900 transition-colors">Privacidad</Link>
+            <Link to="/terms" className="hover:text-slate-900 transition-colors">Términos</Link>
+            <Link to="/aup" className="hover:text-slate-900 transition-colors">Uso aceptable</Link>
+            <Link to="/subprocessors" className="hover:text-slate-900 transition-colors">Subprocesadores</Link>
+            <Link to="/ai-disclosure" className="hover:text-slate-900 transition-colors">Aviso de IA</Link>
             <a href="mailto:hola@usacerebro.com" className="hover:text-slate-900 transition-colors">Contacto</a>
           </div>
           <p className="text-xs text-slate-400">© 2026 Cerebro</p>

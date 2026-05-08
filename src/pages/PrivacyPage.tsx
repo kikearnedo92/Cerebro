@@ -114,8 +114,8 @@ const PrivacyPage = () => {
           <section>
             <h2 className="text-xl font-semibold text-slate-900 mb-3 mt-8">7. Tus derechos</h2>
             <p>
-              De acuerdo con la Ley 19.628 sobre Protección de la Vida Privada (Chile), GDPR (UE)
-              y LGPD (Brasil) en lo que aplica, tienes derecho a:
+              De acuerdo con la <strong>Ley 21.719 sobre Protección de Datos Personales (Chile, vigente desde 1 dic 2026)</strong>,
+              que reemplaza la Ley 19.628, así como GDPR (UE) y LGPD (Brasil) en lo que aplica, tienes derecho a:
             </p>
             <ul className="list-disc list-inside space-y-1 mt-2">
               <li>Acceder a tus datos almacenados</li>
@@ -146,7 +146,10 @@ const PrivacyPage = () => {
             <h2 className="text-xl font-semibold text-slate-900 mb-3 mt-8">9. Transferencias internacionales</h2>
             <p>
               Los datos se almacenan en infraestructura de proveedores ubicada principalmente en
-              Estados Unidos. Al usar el Servicio, aceptas estas transferencias internacionales.
+              Estados Unidos. Cerebro asegura cláusulas contractuales tipo (SCC) con cada
+              subprocesador o equivalente bajo legislación chilena vigente. Lista pública de
+              subprocesadores: <Link to="/subprocessors" className="text-indigo-600 underline">/subprocessors</Link>.
+              Al usar el Servicio, aceptas estas transferencias internacionales.
             </p>
           </section>
 
