@@ -31,5 +31,6 @@ jobs:
           if [ -n "$(git status --porcelain docs/growth)" ]; then
             git add docs/growth
             git commit -m "growth: weekly calendar $(date +%Y-%m-%d)"
+            git pull --rebase origin main
             git push
           fi

@@ -37,6 +37,7 @@ jobs:
           if [ -n "$(git status --porcelain docs/feedback)" ]; then
             git add docs/feedback
             git commit -m "feedback: digest $(date +%Y-%m-%d)"
+            git pull --rebase origin main
             git push
           else
             echo "No changes to commit"

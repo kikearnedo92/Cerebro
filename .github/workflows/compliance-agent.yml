@@ -28,5 +28,6 @@ jobs:
           if [ -n "$(git status --porcelain docs/compliance)" ]; then
             git add docs/compliance
             git commit -m "compliance: weekly report $(date +%Y-%m-%d)"
+            git pull --rebase origin main
             git push
           fi

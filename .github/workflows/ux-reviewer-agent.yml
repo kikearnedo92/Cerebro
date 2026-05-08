@@ -29,5 +29,6 @@ jobs:
           if [ -n "$(git status --porcelain docs/ux)" ]; then
             git add docs/ux
             git commit -m "ux: weekly review $(date +%Y-%m-%d)"
+            git pull --rebase origin main
             git push
           fi
